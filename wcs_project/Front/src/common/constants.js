@@ -3,7 +3,7 @@
 // src/common/constants.js
 // export const BASE_URL = "http://erp-deblu-server:3502";
 // export const BASE_URL = "http://tw-server:3402"; 
-export const BASE_URL = "http://localhost:3502"; 
+export const BASE_URL = "wcs-production.up.railway.app:3502"; 
 export const API_KEY = "SecretKey@TW-EP_WebAPI";
 export const APP_NAME = "LPI";
 export const SYS_NAME = "ระบบควบคุมคลังสินค้า";

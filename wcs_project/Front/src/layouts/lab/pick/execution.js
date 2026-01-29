@@ -452,7 +452,7 @@ const handleDeleteAll = async () => {
         const payload = {
             order_ids: waitingIds,
         };
-console.log("payload",payload);
+
         await WaitingAPI.deleteWaiting(payload);
 
         await Promise.all([
@@ -587,6 +587,9 @@ console.log("payload",payload);
             </MDBox>
         </MDBox>
 
+        {/* --------------------------------------------------
+            เพิ่ม IMPORT
+        --------------------------------------------------- */}
             <MDBox 
             p={2}
             display="flex"
@@ -957,7 +960,7 @@ console.log("payload",payload);
                     <ReusableDataTable
                     columns={columnsWaiting}
                     rows={filteredWaiting}
-                    disableHorizontalScroll
+                    //disableHorizontalScroll
                     idField="order_id"
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
@@ -1338,7 +1341,7 @@ console.log("payload",payload);
                     <ReusableDataTable
                     columns={columnsExecute}
                     rows={filteredExecution}
-                    disableHorizontalScroll
+                    //disableHorizontalScroll
                     idField="order_id"
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedExecutionIds}   // ⭐ รายการที่เลือก

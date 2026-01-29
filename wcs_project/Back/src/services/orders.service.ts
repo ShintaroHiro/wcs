@@ -343,143 +343,142 @@ export class OrdersService {
     }
 
     async delete(
-    order_ids: number[],
-    reqUsername: string,
-    manager?: EntityManager
-): Promise<ApiResponse<void>> {
+        order_ids: number[],
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<void>> {
 
-    const response = new ApiResponse<void>();
-    const operation = 'OrdersService.delete';
+        const response = new ApiResponse<void>();
+        const operation = 'OrdersService.delete';
 
-    if (!order_ids || order_ids.length === 0) {
-        return response.setIncomplete('order_ids is required');
-    }
-
-    const queryRunner = manager ? null : AppDataSource.createQueryRunner();
-    const useManager = manager || queryRunner?.manager;
-
-    if (!useManager) {
-        return response.setIncomplete(
-            lang.msg('validation.no_entityManager_or_queryRunner_available')
-        );
-    }
-
-    if (!manager && queryRunner) {
-        await queryRunner.connect();
-        await queryRunner.startTransaction();
-    }
-
-    try {
-        const repository = useManager.getRepository(Orders);
-
-        // -------------------------------
-        // 1. ดึง order ทั้งหมดที่ต้องการลบ
-        // -------------------------------
-        const orders = await repository.find({
-            where: {
-                order_id: In(order_ids),
-            },
-        });
-
-        // ตรวจว่าครบทุก id ไหม
-        if (orders.length !== order_ids.length) {
-            return response.setIncomplete('Some orders were not found.');
+        if (!order_ids || order_ids.length === 0) {
+            return response.setIncomplete('order_ids is required');
         }
 
-        // ตรวจสอบสถานะ ต้องเป็น WAITING ทุกตัว
-        const invalidOrders = orders.filter(
-            o => o.status !== StatusOrders.WAITING
-        );
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager || queryRunner?.manager;
 
-        if (invalidOrders.length > 0) {
+        if (!useManager) {
             return response.setIncomplete(
-                'Some orders cannot be deleted because they have already started.'
+                lang.msg('validation.no_entityManager_or_queryRunner_available')
             );
         }
 
-        const logService = new OrdersLogService();
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
 
-        // -------------------------------
-        // 2. ลบทีละ order
-        // -------------------------------
-        for (const order of orders) {
+        try {
+            const repository = useManager.getRepository(Orders);
 
-            // LOG DELETE
-            await logService.logTaskEvent(
-                useManager,
-                order,
-                {
-                    actor: reqUsername,
-                    status: StatusOrders.DELETE,
-                }
-            );
+            // -------------------------------
+            // 1. ดึง order ทั้งหมดที่ต้องการลบ
+            // -------------------------------
+            const orders = await repository.find({
+                where: {
+                    order_id: In(order_ids),
+                },
+            });
 
-            // DELETE SUB TABLE BY TYPE
-            switch (order.type) {
-                case TypeInfm.USAGE:
-                    await useManager
-                        .getRepository(OrdersUsage)
-                        .delete({ order_id: order.order_id });
-                    break;
-
-                case TypeInfm.RECEIPT:
-                    await useManager
-                        .getRepository(OrdersReceipt)
-                        .delete({ order_id: order.order_id });
-                    break;
-
-                case TypeInfm.RETURN:
-                    await useManager
-                        .getRepository(OrdersReturn)
-                        .delete({ order_id: order.order_id });
-                    break;
-
-                case TypeInfm.TRANSFER:
-                    await useManager
-                        .getRepository(OrdersTransfer)
-                        .delete({ order_id: order.order_id });
-                    break;
+            // ตรวจว่าครบทุก id ไหม
+            if (orders.length !== order_ids.length) {
+                return response.setIncomplete('Some orders were not found.');
             }
-        }
 
-        // -------------------------------
-        // 3. ลบ main orders ทีเดียว
-        // -------------------------------
-        await repository.remove(orders);
+            // ตรวจสอบสถานะ ต้องเป็น WAITING ทุกตัว
+            const invalidOrders = orders.filter(
+                o => o.status !== StatusOrders.WAITING
+            );
 
-        if (!manager && queryRunner) {
-            await queryRunner.commitTransaction();
-        }
+            if (invalidOrders.length > 0) {
+                return response.setIncomplete(
+                    'Some orders cannot be deleted because they have already started.'
+                );
+            }
 
-        return response.setComplete(
-            lang.msgSuccessAction('deleted', 'item.waiting')
-        );
+            const logService = new OrdersLogService();
 
-    } catch (error: any) {
+            // -------------------------------
+            // 2. ลบทีละ order
+            // -------------------------------
+            for (const order of orders) {
 
-        if (!manager && queryRunner) {
-            await queryRunner.rollbackTransaction();
-        }
+                // LOG DELETE
+                await logService.logTaskEvent(
+                    useManager,
+                    order,
+                    {
+                        actor: reqUsername,
+                        status: StatusOrders.DELETE,
+                    }
+                );
 
-        console.error(`Error during ${operation}:`, error);
+                // DELETE SUB TABLE BY TYPE
+                switch (order.type) {
+                    case TypeInfm.USAGE:
+                        await useManager
+                            .getRepository(OrdersUsage)
+                            .delete({ order_id: order.order_id });
+                        break;
 
-        if (error instanceof QueryFailedError) {
-            return response.setIncomplete(
+                    case TypeInfm.RECEIPT:
+                        await useManager
+                            .getRepository(OrdersReceipt)
+                            .delete({ order_id: order.order_id });
+                        break;
+
+                    case TypeInfm.RETURN:
+                        await useManager
+                            .getRepository(OrdersReturn)
+                            .delete({ order_id: order.order_id });
+                        break;
+
+                    case TypeInfm.TRANSFER:
+                        await useManager
+                            .getRepository(OrdersTransfer)
+                            .delete({ order_id: order.order_id });
+                        break;
+                }
+            }
+
+            // -------------------------------
+            // 3. ลบ main orders ทีเดียว
+            // -------------------------------
+            await repository.remove(orders);
+
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete(
+                lang.msgSuccessAction('deleted', 'item.waiting')
+            );
+
+        } catch (error: any) {
+
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+
+            console.error(`Error during ${operation}:`, error);
+
+            if (error instanceof QueryFailedError) {
+                return response.setIncomplete(
+                    lang.msgErrorFunction(operation, error.message)
+                );
+            }
+
+            throw new Error(
                 lang.msgErrorFunction(operation, error.message)
             );
-        }
 
-        throw new Error(
-            lang.msgErrorFunction(operation, error.message)
-        );
-
-    } finally {
-        if (!manager && queryRunner) {
-            await queryRunner.release();
+        } finally {
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
         }
     }
-}
-
 
     async getAll(manager?: EntityManager): Promise<ApiResponse<any | null>> {
         const response = new ApiResponse<any | null>();

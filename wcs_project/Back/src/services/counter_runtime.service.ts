@@ -9,18 +9,42 @@ export class CounterRuntimeService {
     return this.repo.findOne({ where: { counter_id: counterId } });
   }
 
+  // async ensure(counterId: number, orderId: number) {
+  //   let row = await this.get(counterId);
+  //   if (!row) {
+  //     row = this.repo.create({
+  //       counter_id: counterId,
+  //       order_id: orderId,
+  //       actual_qty: 0,
+  //     });
+  //     await this.repo.save(row);
+  //   }
+  //   return row;
+  // }
+
   async ensure(counterId: number, orderId: number) {
-    let row = await this.get(counterId);
-    if (!row) {
-      row = this.repo.create({
-        counter_id: counterId,
-        order_id: orderId,
-        actual_qty: 0,
-      });
-      await this.repo.save(row);
-    }
+  let row = await this.get(counterId);
+
+  // ยังไม่เคยมี runtime
+  if (!row) {
+    row = this.repo.create({
+      counter_id: counterId,
+      order_id: orderId,
+      actual_qty: 0,
+    });
+    await this.repo.save(row);
     return row;
   }
+
+  // มี runtime อยู่ แต่เป็นคนละ order → reset
+  if (row.order_id !== orderId) {
+    row.order_id = orderId;
+    row.actual_qty = 0;
+    await this.repo.save(row);
+  }
+
+  return row;
+}
 
   async increment(counterId: number, orderId: number) {
     await this.ensure(counterId, orderId);

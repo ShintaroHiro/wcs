@@ -30,7 +30,7 @@ export class Orders {
     @Column({ type: 'int', unsigned: true })
     item_id!: number;
 
-    /** เก็บ group code */
+    /** เก็บ group code เอาไว้ filter ว่า ใครเห็น order ไหน*/
     @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Maintenance contract' })
     mc_code: string | null;
 
@@ -101,7 +101,7 @@ export class Orders {
     @Column({ type: 'int', unsigned: true })
     created_by_user_id: number;
 
-    /** ไอดี user_id ที่ execute order*/
+    /** ไอดี user_id ที่ execute order ไว้กำกับสี คือถ้า user_id เดียวกันให้สีเดียวกัน*/
     @Column({ type: 'int', unsigned: true, nullable: true, })
     executed_by_user_id?: number;
 

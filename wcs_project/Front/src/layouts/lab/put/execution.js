@@ -576,7 +576,10 @@ const PutExecutionPage = () => {
             </MDBox>
             </MDBox>
             
-<MDBox 
+        {/* --------------------------------------------------
+            เพิ่ม IMPORT
+        --------------------------------------------------- */}
+        <MDBox 
             p={2}
             display="flex"
             alignItems="stretch"
@@ -881,7 +884,7 @@ const PutExecutionPage = () => {
                     <ReusableDataTable
                     columns={columnsWaiting}
                     rows={filteredWaiting}
-                    disableHorizontalScroll
+                    //disableHorizontalScroll
                     idField="order_id"
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
@@ -1199,7 +1202,7 @@ const PutExecutionPage = () => {
                     <ReusableDataTable
                     columns={columnsExecute}
                     rows={filteredExecution}
-                    disableHorizontalScroll
+                    //disableHorizontalScroll
                     idField="order_id"
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedExecutionIds}   // ⭐ รายการที่เลือก

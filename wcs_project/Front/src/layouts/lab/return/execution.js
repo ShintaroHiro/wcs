@@ -16,6 +16,8 @@ import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import OrdersAPI from "api/OrdersAPI";
 import ExecutionAPI from "api/TaskAPI";
+import WaitingAPI from "api/WaitingAPI";
+import ImportFileAPI from "api/ImportAPI";
 import SweetAlertComponent from "../components/sweetAlert";
 import { useNavigate } from "react-router-dom";
 import MDButton from "components/MDButton";
@@ -25,6 +27,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import { GlobalVar } from "common/GlobalVar";
 import { normalizeStatus } from "common/utils/statusUtils";
 import StatusBadge from "../components/statusBadge";
+import ButtonComponent from "../components/ButtonComponent";
 
 //store
 const ReturnExecutionPage = () => {
@@ -33,6 +36,11 @@ const ReturnExecutionPage = () => {
 
     const [filteredWaiting, setFilteredWaiting] = useState([]);
     const [filteredExecution, setFilteredExecution] = useState([]);
+
+    // นำเข้า useState หากยังไม่ได้ import
+    const [selectedFile, setSelectedFile] = useState(null);
+    // state สำหรับ key ของ input element เพื่อบังคับ re-mount
+    const [fileInputKey, setFileInputKey] = useState(Date.now());
 
     const [searchWaiting, setSearchWaiting] = useState({ 
         mc_code: "",
@@ -373,6 +381,107 @@ const ReturnExecutionPage = () => {
         }
     };
 
+        // --------------------------------------------------
+        // IMPORT FILE
+        // --------------------------------------------------
+        // ปรับปรุง handleImportFile ให้เก็บไฟล์ที่เลือกไว้ใน state
+        const handleImportFile = (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: "Please select the file before uploading.",
+            });
+            return;
+            }
+        
+            setSelectedFile(file);
+        };
+    
+        // ฟังก์ชันสำหรับส่งไฟล์ที่เลือกไปยัง API
+        const handleSubmitImport = async () => {
+            if (!selectedFile) return;
+            try {
+            const response = await ImportFileAPI.importReturnFile(selectedFile);
+            if (response.isCompleted) {
+                setAlert({
+                show: true,
+                type: "success",
+                title: "Success",
+                message: response.message,
+                });
+                await fetchDataWaitingAll();
+                // เคลียร์ไฟล์ที่เลือก และอัปเดต key เพื่อให้ input re-mount ใหม่
+                setSelectedFile(null);
+                setFileInputKey(Date.now());
+            } else {
+                setAlert({
+                show: true,
+                type: "error",
+                title: "Upload failed",
+                message: response.message,
+                });
+            }
+            } catch (error) {
+            console.error("Error uploading file:", error);
+            }
+        };
+    
+        // ฟังก์ชันสำหรับลบไฟล์ที่เลือก (และรีเซ็ต input)
+        const handleClearFile = () => {
+            setSelectedFile(null);
+            setFileInputKey(Date.now());
+        };
+    
+        
+       const getWaitingOrderIds = () => {
+        return waitingList
+            .filter(r => r.status === "WAITING")
+            .map(r => r.order_id);
+    };
+    
+    const handleDeleteAll = async () => {
+        const waitingIds = getWaitingOrderIds();
+        if (waitingIds.length === 0) return;
+    
+        try {
+            // ✅ payload ให้ตรงกับ backend
+            const payload = {
+                order_ids: waitingIds,
+            };
+    
+            await WaitingAPI.deleteWaiting(payload);
+    
+            await Promise.all([
+                fetchDataWaitingAll(),
+                fetchDataExecuteAll(),
+            ]);
+    
+            setSelectedWaitingIds([]);
+    
+            setAlert({
+                show: true,
+                type: "success",
+                title: "Success",
+                message: "Clear waiting list success",
+            });
+    
+        } catch (err) {
+             console.error("FULL ERROR:", err);
+        console.error("RESPONSE:", err.response);
+        console.error("DATA:", err.response?.data);
+    
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: err.response?.data?.message || "Something went wrong",
+            });
+        }
+    };
+
     // --------------------------------------------------
     // TABLE COLUMNS
     // --------------------------------------------------
@@ -476,6 +585,64 @@ const ReturnExecutionPage = () => {
             </MDBox>
             </MDBox>
 
+        {/* --------------------------------------------------
+            เพิ่ม IMPORT
+        --------------------------------------------------- */}
+        <MDBox 
+            p={2}
+            display="flex"
+            alignItems="stretch"
+            >
+                <Grid mr={2}>
+                 <MDButton
+                variant="contained"
+                color="secondary"
+                onClick={handleDeleteAll}
+                >
+                Delete All
+                </MDButton>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Grid container alignItems="center" justifyContent="flex-end" spacing={2}>
+                  {/* ปุ่มนำเข้าไฟล์เป็นตัวแรก */}
+                  <Grid item>
+                    <MDBox mb={0}>
+                      <MDInput
+                        key={fileInputKey}
+                        type="file"
+                        accept=".xlsx"
+                        style={{ display: "none" }}
+                        id="import-file"
+                        onChange={handleImportFile}
+                      />
+                      <label htmlFor="import-file">
+                        <MDButton variant="contained" component="span" color="warning">
+                          IMPORT
+                        </MDButton>
+                      </label>
+                    </MDBox>
+                  </Grid>
+
+                  {/* เมื่อมีไฟล์แล้วจึงแสดง ชื่อไฟล์ → ปุ่มลบไฟล์ → ปุ่มยืนยัน ถัดไปทางขวา */}
+                  {selectedFile && (
+                    <>
+                      <Grid item>
+                        <MDTypography variant="body2">{selectedFile.name}</MDTypography>
+                      </Grid>
+
+                      <Grid item>
+                        <ButtonComponent onClick={handleClearFile} type="iconDelete" />
+                      </Grid>
+
+                      <Grid item>
+                        <ButtonComponent type="Confirm" onClick={handleSubmitImport} />
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
+              </Grid>
+            </MDBox>
 
         <MDBox mt={1}>
             <Grid container spacing={1.5}>
@@ -790,7 +957,7 @@ const ReturnExecutionPage = () => {
                     <ReusableDataTable
                     columns={columnsWaiting}
                     rows={filteredWaiting}
-                    disableHorizontalScroll
+                    //disableHorizontalScroll
                     idField="order_id"
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
@@ -818,13 +985,7 @@ const ReturnExecutionPage = () => {
                 {/* + Button */}
                 <IconButton
                 color="primary"
-                onClick={() => {
-                    setConfirmMessage(
-                    "Are you sure you want to move this Waiting to Execution?"
-                    );
-                    setConfirmAction(() => handleMoveToExecution);
-                    setConfirmAlert(true);
-                }}
+                onClick={handleMoveToExecution}
                 disabled={selectedWaitingIds.length === 0 || loading}
 
                 sx={{ p: 0.3 }}
@@ -835,13 +996,7 @@ const ReturnExecutionPage = () => {
                 {/* - Button */}
                 <IconButton
                 color="error"
-                onClick={() => {
-                    setConfirmMessage(
-                    "Are you sure you want to move this Execution to Waiting?"
-                    );
-                    setConfirmAction(() => handleDeleteTask);
-                    setConfirmAlert(true);
-                }}
+                onClick={handleDeleteTask}
                 disabled={selectedExecutionIds.length === 0 || loading}
                 sx={{ p: 0.3 }}
                 >
@@ -1183,7 +1338,7 @@ const ReturnExecutionPage = () => {
                     <ReusableDataTable
                     columns={columnsExecute}
                     rows={filteredExecution}
-                    disableHorizontalScroll
+                    //disableHorizontalScroll
                     idField="order_id"
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedExecutionIds}   // ⭐ รายการที่เลือก

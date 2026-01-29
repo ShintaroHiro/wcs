@@ -182,7 +182,7 @@ const CheckOutTPage = () => {
           </span>
         ),
     },
-    { field: "is_confirm", label: "Confirm", type: "confirmSku" },
+    //{ field: "is_confirm", label: "Confirm", type: "confirmSku" },
   ];
 
   const columns = React.useMemo(() => {

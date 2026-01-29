@@ -109,7 +109,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
 app.use(logger('dev'));
-// app.use(express.json());
+
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -129,7 +129,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Use express-fileupload middleware
 app.use(fileUpload());
-//app.use(express.json()); // ต้องใช้ เพื่ออ่านค่า req.body
+// app.use(express.json()); // ต้องใช้ เพื่ออ่านค่า req.body
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 app.use('/', indexRouter);
 app.use('/usertest', usersRouter);

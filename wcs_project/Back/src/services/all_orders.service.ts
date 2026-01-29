@@ -314,11 +314,11 @@ export class AllOrdersService {
                 .leftJoin('orders_return', 'ret', 'ret.order_id = order.order_id')
                 .leftJoin('orders_usage', 'usage', 'usage.usage_id = ret.usage_id')
 
-                // 🔗 usage → inventory
-                .leftJoin('inventory', 'inv', 'inv.inv_id = usage.inv_id')
+                // // 🔗 usage → inventory
+                // .leftJoin('inventory', 'inv', 'inv.inv_id = usage.inv_id')
 
-                // 🔗 inventory → receipt
-                .leftJoin('orders_receipt', 'receipt', 'receipt.receipt_id = inv.receipt_id')
+                // // 🔗 inventory → receipt
+                // .leftJoin('orders_receipt', 'receipt', 'receipt.receipt_id = inv.receipt_id')
 
                 .leftJoin('m_stock_items', 'stock', 'stock.item_id = order.item_id')
                 .leftJoin('m_location', 'loc', 'loc.loc_id = order.loc_id')
@@ -348,11 +348,11 @@ export class AllOrdersService {
                     'order.plan_qty AS plan_qty',
                     'order.actual_qty AS actual_qty',
 
-                    // 💰 cost จาก receipt
-                    'receipt.unit_cost_handled AS unit_cost_handled',
+                    // // 💰 cost จาก receipt
+                    // 'receipt.unit_cost_handled AS unit_cost_handled',
 
-                    // 💰 total cost
-                    '(IFNULL(receipt.unit_cost_handled,0) * IFNULL(order.plan_qty,0)) AS total_cost_handled',
+                    // // 💰 total cost
+                    // '(IFNULL(receipt.unit_cost_handled,0) * IFNULL(order.plan_qty,0)) AS total_cost_handled',
 
                     'order.requested_by AS requested_by',
                     "DATE_FORMAT(order.requested_at, '%d/%m/%Y') AS requested_at",
@@ -456,17 +456,6 @@ export class AllOrdersService {
                 ? manager.getRepository(Orders)
                 : this.ordersRepository;
 
-            // ----------------------------
-            // sub query: inventory_trx summary
-            // ----------------------------
-            const trxSubQuery = repository
-                .createQueryBuilder()
-                .select('trx.order_id', 'order_id')
-                .addSelect('SUM(trx.total_cost * -1)', 'sum_total_cost')
-                .addSelect('SUM(ABS(trx.qty))', 'sum_qty')
-                .from('inventory_trx', 'trx')
-                .groupBy('trx.order_id');
-
             const query = repository
                 .createQueryBuilder('order')
 
@@ -494,53 +483,43 @@ export class AllOrdersService {
                 )
 
                 // ----------------------------
-                // RECEIPT / TRANSFER
+                // RECEIPT
                 // ----------------------------
                 .leftJoin(
                     'orders_receipt',
                     'receipt',
                     `receipt.order_id = order.order_id AND order.type = 'RECEIPT'`
                 )
-                .leftJoin(
-                    'orders_transfer',
-                    'transfer',
-                    `transfer.order_id = order.order_id AND order.type = 'TRANSFER'`
-                )
 
                 // ----------------------------
                 // master data
                 // ----------------------------
-                .leftJoin('m_stock_items', 'stock', 'stock.item_id = order.item_id')
+                .leftJoin(
+                    'm_stock_items',
+                    'stock',
+                    'stock.item_id = order.item_id'
+                )
 
-                // to location
                 .leftJoin(
                     'm_location',
-                    'loc_to',
-                    'loc_to.loc_id = order.loc_id'
+                    'loc',
+                    'loc.loc_id = order.loc_id'
                 )
-
-                // from location (transfer)
-                .leftJoin(
-                    'm_location',
-                    'loc_from',
-                    'loc_from.loc_id = transfer.from_loc_id'
-                )
-
-                // trx summary
-                .leftJoin(
-                    '(' + trxSubQuery.getQuery() + ')',
-                    'trx_sum',
-                    'trx_sum.order_id = order.order_id'
-                )
-                .setParameters(trxSubQuery.getParameters())
 
                 // ----------------------------
                 // SELECT
                 // ----------------------------
                 .select([
+
                     'order.order_id AS order_id',
-                    'order.mc_code AS mc_code',
                     'order.type AS type',
+                    'order.mc_code AS mc_code',
+                    'order.cond AS cond',
+                    'order.status AS status',
+                    'order.plan_qty AS plan_qty',
+                    'order.actual_qty AS actual_qty',
+                    'order.item_id AS item_id',
+                    'order.loc_id AS loc_id',
 
                     // ----------------------------
                     // usage info (USAGE / RETURN)
@@ -553,15 +532,6 @@ export class AllOrdersService {
                             THEN usage_from_return.work_order
                         ELSE NULL
                     END AS work_order
-                    `,
-                    `
-                    CASE
-                        WHEN order.type = 'USAGE'
-                            THEN usage_direct.usage_id
-                        WHEN order.type = 'RETURN'
-                            THEN usage_from_return.usage_id
-                        ELSE NULL
-                    END AS usage_id
                     `,
                     `
                     CASE
@@ -591,66 +561,55 @@ export class AllOrdersService {
                     END AS usage_line
                     `,
 
-                    // receipt
+                    // ----------------------------
+                    // receipt info
+                    // ----------------------------
                     'receipt.po_num AS po_num',
                     'receipt.object_id AS object_id',
 
-                    "DATE_FORMAT(order.requested_at, '%d/%m/%Y') AS requested_at",
-
-                    'stock.item_id AS item_id',
+                    // ----------------------------
+                    // item
+                    // ----------------------------
                     'stock.stock_item AS stock_item',
                     'stock.item_desc AS item_desc',
 
-                    'order.cond AS cond',
-                    'order.store_type AS store_type',
-                    'order.plan_qty AS plan_qty',
-                    'order.actual_qty AS actual_qty',
-                    'order.status AS status',
-
                     // ----------------------------
-                    // FROM location
+                    // location
                     // ----------------------------
                     `
                     CASE
                         WHEN order.type = 'USAGE'
-                            THEN loc_to.loc
-                        WHEN order.type = 'TRANSFER'
-                            THEN loc_from.loc
+                            THEN loc.loc
                         ELSE NULL
                     END AS from_loc
                     `,
                     `
                     CASE
                         WHEN order.type = 'USAGE'
-                            THEN loc_to.box_loc
-                        WHEN order.type = 'TRANSFER'
-                            THEN loc_from.box_loc
+                            THEN loc.box_loc
                         ELSE NULL
                     END AS from_box_loc
                     `,
-
-                    // ----------------------------
-                    // TO location
-                    // ----------------------------
                     `
                     CASE
-                        WHEN order.type IN ('RECEIPT','RETURN','TRANSFER')
-                            THEN loc_to.loc
+                        WHEN order.type IN ('RECEIPT','RETURN')
+                            THEN loc.loc
                         ELSE NULL
                     END AS to_loc
                     `,
                     `
                     CASE
-                        WHEN order.type IN ('RECEIPT','RETURN','TRANSFER')
-                            THEN loc_to.box_loc
+                        WHEN order.type IN ('RECEIPT','RETURN')
+                            THEN loc.box_loc
                         ELSE NULL
                     END AS to_box_loc
                     `,
 
+                    "DATE_FORMAT(order.requested_at, '%d/%m/%Y') AS requested_at",
                 ])
 
                 // ----------------------------
-                // order by
+                // order by (เหมือนเดิม)
                 // ----------------------------
                 .orderBy(`
                     CASE
@@ -661,11 +620,10 @@ export class AllOrdersService {
                         ELSE 2
                     END
                 `, 'ASC')
-                .addOrderBy('order.requested_at', 'ASC')
-                .cache(false);
+                .addOrderBy('order.requested_at', 'ASC');
 
             // ----------------------------
-            // filters
+            // filters (เหมือนเดิม)
             // ----------------------------
             if (options?.isExecution === true) {
                 query.andWhere('order.status = :waiting', {
@@ -702,37 +660,27 @@ export class AllOrdersService {
             }
 
             // ----------------------------
-            // normalize
+            // normalize (ใส่ - ให้ฟิลด์ที่ไม่มี)
             // ----------------------------
-            const cleanedData = rawData.map((item: any) => {
-                const planQty = Number(item.plan_qty || 0);
-                // const isCapital = item.cond === 'CAPITAL';
-                // const isNew = item.cond === 'NEW';
-                // const isRecond = item.cond === 'RECOND';
+            const cleanedData = rawData.map((item: any) => ({
+                ...item,
 
-                return {
-                    ...item,
-                    from_loc: item.from_loc ?? "-",
-                    from_box_loc: item.from_box_loc ?? "-",
-                    to_loc: item.to_loc ?? "-",
-                    to_box_loc: item.to_box_loc ?? "-",
+                from_loc: item.from_loc ?? '-',
+                from_box_loc: item.from_box_loc ?? '-',
+                to_loc: item.to_loc ?? '-',
+                to_box_loc: item.to_box_loc ?? '-',
 
-                    spr_no: item.spr_no ?? "-",
-                    work_order: item.work_order ?? "-",
-                    usage_num: item.usage_num ?? "-",
-                    usage_line: item.usage_line ?? "-",
-                    po_num: item.po_num ?? "-",
-                    object_id: item.object_id ?? "-",
+                work_order: item.work_order ?? '-',
+                spr_no: item.spr_no ?? '-',
+                usage_num: item.usage_num ?? '-',
+                usage_line: item.usage_line ?? '-',
 
-                    plan_qty: planQty,
-                    actual_qty: Number(item.actual_qty || 0),
+                po_num: item.po_num ?? '-',
+                object_id: item.object_id ?? '-',
 
-                    // capital_qty: isCapital ? planQty : 0,
-                    // new_qty: isNew ? planQty : 0,
-                    // recond_qty: isRecond ? planQty : 0,
-
-                };
-            });
+                plan_qty: Number(item.plan_qty || 0),
+                actual_qty: Number(item.actual_qty || 0),
+            }));
 
             return response.setComplete(
                 lang.msgFound('field.order'),
@@ -751,5 +699,6 @@ export class AllOrdersService {
             throw error;
         }
     }
+
 
 }

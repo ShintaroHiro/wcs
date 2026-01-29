@@ -19,89 +19,242 @@ export class CounterService {
     ): Promise<ApiResponse<any | null>> {
 
         const response = new ApiResponse<any | null>();
-        const operation = 'CounterService.getOrderAllByUser';
+        const operation = 'OrderService.getOrderAllByUser';
 
         try {
-            const repository = manager
-                ? manager.getRepository(Counter)
-                : AppDataSource.getRepository(Counter);
+            const orderRepo = manager
+                ? manager.getRepository(Orders)
+                : AppDataSource.getRepository(Orders);
 
-            const qb = repository
-                .createQueryBuilder('counter')
+            const qb = orderRepo
+                .createQueryBuilder('order')
 
-                .innerJoin(
-                    Orders,
-                    'order',
-                    'order.order_id = counter.current_order_id'
+                /* =======================
+                * counter
+                * ======================= */
+                .leftJoin(
+                    Counter,
+                    'counter',
+                    'counter.current_order_id = order.order_id'
                 )
 
-                // 🔵 USAGE → join ตรง
+                /* =======================
+                * USAGE
+                * ======================= */
                 .leftJoin(
                     'orders_usage',
                     'usage',
                     'usage.order_id = order.order_id AND order.type = \'USAGE\''
                 )
 
-                // 🟣 RETURN → เอา usage_id มาก่อน
+                /* =======================
+                * RECEIPT
+                * ======================= */
+                .leftJoin(
+                    'orders_receipt',
+                    'receipt',
+                    'receipt.order_id = order.order_id AND order.type = \'RECEIPT\''
+                )
+
+                /* =======================
+                * RETURN → usage เดิม
+                * ======================= */
                 .leftJoin(
                     'orders_return',
                     'ret',
                     'ret.order_id = order.order_id AND order.type = \'RETURN\''
                 )
-
-                // 🟣 RETURN → join usage อีกครั้งด้วย usage_id
                 .leftJoin(
                     'orders_usage',
                     'usage_ret',
                     'usage_ret.usage_id = ret.usage_id'
                 )
 
+                /* =======================
+                * stock & location
+                * ======================= */
                 .leftJoin('m_stock_items', 'stock', 'stock.item_id = order.item_id')
                 .leftJoin('m_location', 'loc', 'loc.loc_id = order.loc_id')
 
+                /* =======================
+                * SELECT
+                * ======================= */
                 .select([
-                    'counter.counter_id AS counter_id',
-                    'counter.light_color_hex AS counter_color',
-
+                    /* order */
                     'order.order_id AS order_id',
-                    'order.mc_code AS mc_code',
                     'order.type AS type',
-
-                    // ⭐ work_order ตาม type
-                    `
-                    CASE
-                        WHEN order.type = 'USAGE'
-                            THEN usage.work_order
-                        WHEN order.type = 'RETURN'
-                            THEN usage_ret.work_order
-                        ELSE NULL
-                    END AS work_order
-                    `,
-                    `
-                    CASE
-                        WHEN order.type = 'USAGE'
-                            THEN usage.spr_no
-                        WHEN order.type = 'RETURN'
-                            THEN usage_ret.spr_no
-                        ELSE NULL
-                    END AS spr_no
-                    `,
-
-                    'stock.item_id AS item_id',
-                    'stock.stock_item AS stock_item',
+                    'order.mc_code AS mc_code',
                     'order.cond AS cond',
                     'order.status AS status',
                     'order.plan_qty AS plan_qty',
                     'order.actual_qty AS actual_qty',
-                    "DATE_FORMAT(order.requested_at, '%d/%m/%Y') AS requested_at",
+                    'order.item_id AS item_id',
+                    'order.loc_id AS loc_id',
+                    'order.requested_at AS requested_at',
+
+                    /* counter */
+                    `COALESCE(counter.counter_id, '-') AS counter_id`,
+                    `COALESCE(counter.light_color_hex, '-') AS counter_color`,
+
+                    /* USAGE / RETURN */
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'USAGE'
+                                THEN usage.work_order
+                            WHEN order.type = 'RETURN'
+                                THEN usage_ret.work_order
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS work_order
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'USAGE'
+                                THEN usage.spr_no
+                            WHEN order.type = 'RETURN'
+                                THEN usage_ret.spr_no
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS spr_no
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'USAGE'
+                                THEN usage.usage_num
+                            WHEN order.type = 'RETURN'
+                                THEN usage_ret.usage_num
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS usage_num
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'USAGE'
+                                THEN usage.usage_line
+                            WHEN order.type = 'RETURN'
+                                THEN usage_ret.usage_line
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS usage_line
+                    `,
+
+                    /* RECEIPT */
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'RECEIPT'
+                                THEN receipt.po_num
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS po_num
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'RECEIPT'
+                                THEN receipt.object_id
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS object_id
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'RECEIPT'
+                                THEN receipt.unit_cost_handled
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS unit_cost_handled
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'RECEIPT'
+                                THEN (receipt.unit_cost_handled * order.plan_qty)
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS total_cost_handled
+                    `,
+
+                    /* stock */
+                    `COALESCE(stock.stock_item, '-') AS stock_item`,
+                    `COALESCE(stock.item_desc, '-') AS item_desc`,
+
+                    /* location */
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'USAGE'
+                                THEN loc.loc
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS from_loc
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type = 'USAGE'
+                                THEN loc.box_loc
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS from_box_loc
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type IN ('RECEIPT','RETURN')
+                                THEN loc.loc
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS to_loc
+                    `,
+                    `
+                    COALESCE(
+                        CASE
+                            WHEN order.type IN ('RECEIPT','RETURN')
+                                THEN loc.box_loc
+                            ELSE NULL
+                        END,
+                        '-'
+                    ) AS to_box_loc
+                    `,
                 ])
 
-                .where('counter.status <> :emptyStatus', { emptyStatus: 'EMPTY' })
-                .orderBy('counter.counter_id', 'ASC');
+                /* =======================
+                * WHERE
+                * ======================= */
+                .where('order.status IN (:...statuses)', {
+                    statuses: ['PROCESSING', 'QUEUE'],
+                });
 
+            /* filter user */
             if (userId) {
                 qb.andWhere('order.executed_by_user_id = :userId', { userId });
             }
+
+            /* =======================
+            * ORDER BY
+            * ======================= */
+            qb.orderBy(
+                'CASE WHEN counter.counter_id IS NOT NULL THEN 0 ELSE 1 END',
+                'ASC'
+            )
+            .addOrderBy('order.requested_at', 'ASC');
 
             const rawData = await qb.getRawMany();
 
@@ -109,16 +262,9 @@ export class CounterService {
                 return response.setIncomplete(lang.msgNotFound('field.orders'));
             }
 
-            const cleanedData = rawData.map((item: any) => ({
-                ...item,
-                actual_qty: Number(item.actual_qty || 0),
-                work_order: item.work_order ?? '-',
-                spr_no: item.spr_no ?? '-',
-            }));
-
             return response.setComplete(
                 lang.msgFound('field.orders'),
-                cleanedData
+                rawData
             );
 
         } catch (error: any) {
@@ -246,14 +392,14 @@ export class CounterService {
                 .leftJoin(
                     OrdersReceipt,
                     'receipt',
-                    'receipt.order_id = order.order_id'
+                    "receipt.order_id = order.order_id AND order.type = 'RECEIPT'"
                 )
 
                 // ===== TRANSFER =====
                 .leftJoin(
                     OrdersTransfer,
                     'transfer',
-                    'transfer.order_id = order.order_id'
+                    "transfer.order_id = order.order_id AND order.type = 'TRANSFER'"
                 )
 
                 // ===== ITEM =====

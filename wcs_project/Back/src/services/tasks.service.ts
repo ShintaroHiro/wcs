@@ -383,7 +383,6 @@ export class OrchestratedTaskService {
         order_id: number,
         actual_qty: number,
         reqUsername: string,
-        inv_id?: number,
         manager?: EntityManager
     ): Promise<ApiResponse<any>> {
         const response = new ApiResponse<any>();
@@ -463,27 +462,13 @@ export class OrchestratedTaskService {
             //-----------------------------------
             const invService = new InventoryService();
 
-            let requiredInvId: number | undefined;
-
-const needInv =
-    order.type === TypeInfm.USAGE
-
-if (needInv) {
-    if (inv_id == null) {
-        return response.setIncomplete(
-            `inv_id is required for order type ${order.type}`
-        );
-    }
-    requiredInvId = inv_id; // 🔥 ตรงนี้สำคัญมาก
-}
-
             switch (order.type) {
                 case TypeInfm.RECEIPT:
                     await invService.receipt(useManager, order);
                     break;
 
                 case TypeInfm.USAGE:
-                    await invService.usage(useManager, order, requiredInvId!);
+                    await invService.usage(useManager, order);
                     break;
 
                 case TypeInfm.TRANSFER:
@@ -619,7 +604,6 @@ if (needInv) {
         order_id: number,
         actual_qty: number,
         reqUsername: string,
-        inv_id?: number,
         manager?: EntityManager
     ): Promise<ApiResponse<any>> {
 
@@ -703,16 +687,6 @@ if (needInv) {
             //-----------------------------------
             const invService = new InventoryService();
 
-            const needInv =
-                order.type === TypeInfm.USAGE ||
-                order.type === TypeInfm.RETURN;
-
-            if (needInv && inv_id == null) {
-                return response.setIncomplete(
-                    `inv_id is required for order type ${order.type}`
-                );
-            }
-
             try {
                 switch (order.type) {
                     case TypeInfm.RECEIPT:
@@ -720,12 +694,12 @@ if (needInv) {
                         break;
 
                     case TypeInfm.USAGE:
-                        await invService.usage(useManager, order, inv_id!);
+                        await invService.usage(useManager, order);
                         break;
 
-                    case TypeInfm.RETURN:
-                        await invService.return(useManager, order, inv_id!);
-                        break;
+                    // case TypeInfm.RETURN:
+                    //     await invService.return(useManager, order);
+                    //     break;
 
                     case TypeInfm.TRANSFER:
                         await invService.transfer(useManager, order);

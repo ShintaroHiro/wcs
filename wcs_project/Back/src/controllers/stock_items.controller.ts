@@ -104,6 +104,38 @@ export const del = async (req: Request, res: Response) => {
     }
 };
 
+export const delAll = async (req: Request, res: Response) => {
+    const operation = 'StockItemController.deleteAll';
+
+    // ดึง username ของผู้ทำการลบ
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgRequiredUsername()
+        );
+    }
+
+    try {
+        // เรียก service delete all
+        const response = await stockItemService.deleteAll(reqUsername);
+
+        // ส่งผลลัพธ์กลับ client
+        return ResponseUtils.handleResponse(res, response);
+
+    } catch (error: any) {
+        console.error(`Error during ${operation}:`, error);
+        return ResponseUtils.handleErrorDelete(
+            res,
+            operation,
+            error.message,
+            'item.items',
+            true,
+            reqUsername
+        );
+    }
+};
+
 export const getAll = async (req: Request, res: Response) => {
     const operation = 'StockItemController.getAll';
 

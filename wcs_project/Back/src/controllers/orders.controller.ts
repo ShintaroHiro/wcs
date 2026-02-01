@@ -169,6 +169,59 @@ export const del = async (req: Request, res: Response) => {
     }
 };
 
+export const submitReturn = async (req: Request, res: Response) => {
+    const operation = 'OrderController.submitReturn';
+
+    /** ---------- ดึง username จาก token ---------- */
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgRequiredUsername()
+        );
+    }
+
+    try {
+        console.log('Raw req.body:', req.body);
+
+        /** ---------- รับ order_ids จาก body ---------- */
+        const { order_ids } = req.body;
+
+        if (
+            !Array.isArray(order_ids) ||
+            order_ids.length === 0 ||
+            order_ids.some(id => typeof id !== 'number')
+        ) {
+            return ResponseUtils.handleBadRequestIsRequired(
+                res,
+                'order_ids must be an array of number'
+            );
+        }
+
+        /** ---------- เรียก service ---------- */
+        const response = await ordersService.submitReturn(
+            order_ids,
+            reqUsername
+        );
+
+        return ResponseUtils.handleCustomResponse(
+            res,
+            response,
+            HttpStatus.OK
+        );
+
+    } catch (error: any) {
+        console.error(`❌ Error during ${operation}:`, error);
+        return ResponseUtils.handleErrorUpdate(
+            res,
+            operation,
+            error.message,
+            'item.order',
+            true,
+            reqUsername
+        );
+    }
+};
 
 export const getAll = async (req: Request, res: Response) => {
     const operation = 'OrderController.getAll';

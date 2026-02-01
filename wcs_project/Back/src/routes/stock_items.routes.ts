@@ -135,6 +135,32 @@ router.delete('/delete/:item_id'
 
 /**
  * @swagger
+ * /api/stock-items/delete-all:
+ *   delete:
+ *     summary: ลบข้อมูล stock items ทั้งหมด
+ *     tags: [StockItems]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     responses:
+ *       200:
+ *         description: ลบข้อมูล stock items ทั้งหมดสำเร็จ
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้องหรือไม่ครบถ้วน
+ *       401:
+ *         description: ไม่มีสิทธิ์ใช้งาน (Unauthorized)
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.delete(
+    '/delete-all',
+    authenticateToken,
+    stockItemController.delAll
+);
+
+/**
+ * @swagger
  * /api/stock-items/get-all:
  *   get:
  *     summary: ดึงข้อมูลรายการ stock items

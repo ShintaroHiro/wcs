@@ -132,7 +132,6 @@ export class StockItemService {
         }
     }
 
-
     async update(
         item_id: number,
         data: Partial<StockItems>,
@@ -344,6 +343,69 @@ export class StockItemService {
         await repository.remove(existing);
     }
 
+    //delete all
+    async deleteAll(
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<void>> {
+
+        const response = new ApiResponse<void>();
+        const operation = "StockItemService.deleteAll";
+
+        const useManager = manager ?? AppDataSource.manager;
+
+        try {
+            if (manager) {
+                await this.doDeleteAll(useManager);
+            } else {
+                await useManager.transaction((tx) =>
+                    this.doDeleteAll(tx)
+                );
+            }
+
+            // ลบโฟลเดอร์รูปทั้งหมดหลัง commit
+            const uploadRoot =
+                config.PathFile[UploadDirKey.DIR_UPLOAD_ITEMS_IMAGE];
+            const fullDir = path.join(process.cwd(), uploadRoot);
+
+            try {
+                await fs.rm(fullDir, { recursive: true, force: true });
+            } catch (err) {
+                console.error("⚠ Could not delete upload directory:", err);
+            }
+
+            return response.setComplete(
+                lang.msgSuccessAction("deleted", "all stock items data")
+            );
+
+        } catch (error: any) {
+            if (error?.message?.startsWith("BUSINESS:")) {
+                return response.setIncomplete(
+                    error.message.replace("BUSINESS:", "")
+                );
+            }
+
+            console.error(`Error during ${operation}:`, error);
+            throw new Error(lang.msgErrorFunction(operation, error.message));
+        }
+    }
+    private async doDeleteAll(
+        manager: EntityManager
+    ): Promise<void> {
+
+        const repository = manager.getRepository(StockItems);
+
+        const count = await repository.count();
+        if (count === 0) {
+            throw new Error(
+                "BUSINESS:" + lang.msgNotFound("stock items data")
+            );
+        }
+
+        // ลบทั้งหมด
+        await repository.clear();
+    }
+
 
     async getAll(manager?: EntityManager): Promise<ApiResponse<any | null>> {
         const response = new ApiResponse<any | null>();
@@ -360,6 +422,13 @@ export class StockItemService {
                     'items.item_desc AS item_desc',
                     'items.item_img AS item_img',
                     'items.item_img_url AS item_img_url',
+                    'items.mc_code AS mc_code',
+                    'items.order_unit AS order_unit',
+                    'items.com_group AS com_group',
+                    'items.cond_en AS cond_en',
+                    'items.item_status AS item_status',
+                    'items.catg_code AS catg_code',
+                    'items.system AS item_system',
                     "DATE_FORMAT(items.requested_at, '%d/%m/%Y') AS requested_at",
                     // ✅ ใช้ CASE WHEN เพื่อแปลงค่า is_active
                     "CASE WHEN items.is_active = 1 THEN 'ACTIVE' ELSE 'INACTIVE' END AS is_active"

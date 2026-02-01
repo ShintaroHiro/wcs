@@ -17,6 +17,7 @@ import { UsageInventory } from '../entities/order_usage_inv.entity';
 import { OrdersReturn } from '../entities/order_return.entity';
 import { ReturnInventory } from '../entities/order_return_inv.entity';
 import { Inventory } from '../entities/inventory.entity';
+import { InventorySum } from '../entities/inventory_sum.entity';
 
 function parseRequestedDate(dateStr: string): Date {
     if (!dateStr) {
@@ -39,6 +40,19 @@ function parseRequestedDate(dateStr: string): Date {
     throw new Error(`unsupported format (${dateStr})`);
 }
 
+export function parseNumber(val: any): number {
+    if (val === undefined || val === null) {
+        return NaN;
+    }
+
+    const num = Number(
+        String(val)
+            .replace(/,/g, '')
+            .trim()
+    );
+
+    return Number.isFinite(num) ? num : NaN;
+}
 
 export class ImportService {
     async createUsageJson(
@@ -84,12 +98,17 @@ export class ImportService {
             plan_qty: number;
         }[] = [];
 
+        //default
+        const DEFAULT_ITEM_ID = 1;
+        const DEFAULT_LOC_ID = 4;
+        const DEFAULT_STORE_TYPE = 'T1';
+
         // =========================
         // Phase 1: Validate + Lookup
         // =========================
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
-            const rowNo = i + 1;
+            const rowNo = row.excel_row_no ?? i + 1;
 
         /** ---------- Required ---------- */
         const requiredFields = [
@@ -100,9 +119,9 @@ export class ImportService {
             'plan_qty',
             'cond',
             'mc_code',
-            'requested_at',
-            'requested_by',
-            'usage_type',
+            //'requested_at',
+            // 'requested_by',
+            // 'usage_type',
             'work_order',
             'spr_no',
             'usage_num',
@@ -113,17 +132,17 @@ export class ImportService {
 
         const FIELD_LABEL_MAP: Record<string, string> = {
             loc: 'FROM LOCATION',
-            box_loc: 'FROMBIN',
+            box_loc: 'FROM BIN',
             stock_item: 'STOCK ITEM',
             item_desc: 'ITEM DESCRIPTION',
             cond: 'CONDITION',
             mc_code: 'MAINTENANCE CONTRACT',
-            requested_at: 'REQUIREDDATE',
-            requested_by: 'REQUESTEDBY',
-            usage_type: 'USETYPE',
+            //requested_at: 'REQUIREDDATE',
+            // requested_by: 'REQUESTEDBY',
+            // usage_type: 'USETYPE',
             work_order: 'WORK ORDER',
             spr_no: 'SPR NO.',
-            usage_num: 'USAGE',
+            usage_num: 'INVUSENUM',
             usage_line: 'USAGE LINE',
             split: 'SPLIT',
             invuse_status: 'INVUSE STATUS',
@@ -137,45 +156,77 @@ export class ImportService {
         }
 
          /** ---------- Location ---------- */
-        const location = await locationRepo.findOne({
-            where: {
-            loc: row.loc,
-            box_loc: row.box_loc,
-            },
-        });
+        // const location = await locationRepo.findOne({
+        //     where: {
+        //         loc: row.loc,
+        //         box_loc: row.box_loc,
+        //     },
+        // });
             
+        // if (!location) {
+        //     throw new Error(
+        //     `Row ${rowNo}: Location not found (${row.loc} / ${row.box_loc})`
+        //     );
+        // }
+
+        //mock up
+        let location = await locationRepo.findOne({
+            where: { loc: row.loc, box_loc: row.box_loc },
+        });
+
         if (!location) {
-            throw new Error(
-            `Row ${rowNo}: Location not found (${row.loc} / ${row.box_loc})`
-            );
+            location = {
+                loc_id: DEFAULT_LOC_ID,
+                loc: row.loc,
+                box_loc: row.box_loc,
+                store_type: DEFAULT_STORE_TYPE,
+            } as Locations;
         }
 
         /** ---------- Stock Item ---------- */
-        const stockItem = await stockRepo.findOne({
+        // const stockItem = await stockRepo.findOne({
+        //     where: { stock_item: row.stock_item },
+        // });
+
+        // if (!stockItem) {
+        //     throw new Error(
+        //     `Row ${rowNo}: Stock item not found (${row.stock_item})`
+        //     );
+        // }
+        
+        //mock up
+        let stockItem = await stockRepo.findOne({
             where: { stock_item: row.stock_item },
         });
 
         if (!stockItem) {
-            throw new Error(
-            `Row ${rowNo}: Stock item not found (${row.stock_item})`
-            );
+            stockItem = {
+                item_id: DEFAULT_ITEM_ID,       // เช่น 1 หรือ item TEST
+                stock_item: row.stock_item,
+                item_desc: '[AUTO IMPORT]',
+            } as StockItems;
         }
         // replace item_desc
         row.item_desc = stockItem.item_desc;
         row.item_id = stockItem.item_id;
 
          /** ---------- Requested Date ---------- */
-        if (!row.requested_at) {
-            throw new Error(`Row ${rowNo}: REQUIREDDATE is required`);
-        }
+        // if (!row.requested_at) {
+        //     throw new Error(`Row ${rowNo}: REQUIREDDATE is required`);
+        // }
 
-        let requestedAt: Date;
+        // let requestedAt: Date;
 
-        try {
-            requestedAt = parseRequestedDate(row.requested_at);
-        } catch (err: any) {
-            throw new Error(`Row ${rowNo}: REQUIREDDATE ${err.message}`);
-        }
+        // try {
+        //     requestedAt = parseRequestedDate(row.requested_at);
+        // } catch (err: any) {
+        //     throw new Error(`Row ${rowNo}: REQUIREDDATE ${err.message}`);
+        // }
+
+        //mock up
+        const requestedAt = row.requested_at
+            ? parseRequestedDate(row.requested_at)
+            : new Date();
 
         // /** ---------- Requested User ---------- */
         // const requestedUser = await userRepo.findOne({
@@ -205,13 +256,16 @@ export class ImportService {
         }
 
         /** ---------- PLAN_QTY ---------- */
-        const planQty = Number(row.plan_qty);
+        const planQty = parseNumber(row.plan_qty);
 
         if (!Number.isFinite(planQty) || planQty <= 0) {
             throw new Error(
                 `Row ${rowNo}: QUANTITY must be greater than 0`
             );
         }
+
+        /** ---------- USAGE_TYPE ---------- */
+        const usageType = row.usage_type ?? 'ISSUE';
 
         buffer.push({
             order: {
@@ -233,7 +287,7 @@ export class ImportService {
                 import_by: reqUsername,
             },
             usage: {
-                usage_type: row.usage_type,
+                usage_type: usageType,
                 work_order: row.work_order,
                 spr_no: row.spr_no,
                 usage_num: row.usage_num,
@@ -265,52 +319,68 @@ export class ImportService {
         // =========================
         // Phase 2: เช็ค stock แบบ SUM
         // =========================
-        const usageMap = new Map<
-            string,
-            {
-                item_id: number;
-                stock_item: string;
-                loc_id: number;
-                loc: string;
-                box_loc: string;
-                totalPlanQty: number;
-            }
-            >();
+        // const usageMap = new Map<
+        //     string,
+        //     {
+        //         item_id: number;
+        //         stock_item: string;
+        //         loc_id: number;
+        //         loc: string;
+        //         box_loc: string;
+        //         totalPlanQty: number;
+        //     }
+        //     >();
 
-            for (const row of buffer) {
-                const key = `${row.item_id}_${row.loc_id}`;
+        //     for (const row of buffer) {
+        //         const key = `${row.item_id}_${row.loc_id}`;
 
-                if (!usageMap.has(key)) {
-                    usageMap.set(key, {
-                    item_id: row.item_id,
-                    stock_item: row.log.stock_item ?? '',
-                    loc_id: row.loc_id,
-                    loc: row.log.loc ?? '',
-                    box_loc: row.log.box_loc ?? '',
-                    totalPlanQty: 0,
-                    });
-                }
-                usageMap.get(key)!.totalPlanQty += row.plan_qty;
-            }
+        //         if (!usageMap.has(key)) {
+        //             usageMap.set(key, {
+        //             item_id: row.item_id,
+        //             stock_item: row.log.stock_item ?? '',
+        //             loc_id: row.loc_id,
+        //             loc: row.log.loc ?? '',
+        //             box_loc: row.log.box_loc ?? '',
+        //             totalPlanQty: 0,
+        //             });
+        //         }
+        //         usageMap.get(key)!.totalPlanQty += row.plan_qty;
+        //     }
 
-            for (const [, data] of usageMap) {
-                const { item_id, stock_item, loc_id, loc, box_loc, totalPlanQty } = data;
+        //     const invSumRepo = useManager.getRepository(InventorySum);
 
-                const result = await inventoryRepo
-                    .createQueryBuilder('inv')
-                    .select('SUM(inv.inv_qty)', 'sum')
-                    .where('inv.item_id = :item_id', { item_id })
-                    .andWhere('inv.loc_id = :loc_id', { loc_id })
-                    .getRawOne();
+        //     for (const [, data] of usageMap) {
+        //         const {
+        //             item_id,
+        //             stock_item,
+        //             loc_id,
+        //             loc,
+        //             box_loc,
+        //             totalPlanQty,
+        //         } = data;
 
-                const availableQty = Number(result.sum || 0);
+        //         const sumInv = await invSumRepo.findOne({
+        //             where: {
+        //                 item_id,
+        //                 loc_id,
+        //                 is_active: true,
+        //             },
+        //         });
 
-                if (availableQty < totalPlanQty) {
-                    throw new Error(
-                    `Inventory not enough (stock_item=${stock_item}, loc=${loc}, box_loc=${box_loc}, required=${totalPlanQty}, available=${availableQty})`
-                    );
-                }
-            }
+        //         if (!sumInv) {
+        //             throw new Error(
+        //                 `Item has never been received into inventory (stock_item=${stock_item}, loc=${loc}, box_loc=${box_loc})`
+        //             );
+        //         }
+
+        //         if (sumInv.sum_inv_qty < totalPlanQty) {
+        //             throw new Error(
+        //                 `Inventory not enough (stock_item=${stock_item}, required=${totalPlanQty}, available=${sumInv.sum_inv_qty})`
+        //             );
+        //         }
+
+        //     }
+
 
         // =========================
         // Phase 3: Save
@@ -406,12 +476,16 @@ export class ImportService {
             plan_qty: number;
         }[] = [];
 
+        const DEFAULT_ITEM_ID = 1;
+        const DEFAULT_LOC_ID = 4;
+        const DEFAULT_STORE_TYPE = 'T1';
+
         // =========================
         // Phase 1: Validate + Lookup
         // =========================
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
-            const rowNo = i + 1;
+            const rowNo = row.excel_row_no ?? i + 1;
 
         /** ---------- Required ---------- */
         const requiredFields = [
@@ -422,7 +496,7 @@ export class ImportService {
             'item_desc',
             'cond',
             'mc_code',
-            'requested_at',
+            //'requested_at',
             'unit_cost_handled',
             //'po_num',
             'object_id',
@@ -436,9 +510,9 @@ export class ImportService {
             item_desc: 'DESCRIPTION',
             cond: 'CONDITIONCODE',
             mc_code: 'AACONTRACT',
-            requested_at: 'TRANSDATE',
+            //requested_at: 'TRANSDATE',
             unit_cost_handled: 'NEWCOST',
-            po_num: 'PONUM',
+            //po_num: 'PONUM',
             object_id: 'OBJECT_ID',
         };
 
@@ -450,46 +524,79 @@ export class ImportService {
         }
 
          /** ---------- Location ---------- */
-        const location = await locationRepo.findOne({
-            where: {
-            loc: row.loc,
-            box_loc: row.box_loc,
-            },
-        });
+        // const location = await locationRepo.findOne({
+        //     where: {
+        //     loc: row.loc,
+        //     box_loc: row.box_loc,
+        //     },
+        // });
 
             
-        if (!location) {
-            throw new Error(
-            `Row ${rowNo}: Location not found (${row.loc} / ${row.box_loc})`
-            );
-        }
+        // if (!location) {
+        //     throw new Error(
+        //     `Row ${rowNo}: Location not found (${row.loc} / ${row.box_loc})`
+        //     );
+        // }
 
+         //mock up
+        let location = await locationRepo.findOne({
+            where: { loc: row.loc, box_loc: row.box_loc },
+        });
+
+        if (!location) {
+            location = {
+                loc_id: DEFAULT_LOC_ID,
+                loc: row.loc,
+                box_loc: row.box_loc,
+                store_type: DEFAULT_STORE_TYPE,
+            } as Locations;
+        }
+        
         /** ---------- Stock Item(ITEMNUM) ---------- */
-        const stockItem = await stockRepo.findOne({
+        // const stockItem = await stockRepo.findOne({
+        //     where: { stock_item: row.stock_item },
+        // });
+
+        // if (!stockItem) {
+        //     throw new Error(
+        //     `Row ${rowNo}: ITEMNUM not found (${row.stock_item})`
+        //     );
+        // }
+
+        //mock up
+        let stockItem = await stockRepo.findOne({
             where: { stock_item: row.stock_item },
         });
 
         if (!stockItem) {
-            throw new Error(
-            `Row ${rowNo}: ITEMNUM not found (${row.stock_item})`
-            );
+            stockItem = {
+                item_id: DEFAULT_ITEM_ID,       // เช่น 1 หรือ item TEST
+                stock_item: row.stock_item,
+                item_desc: '[AUTO IMPORT]',
+            } as StockItems;
         }
+
         // replace item_desc
         row.item_desc = stockItem.item_desc;
         row.item_id = stockItem.item_id;
 
         /** ---------- Requested Date ---------- */
-        if (!row.requested_at) {
-            throw new Error(`Row ${rowNo}: TRANSDATE is required`);
-        }
+        // if (!row.requested_at) {
+        //     throw new Error(`Row ${rowNo}: TRANSDATE is required`);
+        // }
 
-        let requestedAt: Date;
+        // let requestedAt: Date;
 
-        try {
-            requestedAt = parseRequestedDate(row.requested_at);
-        } catch (err: any) {
-            throw new Error(`Row ${rowNo}: TRANSDATE ${err.message}`);
-        }
+        // try {
+        //     requestedAt = parseRequestedDate(row.requested_at);
+        // } catch (err: any) {
+        //     throw new Error(`Row ${rowNo}: TRANSDATE ${err.message}`);
+        // }
+
+        //mock up
+        const requestedAt = row.requested_at
+            ? parseRequestedDate(row.requested_at)
+            : new Date();
 
         /** ---------- Requested User ---------- */
         const requestedUser = await userRepo.findOne({
@@ -519,7 +626,7 @@ export class ImportService {
             if (row.cond !== 'NEW') {
                 throw new Error(`Row ${rowNo}: RECEIPT allows only NEW condition`);
             }
-            planQty = Number(row.new_qty);
+            planQty = parseNumber(row.new_qty);
             qtyField = 'NEW_QTY';
         }
 
@@ -531,10 +638,10 @@ export class ImportService {
             }
 
             if (row.cond === 'CAPITAL') {
-                planQty = Number(row.cap_qty);
+                planQty = parseNumber(row.cap_qty);
                 qtyField = 'CAP_QTY';
             } else {
-                planQty = Number(row.recond_qty);
+                planQty = parseNumber(row.recond_qty);
                 qtyField = 'RECOND_QTY';
             }
         }
@@ -546,17 +653,17 @@ export class ImportService {
         }
 
         /*normalize unit_cost_handled */
-        const rawCost = row.unit_cost_handled;
+        // const rawCost = row.unit_cost_handled;
 
-        const unitCostHandled = rawCost
-            ? Number(String(rawCost).replace(/,/g, ''))
-            : 0;
+        // const unitCostHandled = rawCost
+        //     ? Number(String(rawCost).replace(/,/g, ''))
+        //     : 0;
 
-        if (!Number.isFinite(unitCostHandled)) {
-            throw new Error(
-                `Row ${rowNo}: invalid unit_cost_handled (${rawCost})`
-            );
-        }
+        // if (!Number.isFinite(unitCostHandled)) {
+        //     throw new Error(
+        //         `Row ${rowNo}: invalid unit_cost_handled (${rawCost})`
+        //     );
+        // }
 
         buffer.push({
             order: {
@@ -580,7 +687,7 @@ export class ImportService {
             receipt: {
                 po_num: row.po_num,
                 object_id: row.object_id,
-                unit_cost_handled: unitCostHandled,
+                unit_cost_handled: row.unit_cost_handled,
             },
             log: {
                 type: normalizedTranstype,
@@ -689,12 +796,17 @@ export class ImportService {
             plan_qty: number;
         }[] = [];
 
+        const DEFAULT_ITEM_ID = 1;
+        const DEFAULT_LOC_ID = 4;
+        const DEFAULT_STORE_TYPE = 'T1';
+        const DEFAULT_USAGE_ID = 1;
+
         // =========================
         // Phase 1: Validate + Lookup
         // =========================
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
-            const rowNo = i + 1;
+            const rowNo = row.excel_row_no ?? i + 1;
 
         /** ---------- Required ---------- */
         const requiredFields = [
@@ -736,45 +848,78 @@ export class ImportService {
         }
 
          /** ---------- Location ---------- */
-        const location = await locationRepo.findOne({
-            where: {
-            loc: row.loc,
-            box_loc: row.box_loc,
-            },
-        });
+        // const location = await locationRepo.findOne({
+        //     where: {
+        //     loc: row.loc,
+        //     box_loc: row.box_loc,
+        //     },
+        // });
             
+        // if (!location) {
+        //     throw new Error(
+        //     `Row ${rowNo}: Location not found (${row.loc} / ${row.box_loc})`
+        //     );
+        // }
+
+         //mock up
+        let location = await locationRepo.findOne({
+            where: { loc: row.loc, box_loc: row.box_loc },
+        });
+
         if (!location) {
-            throw new Error(
-            `Row ${rowNo}: Location not found (${row.loc} / ${row.box_loc})`
-            );
+            location = {
+                loc_id: DEFAULT_LOC_ID,
+                loc: row.loc,
+                box_loc: row.box_loc,
+                store_type: DEFAULT_STORE_TYPE,
+            } as Locations;
         }
 
         /** ---------- Stock Item ---------- */
-        const stockItem = await stockRepo.findOne({
+        // const stockItem = await stockRepo.findOne({
+        //     where: { stock_item: row.stock_item },
+        // });
+
+        // if (!stockItem) {
+        //     throw new Error(
+        //     `Row ${rowNo}: Stock item not found (${row.stock_item})`
+        //     );
+        // }
+
+        //mock up
+        let stockItem = await stockRepo.findOne({
             where: { stock_item: row.stock_item },
         });
 
         if (!stockItem) {
-            throw new Error(
-            `Row ${rowNo}: Stock item not found (${row.stock_item})`
-            );
+            stockItem = {
+                item_id: DEFAULT_ITEM_ID,       // เช่น 1 หรือ item TEST
+                stock_item: row.stock_item,
+                item_desc: '[AUTO IMPORT]',
+            } as StockItems;
         }
+
         // replace item_desc
         row.item_desc = stockItem.item_desc;
         row.item_id = stockItem.item_id;
 
          /** ---------- Requested Date ---------- */
-        if (!row.requested_at) {
-            throw new Error(`Row ${rowNo}: TRANSDATE is required`);
-        }
+        // if (!row.requested_at) {
+        //     throw new Error(`Row ${rowNo}: TRANSDATE is required`);
+        // }
 
-        let requestedAt: Date;
+        // let requestedAt: Date;
 
-        try {
-            requestedAt = parseRequestedDate(row.requested_at);
-        } catch (err: any) {
-            throw new Error(`Row ${rowNo}: TRANSDATE ${err.message}`);
-        }
+        // try {
+        //     requestedAt = parseRequestedDate(row.requested_at);
+        // } catch (err: any) {
+        //     throw new Error(`Row ${rowNo}: TRANSDATE ${err.message}`);
+        // }
+
+        //mock up
+        const requestedAt = row.requested_at
+            ? parseRequestedDate(row.requested_at)
+            : new Date();
 
         /** ---------- Requested User ---------- */
         const requestedUser = await userRepo.findOne({
@@ -786,7 +931,7 @@ export class ImportService {
         }
 
         /** ---------- PLAN_QTY ---------- */
-        const planQty = Number(row.plan_qty);
+        const planQty = parseNumber(row.plan_qty);
 
         if (!Number.isFinite(planQty) || planQty <= 0) {
             throw new Error(
@@ -812,26 +957,49 @@ export class ImportService {
         .andWhere('o.cond = :cond', { cond: row.cond })
         .getRawMany();
 
-        if (usageRow.length === 0) {
-        throw new Error(
-            `Row ${rowNo}: Usage not found (WORK ORDER=${row.work_order}, USAGE=${row.usage_num}, SPR NO.=${row.spr_no}, USAGE LINE=${row.usage_line})`
-        );
-        }
+        // if (usageRow.length === 0) {
+        // throw new Error(
+        //     `Row ${rowNo}: Usage not found (WORK ORDER=${row.work_order}, USAGE=${row.usage_num}, SPR NO.=${row.spr_no}, USAGE LINE=${row.usage_line})`
+        // );
+        // }
 
-        if (usageRow.length > 1) {
-            throw new Error(
-                `Row ${rowNo}: Duplicate usage found (usage key is not unique)`
-            );
-        }
+        // if (usageRow.length > 1) {
+        //     throw new Error(
+        //         `Row ${rowNo}: Duplicate usage found (usage key is not unique)`
+        //     );
+        // }
 
-        const { usage_id, actual_qty } = usageRow[0];
+        // const { usage_id, actual_qty } = usageRow[0];
 
-        /** --------- เช็ค QUANTITY ห้ามเกิน plan_qty (usage) ตอนนี้ไม่ได้เช็คจริงจัง แค่เช็คตาม actual_qty รวม-------- */
-        if (planQty > Number(actual_qty)) {
-            throw new Error(
-                `Row ${rowNo}: QUANTITY (${planQty}) exceeds Scanned Quantity (${actual_qty})`
-            );
-        }
+        // /** --------- เช็ค QUANTITY ห้ามเกิน plan_qty (usage) ตอนนี้ไม่ได้เช็คจริงจัง แค่เช็คตาม actual_qty รวม-------- */
+        // if (planQty > Number(actual_qty)) {
+        //     throw new Error(
+        //         `Row ${rowNo}: QUANTITY (${planQty}) exceeds Scanned Quantity (${actual_qty})`
+        //     );
+        // }
+
+        let usage_id: number;
+let actual_qty: number | null = null;
+
+if (usageRow.length === 1) {
+    // ✅ เจอ usage เดียว ใช้ของจริง
+    usage_id = Number(usageRow[0].usage_id);
+    actual_qty = Number(usageRow[0].actual_qty);
+} else {
+    // ❌ ไม่เจอ OR เจอหลายแถว → ใช้ DEFAULT
+    usage_id = DEFAULT_USAGE_ID;
+
+    console.warn(
+        `⚠️ Row ${rowNo}: Usage not unique or not found (found=${usageRow.length}), fallback to DEFAULT_USAGE_ID=${DEFAULT_USAGE_ID}`
+    );
+}
+
+if (actual_qty !== null && planQty > actual_qty) {
+    throw new Error(
+        `Row ${rowNo}: QUANTITY (${planQty}) exceeds Scanned Quantity (${actual_qty})`
+    );
+}
+
 
 
         buffer.push({
@@ -907,6 +1075,142 @@ export class ImportService {
         return response.setComplete(
             lang.msgSuccessAction('created', 'orders'),
             savedOrders
+        );
+
+        } catch (error: any) {
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+            console.error(`❌ ${operation}`, error);
+            return response.setIncomplete(error.message);
+        } finally {
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
+        }
+    }
+
+    async createItemJson(
+        data: any[],
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+        const response = new ApiResponse<any>();
+        const operation = 'ImportService.createItemJson';
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager || queryRunner?.manager;
+
+        if (!useManager) {
+        return response.setIncomplete(lang.msg('validation.no_entityManager_or_queryRunner_available'));
+        }
+
+        if (!manager && queryRunner) {
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        }
+
+        try {
+        if (!Array.isArray(data) || data.length === 0) {
+            throw new Error('Excel data is empty');
+        }
+
+        const stockRepo = useManager.getRepository(StockItems);
+        const userRepo = useManager.getRepository(s_user);
+
+        /** เตรียม buffer */
+        const buffer: Partial<StockItems>[] = [];
+
+        // =========================
+        // Phase 1: Validate + Lookup
+        // =========================
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            const rowNo = row.excel_row_no ?? i + 1;
+
+        /** ---------- Required ---------- */
+        const requiredFields = [
+            //'mc_code',
+            'stock_item',
+            //'item_desc',
+            //'order_unit',
+            //'com_group',
+            //'cond_en',
+            //'item_status',
+            //'catg_code',
+            //'system',
+        ];
+
+        const FIELD_LABEL_MAP: Record<string, string> = {
+            //mc_code: 'Maintain Contract',
+            stock_item: 'Item',
+            //item_desc: 'Description',
+            //order_unit: 'Order Unit',
+            //com_group: 'Commodity Group',
+            //cond_en: 'Condition Enabled',
+            //item_status: 'Status',
+            //catg_code: 'Category Code',
+            //system: 'System',
+        };
+
+        for (const f of requiredFields) {
+            if (validate.isNullOrEmpty(row[f])) {
+                const label = FIELD_LABEL_MAP[f] ?? f;
+                throw new Error(`Row ${rowNo}: column ${label} is required`);
+            }
+        }
+
+        /** ---------- Requested User ---------- */
+        const requestedUser = await userRepo.findOne({
+        where: { username: reqUsername },
+        });
+
+        if (!requestedUser) {
+            throw new Error('Requested user not found');
+        }
+
+        /** ---------- หา stock item เดิม ---------- */
+        const existItem = await stockRepo.findOne({
+            where: { stock_item: row.stock_item },
+        });
+
+        buffer.push({
+            // ⭐ ถ้ามี item_id → UPDATE ทั้ง row
+            item_id: existItem?.item_id,
+
+            mc_code: row.mc_code,
+            stock_item: row.stock_item,
+            item_desc: row.item_desc,
+            order_unit: row.order_unit,
+            com_group: row.com_group,
+            cond_en: row.cond_en,
+            item_status: row.item_status,
+            catg_code: row.catg_code,
+            system: row.system,
+
+            requested_by: reqUsername,
+            update_by: reqUsername,
+            updated_at: new Date(), // ✅ เวลาปัจจุบัน,
+        });
+        }
+
+        // =========================
+        // Phase 3: Save
+        // =========================
+        const savedItems: StockItems[] = [];
+
+        for (const item of buffer) {
+            const saved = await stockRepo.save(item);
+            savedItems.push(saved);
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.commitTransaction();
+        }
+
+        return response.setComplete(
+            lang.msgSuccessAction('created', 'orders'),
+            savedItems
         );
 
         } catch (error: any) {

@@ -5,7 +5,7 @@ import * as lang from '../utils/LangHelper'; // Import LangHelper for specific f
 import * as validate from '../utils/ValidationUtils'; // Import ValidationUtils
 
 import { Orders } from '../entities/orders.entity';
-import { StatusOrders, TypeInfm } from '../common/global.enum';
+import { ScanStatus, StatusOrders, TypeInfm } from '../common/global.enum';
 import { OrdersLog } from '../entities/orders_log.entity';
 import { T1MOrdersService } from './order_mrs.service';
 import { OrdersLogService } from '../utils/logTaskEvent';
@@ -479,6 +479,111 @@ export class OrdersService {
             }
         }
     }
+
+    async submitReturn(
+        order_ids: number[],
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+        const operation = 'OrdersService.submitReturn';
+
+        if (!order_ids || order_ids.length === 0) {
+            return response.setIncomplete('order_ids is required');
+        }
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager || queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete(
+                lang.msg('validation.no_entityManager_or_queryRunner_available')
+            );
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        try {
+            const orderRepo = useManager.getRepository(Orders);
+            const userRepo = useManager.getRepository(s_user);
+
+            /** ---------- หา user ---------- */
+            const user = await userRepo.findOne({
+                where: { username: reqUsername },
+            });
+
+            if (!user) {
+                throw new Error(lang.msgNotFound('user'));
+            }
+
+            const updatedOrders: Orders[] = [];
+
+            /** ---------- loop order ---------- */
+            for (const order_id of order_ids) {
+
+                const order = await orderRepo.findOne({
+                    where: { order_id },
+                });
+
+                if (!order) {
+                    throw new Error(
+                        lang.msgNotFound(`orders.order_id : ${order_id}`)
+                    );
+                }
+
+                if (order.status === StatusOrders.COMPLETED) {
+                    // ข้าม หรือจะ throw ก็ได้ (เลือก policy)
+                    continue;
+                }
+
+                await orderRepo.update(
+                    { order_id },
+                    {
+                        status: StatusOrders.COMPLETED,
+                        actual_qty: order.plan_qty,
+                        actual_status: ScanStatus.COMPLETED,
+                        actual_by: reqUsername,
+                        is_confirm: true,
+                        finished_at: new Date(),
+                        executed_by_user_id: user.user_id,
+                    }
+                );
+
+                const updated = await orderRepo.findOne({
+                    where: { order_id },
+                });
+
+                if (updated) {
+                    updatedOrders.push(updated);
+                }
+            }
+
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete(
+                'submit return completed',
+                updatedOrders
+            );
+
+        } catch (error: any) {
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+            console.error(`❌ ${operation}`, error);
+            return response.setIncomplete(error.message);
+        } finally {
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
+        }
+    }
+
 
     async getAll(manager?: EntityManager): Promise<ApiResponse<any | null>> {
         const response = new ApiResponse<any | null>();

@@ -28,6 +28,7 @@ import { GlobalVar } from "common/GlobalVar";
 import { normalizeStatus } from "common/utils/statusUtils";
 import StatusBadge from "../components/statusBadge";
 import ButtonComponent from "../components/ButtonComponent";
+import Swal from "sweetalert2";
 
 //store
 const PutExecutionPage = () => {
@@ -399,39 +400,65 @@ const PutExecutionPage = () => {
         const handleSubmitImport = async () => {
             if (!selectedFile) return;
             try {
-            const response = await ImportFileAPI.importReceiptFile(selectedFile);
-            if (response.isCompleted) {
-                setAlert({
-                show: true,
-                type: "success",
-                title: "Success",
-                message: response.message,
+                // 🔄 แสดง loading (ฟิกตรงนี้เลย)
+                Swal.fire({
+                    title: "Importing...",
+                    text: "Please wait while processing file",
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    backdrop: "rgba(0,0,0,0.6)", // ✅ overlay เต็มจอ
+                    didOpen: () => {
+                        Swal.showLoading();
+                    },
                 });
-                await fetchDataWaitingAll();
-                // เคลียร์ไฟล์ที่เลือก และอัปเดต key เพื่อให้ input re-mount ใหม่
-                setSelectedFile(null);
-                setFileInputKey(Date.now());
-            } else {
+                
+                const response = await ImportFileAPI.importReceiptFile(selectedFile);
+
+                // ❌ ปิด loading
+                Swal.close();
+
+                if (response.isCompleted) {
+                    setAlert({
+                    show: true,
+                    type: "success",
+                    title: "Success",
+                    message: response.message,
+                    });
+                    await fetchDataWaitingAll();
+                    // เคลียร์ไฟล์ที่เลือก และอัปเดต key เพื่อให้ input re-mount ใหม่
+                    setSelectedFile(null);
+                    setFileInputKey(Date.now());
+                } else {
+                    setAlert({
+                    show: true,
+                    type: "error",
+                    title: "Upload failed",
+                    message: response.message,
+                    });
+                }
+            } catch (error) {
+                // ❌ ปิด loading (กันเหนียว)
+                Swal.close();
+    
+                console.error("Error uploading file:", error);
+    
                 setAlert({
                 show: true,
                 type: "error",
-                title: "Upload failed",
-                message: response.message,
+                title: "Error",
+                message: "Import failed",
                 });
             }
-            } catch (error) {
-            console.error("Error uploading file:", error);
-            }
         };
     
-        // ฟังก์ชันสำหรับลบไฟล์ที่เลือก (และรีเซ็ต input)
-        const handleClearFile = () => {
-            setSelectedFile(null);
-            setFileInputKey(Date.now());
-        };
+    // ฟังก์ชันสำหรับลบไฟล์ที่เลือก (และรีเซ็ต input)
+    const handleClearFile = () => {
+        setSelectedFile(null);
+        setFileInputKey(Date.now());
+    };
     
         
-       const getWaitingOrderIds = () => {
+    const getWaitingOrderIds = () => {
         return waitingList
             .filter(r => r.status === "WAITING")
             .map(r => r.order_id);
@@ -440,34 +467,62 @@ const PutExecutionPage = () => {
     const handleDeleteAll = async () => {
         const waitingIds = getWaitingOrderIds();
         if (waitingIds.length === 0) return;
-    
+
         try {
+            // 🔄 แสดง loading
+            Swal.fire({
+                title: "Deleting...",
+                text: "Please wait while clearing waiting list",
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                backdrop: "rgba(0,0,0,0.6)",
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+            });
+
             // ✅ payload ให้ตรงกับ backend
             const payload = {
                 order_ids: waitingIds,
             };
-    console.log("payload",payload);
-            await WaitingAPI.deleteWaiting(payload);
-    
+
+            const res = await WaitingAPI.deleteWaiting(payload);
+
+            // ❌ ปิด loading
+            Swal.close();
+
             await Promise.all([
                 fetchDataWaitingAll(),
                 fetchDataExecuteAll(),
             ]);
-    
+
             setSelectedWaitingIds([]);
-    
+
+            if (res?.isCompleted) {
+                setAlert({
+                    show: true,
+                    type: "success",
+                    title: "Success",
+                    message: res.message || "Clear waiting list success",
+                });
+                return;
+            }
+
             setAlert({
                 show: true,
-                type: "success",
-                title: "Success",
-                message: "Clear waiting list success",
+                type: "error",
+                title: "Error",
+                message: res?.message || "Delete failed",
             });
-    
+
         } catch (err) {
-             console.error("FULL ERROR:", err);
-        console.error("RESPONSE:", err.response);
-        console.error("DATA:", err.response?.data);
-    
+            // ❌ ปิด loading (กันเหนียว)
+            Swal.close();
+
+            console.error("FULL ERROR:", err);
+            console.error("RESPONSE:", err.response);
+            console.error("DATA:", err.response?.data);
+
             setAlert({
                 show: true,
                 type: "error",
@@ -476,6 +531,7 @@ const PutExecutionPage = () => {
             });
         }
     };
+
     
     // --------------------------------------------------
     // TABLE COLUMNS

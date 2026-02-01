@@ -40,4 +40,8 @@ export class OrdersUsage {
     /** Inventory Use Status เช่น STAGED / ENTERED */
     @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Inventory Use Status' })
     invuse_status?: string;
+
+    /** FK เชื่อมกับ inventory summary */
+    @Column({ type: 'int', nullable: true })
+    sum_inv_id?: number;
 }

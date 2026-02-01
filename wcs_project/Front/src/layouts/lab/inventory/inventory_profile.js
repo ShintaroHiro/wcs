@@ -12,12 +12,15 @@ import MDButton from "components/MDButton";
 import ItemsFormDialog from "./inventory_profile_form";
 import MDInput from "components/MDInput";
 import SearchIcon from "@mui/icons-material/Search";
+import ImportFileAPI from "api/ImportAPI";
+import ButtonComponent from "../components/ButtonComponent";
+import Swal from "sweetalert2";
 
 const InventoryProfile = () => {
     const storeType = GlobalVar.getStoreType();
     
     const [loading , setLoading] = useState(true);
-    const [deleteItems, setDeleteItems] = useState(""); // รหัสที่จะลบ
+    const [deleteItems, setDeleteItems] = useState(null); // รหัสที่จะลบ
     const [confirmAlert, setConfirmAlert] = useState(false);
     const [alert, setAlert] = useState({
         show: false,
@@ -35,6 +38,11 @@ const InventoryProfile = () => {
     const [formOpen, setFormOpen] = useState(false);
     const [formMode, setFormMode] = useState("create"); // "create" | "edit"
     const [editingItems, setEditingItems] = useState(null);
+
+    // นำเข้า useState หากยังไม่ได้ import
+    const [selectedFile, setSelectedFile] = useState(null);
+    // state สำหรับ key ของ input element เพื่อบังคับ re-mount
+    const [fileInputKey, setFileInputKey] = useState(Date.now());
 
     const fetchDataAll = async () => {
         try {
@@ -56,18 +64,26 @@ const InventoryProfile = () => {
         }
     };
 
-
     useEffect(() => {
         fetchDataAll();
     }, []);
 
+    //ฟังก์ชัน พิมพ์เล็ก / ใหญ่ , รองรับ number, null, undefined , trim
+    const includesIgnoreCase = (value, search) => {
+        if (!search) return true; // ถ้าไม่ได้พิมพ์อะไร = ผ่าน
+        return String(value ?? "")
+            .toLowerCase()
+            .trim()
+            .includes(String(search).toLowerCase().trim());
+    };
+    
     // --- Filter Logic ---
     useEffect(() => {
         const filtered = itemsList.filter(
-        (item) =>
-            (item.stock_item || "").includes(searchItems.stock_item) &&
-            (item.item_desc || "").includes(searchItems.item_desc)
-        );
+            (item) =>
+                includesIgnoreCase(item.stock_item, searchItems.stock_item) &&
+                includesIgnoreCase(item.item_desc, searchItems.item_desc)
+            );
         setFilteredItems(filtered);
     }, [itemsList, searchItems]);
 
@@ -138,6 +154,8 @@ const InventoryProfile = () => {
     };
 
     const handleDelete = async () => {
+        if (!deleteItems) return;
+
         try {
         const response = await StockItemsAPI.delete(deleteItems);
         if (response.isCompleted) {
@@ -163,10 +181,163 @@ const InventoryProfile = () => {
         }
     };
 
+    // --------------------------------------------------
+    // IMPORT FILE
+    // --------------------------------------------------
+    // ปรับปรุง handleImportFile ให้เก็บไฟล์ที่เลือกไว้ใน state
+    const handleImportFile = (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+        setAlert({
+            show: true,
+            type: "error",
+            title: "Error",
+            message: "Please select the file before uploading.",
+        });
+        return;
+        }
+    
+        setSelectedFile(file);
+    };
+
+    // ฟังก์ชันสำหรับส่งไฟล์ที่เลือกไปยัง API
+    const handleSubmitImport = async () => {
+        if (!selectedFile) return;
+
+        try {
+            // 🔄 แสดง loading (ฟิกตรงนี้เลย)
+            Swal.fire({
+                title: "Importing...",
+                text: "Please wait while processing file",
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                backdrop: "rgba(0,0,0,0.6)", // ✅ overlay เต็มจอ
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+            });
+
+            const response = await ImportFileAPI.importItemFile(selectedFile);
+
+            // ❌ ปิด loading
+            Swal.close();
+
+            if (response.isCompleted) {
+            setAlert({
+                show: true,
+                type: "success",
+                title: "Success",
+                message: response.message,
+            });
+
+            await fetchDataAll();
+            setSelectedFile(null);
+            setFileInputKey(Date.now());
+            } else {
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Upload failed",
+                message: response.message,
+            });
+            }
+        } catch (error) {
+            // ❌ ปิด loading (กันเหนียว)
+            Swal.close();
+
+            console.error("Error uploading file:", error);
+
+            setAlert({
+            show: true,
+            type: "error",
+            title: "Error",
+            message: "Import failed",
+            });
+        }
+    };
+
+    // ฟังก์ชันสำหรับลบไฟล์ที่เลือก (และรีเซ็ต input)
+    const handleClearFile = () => {
+        setSelectedFile(null);
+        setFileInputKey(Date.now());
+    };
+
+    const handleDeleteAll = async () => {
+        if (itemsList.length === 0) {
+            setAlert({
+                show: true,
+                type: "warning",
+                title: "Warning",
+                message: "No data to delete",
+            });
+            return;
+        }
+
+        try {
+            // 🔄 แสดง loading
+            Swal.fire({
+                title: "Deleting...",
+                text: "Please wait while deleting all items master",
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                backdrop: "rgba(0,0,0,0.6)",
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+            });
+
+            // 🔥 ส่ง empty payload เพื่อสื่อว่า DELETE ALL
+            const res = await StockItemsAPI.deleteAll({});
+
+            // ❌ ปิด loading
+            Swal.close();
+
+            await fetchDataAll();
+
+            if (res?.isCompleted) {
+                setAlert({
+                    show: true,
+                    type: "success",
+                    title: "Success",
+                    message: res.message || "Delete all items master success",
+                });
+                return;
+            }
+
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: res?.message || "Delete failed",
+            });
+
+        } catch (err) {
+            // ❌ ปิด loading (กันเหนียว)
+            Swal.close();
+
+            console.error("DELETE ALL ERROR:", err);
+
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: err.response?.data?.message || "Something went wrong",
+            });
+        }
+    };
+
+
     const columns = [
         { field: "stock_item", label: "Stock Item No." },
         { field: "item_desc", label: "Stock Item Description" },
         { field: "item_img", label: "Photo" },
+        { field: "mc_code", label: "Maintenance Contract" },
+        { field: "order_unit", label: "Order Unit" },
+        { field: "com_group", label: "Commodity Group" },
+        { field: "cond_en", label: "Condition Enabled" },
+        { field: "item_status", label: "Status" },
+        { field: "catg_code", label: "Category Code" },
+        { field: "item_system", label: "System" },
     ];
 
     //แปลงชื่อคลัง
@@ -220,18 +391,79 @@ const InventoryProfile = () => {
             </Box>
         </MDBox>
 
-        {/* 🟠 ขวา : ปุ่ม (ซ้าย / ขวา) */}
-        <MDBox display="flex" justifyContent="flex-end" gap={2} mb={3}>
-            {/* ซ้าย : Create */}
-            <MDButton variant="contained" color="info" onClick={handleAdd}>
-            Create
-            </MDButton>
+            {/* --------------------------------------------------
+                เพิ่ม IMPORT
+            --------------------------------------------------- */}
+            {/* 🟠 ขวา : ปุ่ม (Create + Import บน, Delete All ล่าง) */}
+            <MDBox
+                display="flex"
+                flexDirection="column"
+                alignItems="flex-end"
+                gap={2}
+                mb={3}
+                >
+                {/* ===== แถวบน : Create ===== */}
+                <MDBox display="flex" justifyContent="flex-end">
+                    <MDButton variant="contained" color="info" onClick={handleAdd}>
+                    Create
+                    </MDButton>
+                </MDBox>
 
-            {/* ขวา : Import */}
-            <MDButton variant="contained" color="info">
-            Import
-            </MDButton>
-        </MDBox>
+                {/* ===== แถวล่าง : Import + Delete All ===== */}
+                <MDBox
+                    display="flex"
+                    alignItems="center"
+                    gap={2}
+                    flexWrap="wrap"   // กันจอเล็กล้น
+                >
+                    {/* Delete All */}
+                    <MDButton
+                    variant="contained"
+                    color="secondary"
+                    onClick={handleDeleteAll}
+                    >
+                    Delete All
+                    </MDButton>
+                    
+                    {/* Import */}
+                    <MDBox display="flex" alignItems="center" gap={1}>
+                    <MDInput
+                        key={fileInputKey}
+                        type="file"
+                        accept=".xlsx"
+                        style={{ display: "none" }}
+                        id="import-file"
+                        onChange={handleImportFile}
+                    />
+                    <label htmlFor="import-file">
+                        <MDButton variant="contained" component="span" color="warning">
+                        IMPORT
+                        </MDButton>
+                    </label>
+
+                    {/* หลังเลือกไฟล์ */}
+                    {selectedFile && (
+                        <>
+                        <MDTypography variant="body2">
+                            {selectedFile.name}
+                        </MDTypography>
+
+                        <ButtonComponent
+                            onClick={handleClearFile}
+                            type="iconDelete"
+                        />
+
+                        <ButtonComponent
+                            type="Confirm"
+                            onClick={handleSubmitImport}
+                        />
+                        </>
+                    )}
+                    </MDBox>
+
+                </MDBox>
+                </MDBox>
+
 
         <MDBox mt={1}>
             <Card>

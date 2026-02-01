@@ -13,7 +13,7 @@ export class OrdersReturn {
     @Column({ type: 'int', nullable: true })
     order_id?: number;
 
-    /** FK orders_usage (ของที่เคยเบิก) */
+    /** FK orders_usage ที่จะคืน */
     @Column({ type: 'int', nullable: true })
     usage_id?: number;
 

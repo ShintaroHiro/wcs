@@ -203,16 +203,6 @@ export default function createTasksRouter(orchestrator: OrchestratedTaskService)
      *         schema:
      *           type: number
      *         description: ไอดีรายการ order ที่ต้องการเปลี่ยนสถานะ
-     *     requestBody:
-     *       required: false
-     *       content:
-     *         application/json:
-     *           schema:
-     *             type: object
-     *             properties:
-     *               inv_id:
-     *                 type: number
-     *                 description: inventory id (required for USAGE / RETURN)
      *     responses:
      *       200:
      *         description: เปลี่ยนสถานะรายการ order สำเร็จ

@@ -399,8 +399,6 @@ async executeT1Order(
   }
 }
 
-
-
 private async mockAmrPickAndPlace(
     orderId: number,
     wrsId: number
@@ -482,5 +480,6 @@ private async mockAmrPickAndPlace(
 
     }, 0);
 }
+
 
 }

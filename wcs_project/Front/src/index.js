@@ -44,6 +44,8 @@ import "./i18n"; // นำเข้า i18n.js เพื่อเปิดใช
 // Material Dashboard 2 PRO React Context Provider
 import { MaterialUIControllerProvider } from "context";
 
+import "./global.css"; // ✅ ใส่ตรงนี้
+
 const container = document.getElementById("app");
 const root = createRoot(container);
 

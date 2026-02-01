@@ -1,13 +1,13 @@
 import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 
 /**
- * inventory table เก็บรายการและจำนวนสินค้าที่มีอยู่ โดยแต่ละ stock item สามารถมีหลาย location ได้
+ * inventory summary table เก็บค่าเฉลี่ยของ cost ของรายการ inventory เดียวกัน
  */
-@Entity({ name: 'inventory' })
-export class Inventory {
-    /** ไอดี inventory (PK) */
+@Entity({ name: 'inventory_sum' })
+export class InventorySum {
+    /** ไอดี summary inventory (PK) */
     @PrimaryGeneratedColumn({ type: 'int', unsigned: true, comment: 'Inventory ID' })
-    inv_id!: number;
+    sum_inv_id!: number;
 
     /** ไอดี stock item (Fk) */
     @Column({ type: 'int', unsigned: true })
@@ -17,39 +17,43 @@ export class Inventory {
     @Column({ type: 'int', unsigned: true })
     loc_id!: number;
 
-    /** ไอดี order_receipt id (FK) เพื่อ join เอา mc_code/ condition แล้วไป sum หน้า inventory*/
-    @Column({ type: 'int', unsigned: true })
-    receipt_id!: number;
+    /** เก็บ group code เอาไว้ filter ว่า ใครเห็น order ไหน*/
+    @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Maintenance contract' })
+    mc_code: string | null;
 
-        /** ราคาต่อหน่วย (Unit Cost) */
+    /** สภาพสินค้า เช่น NEW หรือ CAPITAL */
+    @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Item condition (NEW / CAPITAL)' })
+    cond: string | null;
+
+    /** ราคาต่อหน่วยแบบเฉลี่ย */
     @Column({
         type: 'decimal',
         precision: 15, // รวมจำนวนหลักทั้งหมด เช่น 999,999,999,999.99
         scale: 2,      // จำนวนหลักทศนิยม (2 = เก็บทศนิยม 2 ตำแหน่ง)
         default: 0,
-        comment: 'Unit Cost (Materials in Inventory)',
+        comment: 'Unit Cost',
         transformer: {
             // optional — เพื่อให้เวลาดึงจาก DB กลับมาเป็น number (ไม่ใช่ string)
             to: (value: number) => value,
             from: (value: string | null) => (value ? parseFloat(value) : 0),
         },
     })
-    unit_cost_inv: number;
+    unit_cost_sum_inv: number;
 
-    /** ราคาต่อหน่วย (Unit Cost) */
+    /** ราคารวม */
     @Column({
         type: 'decimal',
         precision: 15, // รวมจำนวนหลักทั้งหมด เช่น 999,999,999,999.99
         scale: 2,      // จำนวนหลักทศนิยม (2 = เก็บทศนิยม 2 ตำแหน่ง)
         default: 0,
-        comment: 'Total Cost (Materials in Inventory)',
+        comment: 'Total Cost',
         transformer: {
             // optional — เพื่อให้เวลาดึงจาก DB กลับมาเป็น number (ไม่ใช่ string)
             to: (value: number) => value,
             from: (value: string | null) => (value ? parseFloat(value) : 0),
         },
     })
-    total_cost_inv: number;
+    total_cost_sum_inv: number;
 
     /** ORG ID */
     @Column({ type: 'varchar', length: 20, nullable: true, default: null, comment: 'ORG ID'})
@@ -59,25 +63,13 @@ export class Inventory {
     @Column({ type: 'varchar', length: 255, nullable: true, default: null, comment: 'Department'})
     dept?: string;
 
-    /** จำนวนใน inventory */
+    /** จำนวนใน summary inventory */
     @Column({ type: 'int', nullable: true, default: 0, comment: 'Inventory Quantity' })
-    inv_qty!: number;
-
-    /** FK เชื่อมกับ inventory summary */
-    @Column({ type: 'int', unsigned: true })
-    sum_inv_id!: number;
+    sum_inv_qty!: number;
 
     /** stock_status */
     @Column({ nullable: false, default: true })
     is_active: boolean;
-
-    /** created_at */
-    @Column({
-        type: 'timestamp',
-        default: () => 'CURRENT_TIMESTAMP',
-        comment: 'Inventory created at (first receipt time)'
-    })
-    created_at!: Date;
 
     /** updated_at */
     @Column({ type: 'timestamp',  default: () => 'CURRENT_TIMESTAMP', comment: 'Requested at' })

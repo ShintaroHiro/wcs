@@ -216,4 +216,60 @@ router.post('/create-receipt-json', authenticateToken, importController.createRe
  */
 router.post('/create-return-json', authenticateToken, importController.createReturnJson);
 
+/**
+ * @swagger
+ * /api/import/create-item-json:
+ *   post:
+ *     summary: Import Data from JSON(Excel Item)
+ *     tags: [ImportJson]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: array
+ *             items:
+ *               type: object
+ *               properties:
+ *                 mc_code:
+ *                   type: string
+ *                   example: "M280"
+ *                 stock_item:
+ *                   type: string
+ *                   example: "AMPTB-BDS-13003"
+ *                 item_desc:
+ *                   type: string
+ *                   example: "Relay Module (Control Module) #RM520"
+ *                 order_unit:
+ *                   type: string
+ *                   example: "NO"
+ *                 com_group:
+ *                   type: string
+ *                   example: "AA"
+ *                 cond_en:
+ *                   type: string
+ *                   example: "Y"
+ *                 item_status:
+ *                   type: string
+ *                   example: "ACTIVE"
+ *                 catg_code:
+ *                   type: string
+ *                   example: "ELECTRICAL"
+ *                 system:
+ *                   type: string
+ *                   example: "FS"
+ *     responses:
+ *       200:
+ *         description: Import successful
+ *       400:
+ *         description: Invalid data
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/create-item-json', authenticateToken, importController.createItemJson);
+
 export default router;

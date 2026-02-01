@@ -166,14 +166,8 @@ const create = async (req: Request, res: Response) => {
             return ResponseUtils.handleBadRequest(res, lang.msgInvalidParameter());
         }
 
-        const inv_id =
-    req.body?.inv_id !== undefined
-        ? Number(req.body.inv_id)
-        : undefined;
-
-
         try {
-            const response = await orchestrator.handleOrderItemMrs(order_id, actual_qty, reqUsername, inv_id);
+            const response = await orchestrator.handleOrderItemMrs(order_id, actual_qty, reqUsername);
             return ResponseUtils.handleResponse(res, response);
         } catch (error: any) {
             console.error(`Error during ${operation}:`, error);
@@ -207,12 +201,8 @@ const create = async (req: Request, res: Response) => {
             return ResponseUtils.handleBadRequest(res, lang.msgInvalidParameter());
         }
 
-        const inv_id = req.body?.inv_id !== undefined
-        ? Number(req.body.inv_id)
-        : undefined;
-
         try {
-            const response = await orchestrator.handleOrderItemWRS(order_id, actual_qty, reqUsername, inv_id);
+            const response = await orchestrator.handleOrderItemWRS(order_id, actual_qty, reqUsername);
             return ResponseUtils.handleResponse(res, response);
         } catch (error: any) {
             console.error(`Error during ${operation}:`, error);

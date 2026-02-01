@@ -301,6 +301,46 @@ router.delete(
     orderController.del
 );
 
+/**
+ * @swagger
+ * /api/waiting/return-import:
+ *   post:
+ *     summary: Change Return to Completed
+ *     tags: [Waiting]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - order_ids
+ *             properties:
+ *               order_ids:
+ *                 type: array
+ *                 items:
+ *                   type: number
+ *                 example: [101, 102, 103]
+ *     responses:
+ *       200:
+ *         description: เปลี่ยนสถานะรายการ order สำเร็จ
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้องหรือไม่ครบถ้วน
+ *       404:
+ *         description: ไม่พบรายการ order
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.post(
+    '/return-import',
+    authenticateToken,
+    orderController.submitReturn
+);
+
 
 /**
  * @swagger

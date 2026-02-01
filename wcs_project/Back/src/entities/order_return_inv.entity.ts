@@ -13,11 +13,15 @@ export class ReturnInventory {
     @Column({ type: 'int', nullable: true })
     return_id?: number;
 
-    /** FK Usage_inventory (ของที่เคยเบิก) */
+    /** FK Usage_inventory (ของที่เคยเบิก) มากับ barcode*/
     @Column({ type: 'int', nullable: true })
     usage_inv_id?: number;
 
     /** จำนวนคืนย่อย */
     @Column({ type: 'int', nullable: true, default: 0 })
     return_qty?: number;
+
+    /** FK Usage_inventory (inventory ที่รับคืนเข้า) */
+    @Column({ type: 'int', nullable: true })
+    new_inv_id?: number;
 }

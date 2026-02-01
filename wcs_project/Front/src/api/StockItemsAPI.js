@@ -94,6 +94,21 @@ class StockItemsAPI {
         }
     }
 
+    static async deleteAll() {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = "/api/stock-items/delete-all";
+
+            // เรียก API ลบทั้งหมด
+            const response = await ApiProvider.deleteData(endpoint, {}, token);
+            // console.log("API Response:", response);
+
+            return response;
+        } catch (error) {
+            console.error("Error in Stock Items Delete All:", error);
+            throw error;
+        }
+    }
 
     static async getAll() {
         try {

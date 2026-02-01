@@ -28,6 +28,7 @@ import { GlobalVar } from "common/GlobalVar";
 import { normalizeStatus } from "common/utils/statusUtils";
 import StatusBadge from "../components/statusBadge";
 import ButtonComponent from "../components/ButtonComponent";
+import Swal from "sweetalert2";
 
 //store
 const ReturnExecutionPage = () => {
@@ -286,54 +287,55 @@ const ReturnExecutionPage = () => {
     };
 
     // --------------------------------------------------
-    // ALL Go TO PROCESSING
+    // ALL Go TO PROCESSING END RETURN
     // --------------------------------------------------
     const handleConfirm = async () => {
         if (selectedExecutionIds.length === 0) return;
 
         try {
-        const payload = {
-            items: selectedExecutionIds.map(id => ({ order_id: id }))
-        };
+            const payload = {
+                order_ids: selectedExecutionIds
+            };
 
-        const res = await ExecutionAPI.createTask(payload);
+            const res = await WaitingAPI.submitReturn(payload);
 
-        await Promise.all([
-            fetchDataWaitingAll(),
-            fetchDataExecuteAll(),
-        ]);
+            await Promise.all([
+                fetchDataWaitingAll(),
+                fetchDataExecuteAll(),
+            ]);
 
-        setSelectedExecutionIds([]);
+            setSelectedExecutionIds([]);
 
-        if (res?.isCompleted) {
+            if (res?.isCompleted) {
+                setAlert({
+                    show: true,
+                    type: "success",
+                    title: "Success",
+                    message: res.message || "Confirm success",
+                    onConfirm: () => {
+                        navigate("/status");
+                    },
+                });
+                return;
+            }
+
             setAlert({
-            show: true,
-            type: "success",
-            title: "Success",
-            message: res.message || "Confirm success",
-            onConfirm: () => {
-                navigate("/status");
-            },
+                show: true,
+                type: "success",
+                title: "Success",
+                message: "Confirm to Execution",
             });
-            return;
-        }
-
-        setAlert({
-            show: true,
-            type: "success",
-            title: "Success",
-            message: "Confirm to Execution",
-        });
         } catch (err) {
-        console.error(err);
-        setAlert({
-            show: true,
-            type: "error",
-            title: "Error",
-            message: err.response?.data?.message || "Something went wrong",
-        });
+            console.error(err);
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: err.response?.data?.message || "Something went wrong",
+            });
         }
     };
+
 
 
     // --------------------------------------------------
@@ -381,98 +383,153 @@ const ReturnExecutionPage = () => {
         }
     };
 
-        // --------------------------------------------------
-        // IMPORT FILE
-        // --------------------------------------------------
-        // ปรับปรุง handleImportFile ให้เก็บไฟล์ที่เลือกไว้ใน state
-        const handleImportFile = (event) => {
-            const file = event.target.files[0];
-            if (!file) {
-            setAlert({
-                show: true,
-                type: "error",
-                title: "Error",
-                message: "Please select the file before uploading.",
+    // --------------------------------------------------
+    // IMPORT FILE
+    // --------------------------------------------------
+    // ปรับปรุง handleImportFile ให้เก็บไฟล์ที่เลือกไว้ใน state
+    const handleImportFile = (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+        setAlert({
+            show: true,
+            type: "error",
+            title: "Error",
+            message: "Please select the file before uploading.",
+        });
+        return;
+        }
+    
+        setSelectedFile(file);
+    };
+
+    // ฟังก์ชันสำหรับส่งไฟล์ที่เลือกไปยัง API
+    const handleSubmitImport = async () => {
+        if (!selectedFile) return;
+        try {
+
+            // 🔄 แสดง loading (ฟิกตรงนี้เลย)
+            Swal.fire({
+                title: "Importing...",
+                text: "Please wait while processing file",
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                backdrop: "rgba(0,0,0,0.6)", // ✅ overlay เต็มจอ
+                didOpen: () => {
+                    Swal.showLoading();
+                },
             });
-            return;
-            }
-        
-            setSelectedFile(file);
-        };
-    
-        // ฟังก์ชันสำหรับส่งไฟล์ที่เลือกไปยัง API
-        const handleSubmitImport = async () => {
-            if (!selectedFile) return;
-            try {
-            const response = await ImportFileAPI.importReturnFile(selectedFile);
-            if (response.isCompleted) {
-                setAlert({
-                show: true,
-                type: "success",
-                title: "Success",
-                message: response.message,
-                });
-                await fetchDataWaitingAll();
-                // เคลียร์ไฟล์ที่เลือก และอัปเดต key เพื่อให้ input re-mount ใหม่
-                setSelectedFile(null);
-                setFileInputKey(Date.now());
-            } else {
-                setAlert({
-                show: true,
-                type: "error",
-                title: "Upload failed",
-                message: response.message,
-                });
-            }
-            } catch (error) {
-            console.error("Error uploading file:", error);
-            }
-        };
-    
-        // ฟังก์ชันสำหรับลบไฟล์ที่เลือก (และรีเซ็ต input)
-        const handleClearFile = () => {
+
+        const response = await ImportFileAPI.importReturnFile(selectedFile);
+
+        // ❌ ปิด loading
+        Swal.close();
+
+        if (response.isCompleted) {
+            setAlert({
+            show: true,
+            type: "success",
+            title: "Success",
+            message: response.message,
+            });
+            await fetchDataWaitingAll();
+            // เคลียร์ไฟล์ที่เลือก และอัปเดต key เพื่อให้ input re-mount ใหม่
             setSelectedFile(null);
             setFileInputKey(Date.now());
-        };
+        } else {
+            setAlert({
+            show: true,
+            type: "error",
+            title: "Upload failed",
+            message: response.message,
+            });
+        }
+        } catch (error) {
+            // ❌ ปิด loading (กันเหนียว)
+            Swal.close();
+
+            console.error("Error uploading file:", error);
+
+            setAlert({
+            show: true,
+            type: "error",
+            title: "Error",
+            message: "Import failed",
+            });
+        }
+    };
     
-        
-       const getWaitingOrderIds = () => {
-        return waitingList
-            .filter(r => r.status === "WAITING")
-            .map(r => r.order_id);
+    // ฟังก์ชันสำหรับลบไฟล์ที่เลือก (และรีเซ็ต input)
+    const handleClearFile = () => {
+        setSelectedFile(null);
+        setFileInputKey(Date.now());
+    };
+
+    
+    const getWaitingOrderIds = () => {
+    return waitingList
+        .filter(r => r.status === "WAITING")
+        .map(r => r.order_id);
     };
     
     const handleDeleteAll = async () => {
         const waitingIds = getWaitingOrderIds();
         if (waitingIds.length === 0) return;
-    
+
         try {
+            // 🔄 แสดง loading
+            Swal.fire({
+                title: "Deleting...",
+                text: "Please wait while clearing waiting list",
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                backdrop: "rgba(0,0,0,0.6)",
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+            });
+
             // ✅ payload ให้ตรงกับ backend
             const payload = {
                 order_ids: waitingIds,
             };
-    
-            await WaitingAPI.deleteWaiting(payload);
-    
+
+            const res = await WaitingAPI.deleteWaiting(payload);
+
+            // ❌ ปิด loading
+            Swal.close();
+
             await Promise.all([
                 fetchDataWaitingAll(),
                 fetchDataExecuteAll(),
             ]);
-    
+
             setSelectedWaitingIds([]);
-    
+
+            if (res?.isCompleted) {
+                setAlert({
+                    show: true,
+                    type: "success",
+                    title: "Success",
+                    message: res.message || "Clear waiting list success",
+                });
+                return;
+            }
+
             setAlert({
                 show: true,
-                type: "success",
-                title: "Success",
-                message: "Clear waiting list success",
+                type: "error",
+                title: "Error",
+                message: res?.message || "Delete failed",
             });
-    
+
         } catch (err) {
-             console.error("FULL ERROR:", err);
-        console.error("RESPONSE:", err.response);
-        console.error("DATA:", err.response?.data);
-    
+            // ❌ ปิด loading (กันเหนียว)
+            Swal.close();
+
+            console.error("FULL ERROR:", err);
+            console.error("RESPONSE:", err.response);
+            console.error("DATA:", err.response?.data);
+
             setAlert({
                 show: true,
                 type: "error",
@@ -481,6 +538,7 @@ const ReturnExecutionPage = () => {
             });
         }
     };
+
 
     // --------------------------------------------------
     // TABLE COLUMNS

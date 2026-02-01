@@ -93,6 +93,22 @@
         }
     }
 
+    static async submitReturn(payload) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = "/api/waiting/return-import";
+            
+            // ทำการเรียก API ด้วย token และ endpoint
+            const response = await ApiProvider.postData(endpoint, payload, token);
+            //console.log("confirm order API Response:", response);
+            
+            return response; // ส่งค่ากลับไป
+        } catch (error) {
+            console.error("Error in Task:", error);
+            throw error;
+        }
+    }
+
     static async WaitingAll() {
         try {
         const token = GlobalVar.getToken();

@@ -7,7 +7,7 @@ import MDTypography from "components/MDTypography";
 import CounterAPI from "api/CounterAPI";
 import ReusableDataTable from "../components/table_component_v2";
 import CounterBox from "../components/counter_box";
-import ScanQtyDialog from "../transactions/scan_qty_form";
+//import ScanQtyDialog from "../transactions/scan_qty_form";
 import SweetAlertComponent from "../components/sweetAlert";
 import ExecutionAPI from "api/TaskAPI";
 import StatusBadge from "../components/statusBadge";
@@ -18,9 +18,9 @@ const CheckOutTPage = () => {
   const [loading, setLoading] = useState(true);
   const [ordersList, setOrdersList] = useState([]);
   const [counters, setCounters] = useState([]);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [scanDialogOpen, setScanDialogOpen] = useState(false);
-  const [actualQty, setActualQty] = useState(0);
+  // const [selectedOrder, setSelectedOrder] = useState(null);
+  // const [scanDialogOpen, setScanDialogOpen] = useState(false);
+  // const [actualQty, setActualQty] = useState(0);
 
   const [alert, setAlert] = useState({
     show: false,
@@ -182,7 +182,7 @@ const CheckOutTPage = () => {
           </span>
         ),
     },
-    //{ field: "is_confirm", label: "Confirm", type: "confirmSku" },
+    { field: "is_confirm", label: "Confirm", type: "confirmSku" },
   ];
 
   const columns = React.useMemo(() => {
@@ -296,11 +296,50 @@ const CheckOutTPage = () => {
                   pageSizeOptions={[10, 25, 50]}
                   fontSize="0.8rem"
                   confirmSkuDisabled={(row) => row.status !== "PROCESSING"}
-                  onConfirmSku={(row) => {
-                    setSelectedOrder(row);
-                    setActualQty(row.actual_qty || 0);
-                    setScanDialogOpen(true);
-                  }}
+                  // onConfirmSku={(row) => {
+                  //   setSelectedOrder(row);
+                  //   setActualQty(row.actual_qty || 0);
+                  //   setScanDialogOpen(true);
+                  // }}
+                  onConfirmSku={async (row) => {
+  try {
+    const actual_qty = row.plan_qty; // ⭐ ใช้ plan_qty แทน scanning
+
+    const response = await ExecutionAPI.handleOrderItemT1(
+      row.order_id,
+      actual_qty
+    );
+
+    if (response.isCompleted) {
+      setAlert({
+        show: true,
+        type: "success",
+        title: "Confirmed",
+        message: response.message,
+      });
+
+      // reload data
+      await fetchDataAll();
+      await fetchCounters();
+    } else {
+      setAlert({
+        show: true,
+        type: "error",
+        title: "Error",
+        message: response.message || "Failed",
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    setAlert({
+      show: true,
+      type: "error",
+      title: "Error",
+      message: "Something went wrong",
+    });
+  }
+}}
+
                 />
               </MDBox>
             )}
@@ -309,7 +348,7 @@ const CheckOutTPage = () => {
       </MDBox>
 
       {/* Scan Qty Dialog */}
-      {selectedOrder && (
+      {/* {selectedOrder && (
         <ScanQtyDialog
           open={scanDialogOpen}
           order={selectedOrder}
@@ -347,7 +386,7 @@ const CheckOutTPage = () => {
             }
           }}
         />
-      )}
+      )} */}
 
       {/* General Alert */}
       <SweetAlertComponent

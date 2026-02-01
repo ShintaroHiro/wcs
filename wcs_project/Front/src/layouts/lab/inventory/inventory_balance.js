@@ -55,30 +55,35 @@ const InventoryBalance = () => {
         fetchDataAll();
     }, []);
 
+     //ฟังก์ชัน พิมพ์เล็ก / ใหญ่ , รองรับ number, null, undefined , trim
+    const includesIgnoreCase = (value, search) => {
+        if (!search) return true; // ถ้าไม่ได้พิมพ์อะไร = ผ่าน
+        return String(value ?? "")
+            .toLowerCase()
+            .trim()
+            .includes(String(search).toLowerCase().trim());
+    };
+
     // --- Filter Logic ---
     useEffect(() => {
-        const filtered = itemsList.filter(
-        (item) =>
-            (item.stock_item || "").includes(searchItems.stock_item) &&
-            (item.item_desc || "").includes(searchItems.item_desc) &&
-            (item.org_id || "").includes(searchItems.org_id) &&
-            (item.dept || "").includes(searchItems.dept) &&
-            (item.status || "").includes(searchItems.status) &&
-            (item.mc_code || "").includes(searchItems.mc_code) &&
-            String(item.total_inv_qty ?? "").includes(searchItems.total_inv_qty) &&
-            (item.avg_unit_cost || "").includes(searchItems.avg_unit_cost) &&
-            (item.total_cost_inv || "").includes(searchItems.total_cost_inv) &&
+        const filtered = itemsList.filter((item) =>
+            includesIgnoreCase(item.stock_item, searchItems.stock_item) &&
+            includesIgnoreCase(item.item_desc, searchItems.item_desc) &&
+            includesIgnoreCase(item.org_id, searchItems.org_id) &&
+            includesIgnoreCase(item.dept, searchItems.dept) &&
+            includesIgnoreCase(item.item_status, searchItems.item_status) &&
+            includesIgnoreCase(item.mc_code, searchItems.mc_code) &&
+            includesIgnoreCase(item.total_inv_qty, searchItems.total_inv_qty) &&
+            includesIgnoreCase(item.avg_unit_cost, searchItems.avg_unit_cost) &&
+            includesIgnoreCase(item.total_cost_inv, searchItems.total_cost_inv) &&
+            includesIgnoreCase(item.box_loc, searchItems.box_loc) &&
             (filterCondition === "" || item.cond === filterCondition) &&
-            (filterLocation === "" || item.cond === filterLocation) &&
-            (item.box_loc || "").includes(searchItems.box_loc)
+            (filterLocation === "" || item.loc === filterLocation)
         );
-        setFilteredItems(filtered);
-    }, [itemsList, searchItems, filterLocation]);
 
-    const rowsWithId = filteredItems.map((item) => ({
-        ...item,
-        _rowId: `${item.item_id}-${item.loc_id}`,
-    }));
+        setFilteredItems(filtered);
+    }, [itemsList, searchItems, filterCondition, filterLocation]);
+
 
     // by item ที่ต้องเหมือนกันทุกประการ ถึงรวม
     const columns = [
@@ -276,9 +281,9 @@ const InventoryBalance = () => {
                     <MDInput
                     placeholder="Text Field"
                     sx={{ height: "45px" }}
-                    value={searchItems.status}
+                    value={searchItems.item_status}
                     onChange={(e) =>
-                        setSearchItems({ ...searchItems, status: e.target.value })
+                        setSearchItems({ ...searchItems, item_status: e.target.value })
                     }
                     displayEmpty
                     InputProps={{
@@ -453,8 +458,8 @@ const InventoryBalance = () => {
             ) : (
                 <ReusableDataTable
                 columns={columns}
-                rows={rowsWithId}
-                idField="_rowId"
+                rows={filteredItems}
+                idField="row_key"
                 defaultPageSize={10}
                 pageSizeOptions={[10, 25, 50]}
                 />

@@ -57,6 +57,10 @@ export class StockItems {
     requested_at!: Date;
 
     @Column({ length: 30, nullable: true })
-    update_by: string;
+    update_by?: string;
+
+    /** เวลาอัปเดตล่าสุด*/
+    @Column({  type: 'timestamp',  nullable: true, default: () => null })
+    updated_at?: Date;
 
 }

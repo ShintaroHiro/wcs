@@ -102,6 +102,7 @@ class CounterAPI {
         }
     }
 
+//scan one by one
 static async scanToServer(counterId) {
   try {
     const token = GlobalVar.getToken();
@@ -150,6 +151,31 @@ static async getByCounterIdPublic(counterId) {
     }
   );
   return response;
+}
+
+//scan required=sacn qty
+static async scanBulk(counterId, qty) {
+  try {
+    const token = GlobalVar.getToken();
+    const endpoint = `/api/sse/${counterId}/scan-bulk`;
+
+    const response = await ApiProvider.postData(
+      endpoint,
+      { qty },      // จำนวนที่ต้องการ scan
+      token
+    );
+
+    return response;
+  } catch (error) {
+    console.error("Error scanBulk:", error.message || error);
+    return new ApiResponse({
+      isCompleted: false,
+      isError: true,
+      message: error.message || "Scan bulk failed",
+      data: null,
+      error,
+    });
+  }
 }
 
 

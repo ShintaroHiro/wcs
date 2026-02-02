@@ -603,7 +603,7 @@ const PickExecutionReqPage = () => {
                 <ReusableDataTable
                   columns={columnsWaiting}
                   rows={filteredWaiting}
-                  disableHorizontalScroll
+                  //disableHorizontalScroll
                   idField="order_id"
                   enableSelection={true}              // ⭐ เปิด checkbox
                   selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
@@ -857,7 +857,7 @@ const PickExecutionReqPage = () => {
                 <ReusableDataTable
                   columns={columnsExecute}
                   rows={filteredExecution}
-                  disableHorizontalScroll
+                  //disableHorizontalScroll
                   idField="order_id"
                   enableSelection={true}              // ⭐ เปิด checkbox
                   selectedRows={selectedExecutionIds}   // ⭐ รายการที่เลือก

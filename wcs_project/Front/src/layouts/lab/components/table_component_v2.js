@@ -52,8 +52,11 @@ export default function ReusableDataTable({
   extraActionButtons = [],
 
   // ✅ ใหม่สำหรับ Confirm SKU column
-  confirmSkuDisabled = false, // boolean หรือ (row)=>boolean
   onConfirmSku,
+  confirmSkuDisabled = false, // boolean หรือ (row)=>boolean
+  
+  onScanSku,
+  scanSkuDisabled = false,
 
   onRowClick,
   selectedId,
@@ -292,6 +295,26 @@ export default function ReusableDataTable({
     );
   };
 
+  //scan
+  const renderScanSkuCell = (row) => {
+    const disabled =
+      typeof scanSkuDisabled === "function"
+        ? !!scanSkuDisabled(row)
+        : !!scanSkuDisabled;
+
+    return (
+      <MDButton
+        variant="contained"
+        size="small"
+        color={disabled ? "secondary" : "info"}
+        disabled={disabled}
+        onClick={() => !disabled && onScanSku?.(row)}
+      >
+        Scan
+      </MDButton>
+    );
+  };
+
   const selectableRows = isRowSelectable ? safeRows.filter(isRowSelectable) : safeRows;
 
   const allSelectableIds = selectableRows.map((r, i) => getRowId(r, i));
@@ -348,7 +371,7 @@ export default function ReusableDataTable({
               )}
 
               {columns.map((col) => {
-                const sortable = col.sortable !== false && col.type !== "confirmSku";
+                const sortable = col.sortable !== false && col.type !== "confirmSku" && col.type !== "scanSku";
                 const active = orderBy === col.field;
                 return (
                   <TableCell
@@ -476,21 +499,33 @@ export default function ReusableDataTable({
                   )}
 
                   {columns.map((col) => {
-                    if (col.type === "confirmSku") {
-                      return (
-                        <TableCell key={col.field} align={col.align || "center"}>
-                          {renderConfirmSkuCell(row)}
-                        </TableCell>
-                      );
-                    }
 
-                    const value = getValue(row, col);
-                    return (
-                      <TableCell key={col.field} align={col.align || "left"}>
-                        {col.renderCell ? col.renderCell(value, row) : value}
-                      </TableCell>
-                    );
-                  })}
+  const key = `${col.field}-${col.type || "data"}`;
+
+  if (col.type === "scanSku") {
+    return (
+      <TableCell key={key} align="center">
+        {renderScanSkuCell(row)}
+      </TableCell>
+    );
+  }
+
+  if (col.type === "confirmSku") {
+    return (
+      <TableCell key={key} align={col.align || "center"}>
+        {renderConfirmSkuCell(row)}
+      </TableCell>
+    );
+  }
+
+  const value = getValue(row, col);
+  return (
+    <TableCell key={key} align={col.align || "left"}>
+      {col.renderCell ? col.renderCell(value, row) : value}
+    </TableCell>
+  );
+})}
+
 
                   {actionsList.length > 0 && (
                     <TableCell align="center">{renderActions(row)}</TableCell>
@@ -541,7 +576,7 @@ ReusableDataTable.propTypes = {
       valueGetter: PropTypes.func,
       renderCell: PropTypes.func,
       // ✅ ใหม่: ระบุว่าเป็นคอลัมน์ปุ่ม Confirm SKU
-      type: PropTypes.oneOf(["confirmSku"]),
+      type: PropTypes.oneOf(["confirmSku","scanSku"]),
     })
   ).isRequired,
   rows: PropTypes.array.isRequired,
@@ -571,8 +606,11 @@ ReusableDataTable.propTypes = {
   ),
 
   // ✅ ใหม่
-  confirmSkuDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
   onConfirmSku: PropTypes.func,
+  confirmSkuDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
+
+  onScanSku: PropTypes.func,
+  scanSkuDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
 
   onRowClick: PropTypes.func,
   selectedId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),

@@ -10,6 +10,7 @@ import { StockItems } from "../entities/m_stock_items.entity";
 import { OrdersReceipt } from "../entities/order_receipt.entity";
 import { OrdersTransfer } from "../entities/order_transfer.entity";
 import { OrdersReturn } from "../entities/order_return.entity";
+import { CounterRuntime } from "../entities/counter_runtime.entity";
 
 export class CounterService {
 
@@ -296,6 +297,11 @@ export class CounterService {
             const qb = repository
                 .createQueryBuilder('counter')
                 .leftJoin(
+                    CounterRuntime,
+                    'runtime',
+                    'runtime.counter_id = counter.counter_id'
+                )
+                .leftJoin(
                     Orders,
                     'order',
                     'order.order_id = counter.current_order_id'
@@ -312,8 +318,8 @@ export class CounterService {
                     'counter.status AS status',
                     'counter.light_color_hex AS color',
                     'order.order_id AS order_id',
-                    'order.actual_qty AS actual',
-                    'order.plan_qty AS plan',
+                    'runtime.actual_qty AS actual_qty',
+                    'order.plan_qty AS plan_qty',
                     'order.status AS order_status',
                 ])
                 .orderBy('counter.counter_id', 'ASC')
@@ -324,11 +330,15 @@ export class CounterService {
             }
 
             const cleanedData = rawData.map((item: any) => ({
-                ...item,
-                order_id: item.order_id ?? '-',
-                actual: item.actual ?? 0,
-                plan: item.plan ?? 0,
+                id: Number(item.id),
+                status: item.status,
+                color: item.color,
+
+                order_id: item.order_id ?? null,
+                actual_qty: Number(item.actual_qty || 0),
+                plan_qty: Number(item.plan_qty || 0),
             }));
+
 
             return response.setComplete(lang.msgFound('counter'), cleanedData);
 
@@ -365,6 +375,13 @@ export class CounterService {
                     Orders,
                     'order',
                     'order.order_id = counter.current_order_id'
+                )
+
+                //เอา actual จาก counter runtime
+                .leftJoin(
+                    CounterRuntime,
+                    'runtime',
+                    'runtime.counter_id = counter.counter_id'
                 )
 
                 // ===== USAGE (ตรง) =====
@@ -420,7 +437,7 @@ export class CounterService {
                     'order.type AS trx_type',
                     'order.mc_code AS mc_code',
                     'order.plan_qty AS plan_qty',
-                    'order.actual_qty AS actual_qty',
+                    'COALESCE(runtime.actual_qty, 0) AS actual_qty',
                     'order.item_id AS item_id',
 
                     // ⭐ USAGE / RETURN (ใช้ CASE)

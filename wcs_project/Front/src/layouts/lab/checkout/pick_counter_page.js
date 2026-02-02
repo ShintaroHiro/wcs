@@ -5,12 +5,12 @@ import CounterAPI from "api/CounterAPI";
 import MDBox from "components/MDBox";
 import DisplayLayout from "../../../utils/DisplayLayout";
 import CounterStandbyScreen from "../components/counter_standby_screen";
-import ScanQtyDialog from "../transactions/scan_qty_form";
+//import ScanQtyDialog from "../transactions/scan_qty_form";
 const PickCounterPage = () => {
   const { counterId } = useParams();
   const [counter, setCounter] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [scanOpen, setScanOpen] = useState(false);
+  //const [scanOpen, setScanOpen] = useState(false);
 
   useEffect(() => {
     const fetchCounter = async () => {
@@ -25,7 +25,7 @@ const PickCounterPage = () => {
           setCounter(data[0]);
         }
 
-        console.log("res", data);
+        //console.log("res", data);
       } catch (err) {
         console.error(err);
         setCounter(null);
@@ -166,7 +166,7 @@ const PickCounterPage = () => {
           )}
         </ScaledWrapper>
         {/* 🔥 Dialog อยู่นี่ */}
-      <ScanQtyDialog
+      {/* <ScanQtyDialog
         open={scanOpen}                 // ใครจะเปิด คนนั้นคุม
         order={counter}
         actualQty={counter.actual_qty}
@@ -174,7 +174,7 @@ const PickCounterPage = () => {
         onSubmit={(orderId, qty) =>
           CounterAPI.confirmOrder(orderId, qty)
         }
-      />
+      /> */}
       </MDBox>
     </DisplayLayout>
   );

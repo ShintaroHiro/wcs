@@ -494,7 +494,7 @@ const OrderStatusReqPage = () => {
                 <ReusableDataTable
                   columns={columns}
                   rows={filteredOrders}
-                  disableHorizontalScroll
+                  //disableHorizontalScroll
                   idField="order_id"
                   defaultPageSize={10}
                   pageSizeOptions={[10, 25, 50]}

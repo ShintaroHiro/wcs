@@ -276,7 +276,7 @@ async executeT1Order(
         light_mode: 'OFF'
       },
       order: {
-        last_event_at: 'ASC' // ว่างนานสุด
+        counter_id: 'ASC' // ว่างนานสุด
       },
       lock: { mode: 'pessimistic_write' }
     });

@@ -21,6 +21,7 @@ const CheckOutTPage = () => {
   // const [selectedOrder, setSelectedOrder] = useState(null);
   // const [scanDialogOpen, setScanDialogOpen] = useState(false);
   // const [actualQty, setActualQty] = useState(0);
+const [scannedOrderIds, setScannedOrderIds] = useState(new Set());
 
   const [alert, setAlert] = useState({
     show: false,
@@ -41,6 +42,7 @@ const CheckOutTPage = () => {
     color: "#000",
     actual: 0,
     plan: 0,
+    isActive: false,
   });
 
   /* ---------------- Fetch Orders ---------------- */
@@ -68,8 +70,10 @@ const CheckOutTPage = () => {
           (c) => Number(c.id) === counterId || Number(c.counter_id) === counterId
         );
 
-        const isActive =
-          apiCounter && (Number(apiCounter.plan) > 0 || Number(apiCounter.actual) > 0);
+      const actual = Number(apiCounter?.actual_qty || 0);
+      const plan = Number(apiCounter?.plan_qty || 0);
+
+      const isActive = plan > 0 || actual > 0;
 
         return {
           ...createDefaultCounter(counterId),
@@ -81,7 +85,8 @@ const CheckOutTPage = () => {
 
           // normalize status
           status: isActive ? apiCounter.status : "IDLE",
-
+          actual,
+          plan,
           // ⭐ ส่ง flag ไปให้ CounterBox
           isActive,
         };
@@ -108,6 +113,56 @@ const CheckOutTPage = () => {
     [counters]
   );
 
+const handleScan = async (row) => {
+  try {
+    if (!row?.order_id) throw new Error("Order not found");
+
+    // 🔒 scan ได้ครั้งเดียว
+    if (scannedOrderIds.has(row.order_id)) return;
+
+    const counterId = row.counter_id;
+    const planQty = Number(row.plan_qty || 0);
+
+    if (!counterId || planQty <= 0) {
+      throw new Error("Invalid counter or plan qty");
+    }
+
+    const res = await CounterAPI.scanBulk(counterId, planQty);
+
+    if (!res?.ok) {
+      throw new Error(res?.message || "Scan failed");
+    }
+
+    // ✅ mark ว่า order นี้ scan แล้ว
+    setScannedOrderIds((prev) => {
+      const next = new Set(prev);
+      next.add(row.order_id);
+      return next;
+    });
+
+    setAlert({
+      show: true,
+      type: "success",
+      title: "Scanned",
+      message: "Scan completed",
+    });
+
+    await fetchDataAll();
+    await fetchCounters();
+
+  } catch (err) {
+    console.error("handleScan error:", err);
+    setAlert({
+      show: true,
+      type: "error",
+      title: "Error",
+      message: err.message || "Scan failed",
+    });
+  }
+};
+
+
+
   /* ---------------- Table Columns By Requester ---------------- */
   const requesterColumns = [
     { field: "work_order", label: "Work Order" },
@@ -128,6 +183,11 @@ const CheckOutTPage = () => {
       valueGetter: (row) => row.status,
       renderCell: (status) => <StatusBadge status={status} />,
     },
+{
+  field: "scan",
+  label: "Scan",
+  type: "scanSku",
+},
     {
       field: "counter_id",
       label: "Counter",
@@ -182,6 +242,11 @@ const CheckOutTPage = () => {
           </span>
         ),
     },
+{
+  field: "scan",
+  label: "Scan",
+  type: "scanSku",
+},
     { field: "is_confirm", label: "Confirm", type: "confirmSku" },
   ];
 
@@ -295,51 +360,56 @@ const CheckOutTPage = () => {
                   defaultPageSize={10}
                   pageSizeOptions={[10, 25, 50]}
                   fontSize="0.8rem"
-                  confirmSkuDisabled={(row) => row.status !== "PROCESSING"}
-                  // onConfirmSku={(row) => {
-                  //   setSelectedOrder(row);
-                  //   setActualQty(row.actual_qty || 0);
-                  //   setScanDialogOpen(true);
-                  // }}
+
+                  scanSkuDisabled={(row) =>
+                    row?.status !== "PROCESSING" ||
+                    scannedOrderIds.has(row.order_id)
+                  }
+                  onScanSku={(row) => handleScan(row)}
+
+                  confirmSkuDisabled={(row) =>
+                    row?.status !== "PROCESSING" ||
+                    !scannedOrderIds.has(row.order_id)
+                  }
                   onConfirmSku={async (row) => {
-  try {
-    const actual_qty = row.plan_qty; // ⭐ ใช้ plan_qty แทน scanning
+                    try {
+                      const actual_qty = row.plan_qty;
 
-    const response = await ExecutionAPI.handleOrderItemT1(
-      row.order_id,
-      actual_qty
-    );
+                      const response = await ExecutionAPI.handleOrderItemT1(
+                        row.order_id,
+                        actual_qty
+                      );
 
-    if (response.isCompleted) {
-      setAlert({
-        show: true,
-        type: "success",
-        title: "Confirmed",
-        message: response.message,
-      });
+                      if (response.isCompleted) {
+                        setAlert({
+                          show: true,
+                          type: "success",
+                          title: "Confirmed",
+                          message: response.message,
+                        });
 
-      // reload data
-      await fetchDataAll();
-      await fetchCounters();
-    } else {
-      setAlert({
-        show: true,
-        type: "error",
-        title: "Error",
-        message: response.message || "Failed",
-      });
-    }
-  } catch (err) {
-    console.error(err);
-    setAlert({
-      show: true,
-      type: "error",
-      title: "Error",
-      message: "Something went wrong",
-    });
-  }
-}}
+                        // 🔥 ลบออกจาก scanned set
+                        setScannedOrderIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(row.order_id);
+                          return next;
+                        });
 
+                        await fetchDataAll();
+                        await fetchCounters();
+                      } else {
+                        throw new Error(response.message || "Failed");
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      setAlert({
+                        show: true,
+                        type: "error",
+                        title: "Error",
+                        message: "Something went wrong",
+                      });
+                    }
+                  }}
                 />
               </MDBox>
             )}

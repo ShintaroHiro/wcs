@@ -832,7 +832,7 @@ export class ImportService {
             stock_item: 'STOCK ITEM',
             item_desc: 'ITEM DESCRIPTION',
             cond: 'CONDITION',
-            mc_code: 'MAINTENANCE CONTRACT',
+            mc_code: 'MAINT. CONTRACT',
             requested_at: 'TRANSDATE',
             work_order: 'WORK ORDER',
             spr_no: 'SPR NO.',

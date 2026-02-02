@@ -397,7 +397,7 @@ export default class ImportFileAPI {
             "ITEM DESCRIPTION",
             "QUANTITY",
             "CONDITION",
-            "MAINTENANCE CONTRACT",
+            "MAINT. CONTRACT",
             "TRANSDATE",
         ];
         const headers = rows[0];
@@ -437,7 +437,7 @@ export default class ImportFileAPI {
                 plan_qty: toNumber(r[col("QUANTITY")]),
                 cond: r[col("CONDITION")]?.toString().trim().toUpperCase(),
 
-                mc_code: r[col("MAINTENANCE CONTRACT")]?.toString().trim(),
+                mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
                 requested_at: r[col("TRANSDATE")]?.toString().trim(),
 
                 work_order: r[col("WORK ORDER")]?.toString().trim(),

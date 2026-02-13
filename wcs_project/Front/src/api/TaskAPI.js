@@ -129,6 +129,19 @@ class ExecutionAPI {
     }
   }
 
+  static async transferChangeStatus(payload) {
+    try {
+      const token = GlobalVar.getToken();
+      const endpoint = "/api/execution/transfer-change-status";
+
+      const response = await ApiProvider.postData(endpoint, payload, token);
+      
+      return response;
+    } catch (error) {
+      console.error("Error in status transfer:", error);
+      throw error;
+    }
+  }
 
   static async TaskAll() {
       try {

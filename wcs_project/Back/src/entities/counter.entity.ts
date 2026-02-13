@@ -10,7 +10,7 @@ export class Counter {
     code?: string;
 
     /** Empty / WAITING_AMR / READY_TO_PICK / ERROR */
-    @Column({ type: 'enum', enum: ['EMPTY','WAITING_AMR','READY_TO_PICK','ERROR'] })
+    @Column({ type: 'enum', enum: ['EMPTY','WAITING_AMR','READY_TO_PICK','ERROR','WAITING_PICK'] })
     status!: string;
 
     /** สีของ execution group ที่ lock counter นี้ */

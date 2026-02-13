@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
-import { ScanStatus, StatusOrders, TypeInfm } from '../common/global.enum';
+import { ExecutionMode, ScanStatus, StatusOrders, TypeInfm } from '../common/global.enum';
 
 /**
  * order: ใช้เก็บรายการที่ต้องการทำ execution ทั้งหมด รวมทั้ง MRS และ WRS
@@ -63,12 +63,16 @@ export class Orders {
     is_confirm: boolean;
 
     /** ผู้ร้องขอ */
-    @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Requester user id/name' })
+    @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Requester username' })
     requested_by: string | null;
 
     /** เวลารับคำขอ */
     @Column({ type: 'timestamp',  default: () => 'CURRENT_TIMESTAMP', comment: 'Requested at' })
     requested_at!: Date;
+
+    /** ผู้แก้ไข */
+    @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Update username' })
+    updated_by: string | null;
 
     /** เวลาอัปเดตล่าสุดของงาน ตาม log*/
     @Column({  type: 'timestamp',  nullable: true, default: () => null })
@@ -108,5 +112,23 @@ export class Orders {
     /** ผู้ร้องขอ import เท่านั้น */
     @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Requester username importer' })
     import_by: string | null;
+
+    /** การ import ถ้า 1=import ถ้า0=ไม่import*/
+    @Column({ default: false, nullable: false })
+    is_import: boolean;
+
+    /** ประเภทของ transfer 1.INTERNAL → source == target(INTERNAL_OUT/INTERNAL_IN) 2.OUTBOUND → source = own, target = external 3.INBOUND → source = external, target = own*/
+    @Column({ type: 'varchar', length: 20, nullable: true, comment: 'Type of Transfer Scenario' })
+    transfer_scenario?: string;
+    
+    /** ประเภทของการ execution คือ AUTO(execute normal) , MANUAL(update inventory) */
+    @Column({
+    type: 'enum',
+    enum: ExecutionMode,
+    default: ExecutionMode.AUTO,
+    nullable: false,
+    comment: 'Execution mode: AUTO (execute normal) or MANUAL (update inventory)',
+    })
+    execution_mode!: ExecutionMode;
 
 }

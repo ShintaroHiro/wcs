@@ -3,11 +3,6 @@ import { Grid, Card, IconButton, InputAdornment, FormControl } from "@mui/materi
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
 
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import dayjs from "dayjs";
-
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDInput from "components/MDInput";
@@ -30,11 +25,12 @@ import {
   normalizeStatus,
   STATUS_STYLE,
 } from "common/utils/statusUtils";
+import ExecutionModeBadge from "../components/executionModeBadge";
 import ButtonComponent from "../components/ButtonComponent";
 import Swal from "sweetalert2";
 
 //store
-const PickExecutionPage = () => {
+const TransferExecutionPage = () => {
     const [waitingList, setWaitingList] = useState([]);
     const [executionList, setExecutionList] = useState([]);
 
@@ -43,39 +39,35 @@ const PickExecutionPage = () => {
 
     // นำเข้า useState หากยังไม่ได้ import
     const [selectedFile, setSelectedFile] = useState(null);
-    // state สำหรับ key ของ input element เพื่อบังคับ re-mount
+     // state สำหรับ key ของ input element เพื่อบังคับ re-mount
     const [fileInputKey, setFileInputKey] = useState(Date.now());
 
-    const [searchWaiting, setSearchWaiting] = useState({ 
+    const [searchWaiting, setSearchWaiting] = useState({
+        object_id: "",
         mc_code: "",
-        date: "", 
-        spr_no: "", 
-        work_order: "",
-        usage_num: "", 
-        usage_line: "",
         stock_item: "", 
         item_desc: "",
         cond: "", 
-        loc: "",
-        box_loc: "",
+        from_loc: "",
+        from_box_loc: "",
+        to_loc: "",
+        to_box_loc: "",
         unit_cost_handled: "",
         total_cost_handled: "",
     });
-    const [searchExecution, setSearchExecution] = useState({ 
+    const [searchExecution, setSearchExecution] = useState({
+        object_id: "",
         mc_code: "",
-        date: "", 
-        spr_no: "", 
-        work_order: "",
-        usage_num: "", 
-        usage_line: "",
-        status: "",
         stock_item: "", 
         item_desc: "",
         cond: "",
-        loc: "",
-        box_loc: "",
+        from_loc: "",
+        from_box_loc: "",
+        to_loc: "",
+        to_box_loc: "",
         unit_cost_handled: "",
         total_cost_handled: "",
+        status: "",
     });
 
     const [selectedWaitingIds, setSelectedWaitingIds] = useState([]);
@@ -112,11 +104,12 @@ const PickExecutionPage = () => {
     const fetchDataWaitingAll = async () => {
         setLoading(true);
         try {
-        const response = await OrdersAPI.OrdersUsageAll({
+        const response = await OrdersAPI.OrdersTransferAll({
             isExecution: true,
             //mc_code: mcCodes,
             store_type: storeType === "WCS" ? undefined : storeType,
         });
+        console.log("response:", response);
         const list = Array.isArray(response?.data) ? response.data : [];
         setWaitingList(list);
         } catch (err) {
@@ -130,7 +123,7 @@ const PickExecutionPage = () => {
     const fetchDataExecuteAll = async () => {
         setLoading(true);
         try {
-        const response = await OrdersAPI.OrdersUsageAll({
+        const response = await OrdersAPI.OrdersTransferAll({
             isExecution: false,
             //mc_code: mcCodes,
             store_type: storeType === "WCS" ? undefined : storeType, 
@@ -165,30 +158,26 @@ const PickExecutionPage = () => {
     useEffect(() => {
         const filtered = waitingList.filter(
             (item) =>
-            includesIgnoreCase(item.mc_code, searchWaiting.mc_code) &&
-            includesIgnoreCase(item.loc, searchWaiting.loc) &&
-            includesIgnoreCase(item.box_loc, searchWaiting.box_loc) &&
-            includesIgnoreCase(item.requested_at, searchWaiting.date) &&
-            includesIgnoreCase(item.work_order, searchWaiting.work_order) &&
-            includesIgnoreCase(item.spr_no, searchWaiting.spr_no) &&
-            includesIgnoreCase(item.usage_num, searchWaiting.usage_num) &&
-            includesIgnoreCase(item.usage_line, searchWaiting.usage_line) &&
-            includesIgnoreCase(item.stock_item, searchWaiting.stock_item) &&
-            includesIgnoreCase(item.item_desc, searchWaiting.item_desc) &&
-            includesIgnoreCase(
-                item.unit_cost_handled,
-                searchWaiting.unit_cost_handled
-            ) &&
-            includesIgnoreCase(
-                item.total_cost_handled,
-                searchWaiting.total_cost_handled
-            ) &&
-            (filterConditionWaiting === "" || item.cond === filterConditionWaiting)
+                includesIgnoreCase(item.object_id, searchWaiting.object_id) &&
+                includesIgnoreCase(item.mc_code, searchWaiting.mc_code) &&
+                includesIgnoreCase(item.stock_item, searchWaiting.stock_item) &&
+                includesIgnoreCase(item.item_desc, searchWaiting.item_desc) &&
+                includesIgnoreCase(item.loc, searchWaiting.loc) &&
+                includesIgnoreCase(item.box_loc, searchWaiting.box_loc) &&
+                includesIgnoreCase(
+                    item.unit_cost_handled,
+                    searchWaiting.unit_cost_handled
+                ) &&
+                includesIgnoreCase(
+                    item.total_cost_handled,
+                    searchWaiting.total_cost_handled
+                ) &&
+                (filterConditionWaiting === "" ||
+                    item.cond === filterConditionWaiting)
         );
 
         setFilteredWaiting(filtered);
-        }, [waitingList, searchWaiting, filterConditionWaiting]);
-
+    }, [waitingList, searchWaiting, filterConditionWaiting]);
 
     // --------------------------------------------------
     // FILTER EXECUTION LIST
@@ -196,32 +185,34 @@ const PickExecutionPage = () => {
     useEffect(() => {
         const filtered = executionList.filter(
             (item) =>
-            includesIgnoreCase(item.mc_code, searchExecution.mc_code) &&
-            includesIgnoreCase(item.loc, searchExecution.loc) &&
-            includesIgnoreCase(item.box_loc, searchExecution.box_loc) &&
-            includesIgnoreCase(item.requested_at, searchExecution.date) &&
-            includesIgnoreCase(item.work_order, searchExecution.work_order) &&
-            includesIgnoreCase(item.spr_no, searchExecution.spr_no) &&
-            includesIgnoreCase(item.usage_num, searchExecution.usage_num) &&
-            includesIgnoreCase(item.usage_line, searchExecution.usage_line) &&
-            (filterStatusExecution === "" ||
-                normalizeStatus(item.status) === filterStatusExecution) &&
-            includesIgnoreCase(item.stock_item, searchExecution.stock_item) &&
-            includesIgnoreCase(item.item_desc, searchExecution.item_desc) &&
-            includesIgnoreCase(
-                item.unit_cost_handled,
-                searchExecution.unit_cost_handled
-            ) &&
-            includesIgnoreCase(
-                item.total_cost_handled,
-                searchExecution.total_cost_handled
-            ) &&
-            (filterConditionExecution === "" || item.cond === filterConditionExecution)
+                includesIgnoreCase(item.object_id, searchExecution.object_id) &&
+                includesIgnoreCase(item.mc_code, searchExecution.mc_code) &&
+                (
+                    filterStatusExecution === "" ||
+                    normalizeStatus(item.status) === filterStatusExecution
+                ) &&
+                includesIgnoreCase(item.stock_item, searchExecution.stock_item) &&
+                includesIgnoreCase(item.item_desc, searchExecution.item_desc) &&
+                includesIgnoreCase(item.loc, searchExecution.loc) &&
+                includesIgnoreCase(item.box_loc, searchExecution.box_loc) &&
+                includesIgnoreCase(
+                    item.unit_cost_handled,
+                    searchExecution.unit_cost_handled
+                ) &&
+                includesIgnoreCase(
+                    item.total_cost_handled,
+                    searchExecution.total_cost_handled
+                ) &&
+                (filterConditionExecution === "" ||
+                    item.cond === filterConditionExecution)
         );
 
         setFilteredExecution(filtered);
     }, [
-        executionList, searchExecution, filterStatusExecution, filterConditionExecution,
+        executionList,
+        searchExecution,
+        filterStatusExecution,
+        filterConditionExecution
     ]);
 
     // --------------------------------------------------
@@ -231,31 +222,44 @@ const PickExecutionPage = () => {
         if (selectedWaitingIds.length === 0) return;
 
         try {
-        const payload = {
-            items: selectedWaitingIds.map(id => ({ order_id: id }))
-        };
+            const payload = {
+                items: selectedWaitingIds.map(id => ({ order_id: id }))
+            };
 
-        await ExecutionAPI.changeToPending(payload);
+            // 🔥 ยิงพร้อมกัน
+            await Promise.all([
+                ExecutionAPI.changeToPending(payload),
+                ExecutionAPI.transferChangeStatus({
+                    ...payload,
+                    transfer_status: "PENDING"
+                })
+            ]);
 
-        await Promise.all([fetchDataWaitingAll(), fetchDataExecuteAll()]);
-        setSelectedWaitingIds([]);
+            await Promise.all([
+                fetchDataWaitingAll(),
+                fetchDataExecuteAll()
+            ]);
 
-        setAlert({
-            show: true,
-            type: "success",
-            title: "Success",
-            message: "Moved to Execution",
-        });
+            setSelectedWaitingIds([]);
+
+            setAlert({
+                show: true,
+                type: "success",
+                title: "Success",
+                message: "Moved to Execution List",
+            });
+
         } catch (err) {
-        console.error(err);
-        setAlert({
-            show: true,
-            type: "error",
-            title: "Error",
-            message: err.response?.data?.message || "Something went wrong",
-        });
+            console.error(err);
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: err.response?.data?.message || "Something went wrong",
+            });
         }
     };
+
 
     // --------------------------------------------------
     // DELETE EXECUTION -> BACK TO WAITING
@@ -264,31 +268,44 @@ const PickExecutionPage = () => {
         if (selectedExecutionIds.length === 0) return;
 
         try {
-        const payload = {
-            items: selectedExecutionIds.map(id => ({ order_id: id }))
-        };
+            const payload = {
+                items: selectedExecutionIds.map(id => ({ order_id: id }))
+            };
 
-        await ExecutionAPI.changeToWaiting(payload);
+            // 🔥 ยิงพร้อมกัน
+            await Promise.all([
+                ExecutionAPI.changeToWaiting(payload),
+                ExecutionAPI.transferChangeStatus({
+                    ...payload,
+                    transfer_status: "WAITING"
+                })
+            ]);
 
-        await Promise.all([fetchDataWaitingAll(), fetchDataExecuteAll()]);
-        setSelectedExecutionIds([]);
+            await Promise.all([
+                fetchDataWaitingAll(),
+                fetchDataExecuteAll()
+            ]);
 
-        setAlert({
-            show: true,
-            type: "success",
-            title: "Success",
-            message: "Moved back to Waiting",
-        });
+            setSelectedExecutionIds([]);
+
+            setAlert({
+                show: true,
+                type: "success",
+                title: "Success",
+                message: "Moved back to Waiting List",
+            });
+
         } catch (err) {
-        console.error(err);
-        setAlert({
-            show: true,
-            type: "error",
-            title: "Error",
-            message: err.response?.data?.message || "Something went wrong",
-        });
+            console.error(err);
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: err.response?.data?.message || "Something went wrong",
+            });
         }
     };
+
 
     // --------------------------------------------------
     // ALL Go TO PROCESSING
@@ -297,46 +314,120 @@ const PickExecutionPage = () => {
         if (selectedExecutionIds.length === 0) return;
 
         try {
-        const payload = {
-            items: selectedExecutionIds.map(id => ({ order_id: id }))
-        };
 
-        const res = await ExecutionAPI.createTask(payload);
+            const selectedOrders = executionList.filter(o =>
+                selectedExecutionIds.includes(o.order_id)
+            );
 
-        await Promise.all([
-            fetchDataWaitingAll(),
-            fetchDataExecuteAll(),
-        ]);
+            const manualOrders = selectedOrders.filter(
+                o => (o.execution_mode ?? "AUTO") === "MANUAL"
+            );
 
-        setSelectedExecutionIds([]);
+            const autoOrders = selectedOrders.filter(
+                o => (o.execution_mode ?? "AUTO") === "AUTO"
+            );
 
-        if (res?.isCompleted) {
-            setAlert({
-            show: true,
-            type: "success",
-            title: "Success",
-            message: res.message || "Confirm success",
-            onConfirm: () => {
-                navigate("/status");
-            },
+            const payload = {
+                items: selectedExecutionIds.map(id => ({ order_id: id }))
+            };
+
+            // 🔥 เปลี่ยนเป็น PROCESSING ก่อน
+            await ExecutionAPI.transferChangeStatus({
+                ...payload,
+                transfer_status: "PROCESSING"
             });
-            return;
+
+            // 🔹 MANUAL
+if (manualOrders.length > 0) {
+
+    const orderIds = [];
+    const mainOrderIds = manualOrders.map(o => o.order_id); // 🔥 เอาเฉพาะตัวหลัก
+
+    manualOrders.forEach(o => {
+
+        orderIds.push(o.order_id);
+
+        if (
+            o.transfer_scenario === "INTERNAL_OUT" &&
+            o.related_order_id
+        ) {
+            orderIds.push(o.related_order_id);
         }
 
-        setAlert({
-            show: true,
-            type: "success",
-            title: "Success",
-            message: "Confirm to Execution",
-        });
+    });
+
+    const uniqueIds = [...new Set(orderIds)];
+
+    // 1️⃣ submit transfer (รวม related)
+    await WaitingAPI.submitTransfer({
+        order_ids: uniqueIds,
+    });
+
+    // 2️⃣ 🔥 update COMPLETED เฉพาะ order หลัก
+    await ExecutionAPI.transferChangeStatus({
+        items: mainOrderIds.map(id => ({ order_id: id })),
+        transfer_status: "COMPLETED"
+    });
+}
+
+
+            // 🔹 AUTO
+            // if (autoOrders.length > 0) {
+            //     await ExecutionAPI.createTask({
+            //         items: autoOrders.map(o => ({
+            //             order_id: o.order_id,
+            //         })),
+            //     });
+            // }
+
+            // 🔹 AUTO
+            if (autoOrders.length > 0) {
+
+                const items = [];
+
+                autoOrders.forEach(o => {
+
+                    // ใส่ order หลักเสมอ
+                    items.push({ order_id: o.order_id });
+
+                    // 🔥 ถ้าเป็น INTERNAL_OUT ให้ใส่ related_order_id ด้วย
+                    if (
+                        o.transfer_scenario === "INTERNAL_OUT" &&
+                        o.related_order_id
+                    ) {
+                        items.push({ order_id: o.related_order_id });
+                    }
+
+                });
+
+                await ExecutionAPI.createTask({
+                    items,
+                });
+            }
+
+            await Promise.all([
+                fetchDataWaitingAll(),
+                fetchDataExecuteAll(),
+            ]);
+
+            setSelectedExecutionIds([]);
+
+            setAlert({
+                show: true,
+                type: "success",
+                title: "Success",
+                message: "Confirm to Execution",
+                onConfirm: () => navigate("/status"),
+            });
+
         } catch (err) {
-        console.error(err);
-        setAlert({
-            show: true,
-            type: "error",
-            title: "Error",
-            message: err.response?.data?.message || "Something went wrong",
-        });
+            console.error(err);
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: err.response?.data?.message || "Something went wrong",
+            });
         }
     };
 
@@ -386,176 +477,252 @@ const PickExecutionPage = () => {
         }
     };
 
-    // --------------------------------------------------
-    // IMPORT FILE
-    // --------------------------------------------------
-    // ปรับปรุง handleImportFile ให้เก็บไฟล์ที่เลือกไว้ใน state
-    const handleImportFile = (event) => {
-        const file = event.target.files[0];
-        if (!file) {
-        setAlert({
-            show: true,
-            type: "error",
-            title: "Error",
-            message: "Please select the file before uploading.",
-        });
-        return;
-        }
-    
-        setSelectedFile(file);
-    };
-
-    // ฟังก์ชันสำหรับส่งไฟล์ที่เลือกไปยัง API
-    const handleSubmitImport = async () => {
-        if (!selectedFile) return;
-        try {
-            // 🔄 แสดง loading (ฟิกตรงนี้เลย)
-            Swal.fire({
-                title: "Importing...",
-                text: "Please wait while processing file",
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                backdrop: "rgba(0,0,0,0.6)", // ✅ overlay เต็มจอ
-                didOpen: () => {
-                    Swal.showLoading();
-                },
-            });
-
-            const response = await ImportFileAPI.importUsageFile(selectedFile);
-
-            // ❌ ปิด loading
-            Swal.close();
-
-            if (response.isCompleted) {
-                setAlert({
-                show: true,
-                type: "success",
-                title: "Success",
-                message: response.message,
-                });
-                await fetchDataWaitingAll();
-                // เคลียร์ไฟล์ที่เลือก และอัปเดต key เพื่อให้ input re-mount ใหม่
-                setSelectedFile(null);
-                setFileInputKey(Date.now());
-            } else {
-                setAlert({
-                show: true,
-                type: "error",
-                title: "Upload failed",
-                message: response.message,
-                });
-            }
-        } catch (error) {
-            // ❌ ปิด loading (กันเหนียว)
-            Swal.close();
-
-            console.error("Error uploading file:", error);
-
-            setAlert({
-            show: true,
-            type: "error",
-            title: "Error",
-            message: "Import failed",
-            });
-        }
-    };
-
-    // ฟังก์ชันสำหรับลบไฟล์ที่เลือก (และรีเซ็ต input)
-    const handleClearFile = () => {
-        setSelectedFile(null);
-        setFileInputKey(Date.now());
-    };
-    
-    const getWaitingOrderIds = () => {
-        return waitingList
-            .filter(r => r.status === "WAITING")
-            .map(r => r.order_id);
-    };
-
-    const handleDeleteAll = async () => {
-        const waitingIds = getWaitingOrderIds();
-        if (waitingIds.length === 0) return;
-
-        try {
-            // 🔄 แสดง loading
-            Swal.fire({
-                title: "Deleting...",
-                text: "Please wait while clearing waiting list",
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                backdrop: "rgba(0,0,0,0.6)",
-                didOpen: () => {
-                    Swal.showLoading();
-                },
-            });
-
-            // ✅ payload ให้ตรงกับ backend
-            const payload = {
-                order_ids: waitingIds,
-            };
-
-            const res = await WaitingAPI.deleteWaiting(payload);
-
-            // ❌ ปิด loading
-            Swal.close();
-
-            await Promise.all([
-                fetchDataWaitingAll(),
-                fetchDataExecuteAll(),
-            ]);
-
-            setSelectedWaitingIds([]);
-
-            if (res?.isCompleted) {
+     // --------------------------------------------------
+            // IMPORT FILE
+            // --------------------------------------------------
+            // ปรับปรุง handleImportFile ให้เก็บไฟล์ที่เลือกไว้ใน state
+            const handleImportFile = (event) => {
+                const file = event.target.files[0];
+                if (!file) {
                 setAlert({
                     show: true,
-                    type: "success",
-                    title: "Success",
-                    message: res.message || "Clear waiting list success",
+                    type: "error",
+                    title: "Error",
+                    message: "Please select the file before uploading.",
                 });
                 return;
-            }
+                }
+            
+                setSelectedFile(file);
+            };
+        
+            // ฟังก์ชันสำหรับส่งไฟล์ที่เลือกไปยัง API
+            const handleSubmitImport = async () => {
+                if (!selectedFile) return;
+                try {
+                    // 🔄 แสดง loading (ฟิกตรงนี้เลย)
+                    Swal.fire({
+                        title: "Importing...",
+                        text: "Please wait while processing file",
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        backdrop: "rgba(0,0,0,0.6)", // ✅ overlay เต็มจอ
+                        didOpen: () => {
+                            Swal.showLoading();
+                        },
+                    });
+                    
+                    const response = await ImportFileAPI.importReceiptFile(selectedFile);
+    
+                    // ❌ ปิด loading
+                    Swal.close();
+    
+                    if (response.isCompleted) {
+                        setAlert({
+                        show: true,
+                        type: "success",
+                        title: "Success",
+                        message: response.message,
+                        });
+                        await fetchDataWaitingAll();
+                        // เคลียร์ไฟล์ที่เลือก และอัปเดต key เพื่อให้ input re-mount ใหม่
+                        setSelectedFile(null);
+                        setFileInputKey(Date.now());
+                    } else {
+                        setAlert({
+                        show: true,
+                        type: "error",
+                        title: "Upload failed",
+                        message: response.message,
+                        });
+                    }
+                } catch (error) {
+                    // ❌ ปิด loading (กันเหนียว)
+                    Swal.close();
+        
+                    console.error("Error uploading file:", error);
+        
+                    setAlert({
+                    show: true,
+                    type: "error",
+                    title: "Error",
+                    message: "Import failed",
+                    });
+                }
+            };
+        
+        // ฟังก์ชันสำหรับลบไฟล์ที่เลือก (และรีเซ็ต input)
+        const handleClearFile = () => {
+            setSelectedFile(null);
+            setFileInputKey(Date.now());
+        };
 
+        const getWaitingOrderIds = () => {
+                return waitingList
+                    .filter(r => r.status === "WAITING")
+                    .map(r => r.order_id);
+            };
+            
+        const handleDeleteAll = async () => {
+            const waitingIds = getWaitingOrderIds();
+            if (waitingIds.length === 0) return;
+    
+            try {
+                // 🔄 แสดง loading
+                Swal.fire({
+                    title: "Deleting...",
+                    text: "Please wait while clearing waiting list",
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    backdrop: "rgba(0,0,0,0.6)",
+                    didOpen: () => {
+                        Swal.showLoading();
+                    },
+                });
+    
+                 // 🔥 ดึง order เต็มจาก waitingList
+        const selectedOrders = waitingList.filter(o =>
+            waitingIds.includes(o.order_id)
+        );
+
+        // 🔥 สร้าง order_ids ใหม่ (รวม related_order_id)
+        const orderIds = [];
+
+        selectedOrders.forEach(o => {
+
+            // ใส่ order หลัก
+            orderIds.push(o.order_id);
+
+            // 🔥 ถ้าเป็น INTERNAL_OUT ให้ใส่ related_order_id ด้วย
+            if (
+                o.transfer_scenario === "INTERNAL_OUT" &&
+                o.related_order_id
+            ) {
+                orderIds.push(o.related_order_id);
+            }
+        });
+
+        const payload = {
+            order_ids: orderIds,
+        };
+    
+                const res = await WaitingAPI.deleteWaiting(payload);
+    
+                // ❌ ปิด loading
+                Swal.close();
+    
+                await Promise.all([
+                    fetchDataWaitingAll(),
+                    fetchDataExecuteAll(),
+                ]);
+    
+                setSelectedWaitingIds([]);
+    
+                if (res?.isCompleted) {
+                    setAlert({
+                        show: true,
+                        type: "success",
+                        title: "Success",
+                        message: res.message || "Clear waiting list success",
+                    });
+                    return;
+                }
+    
+                setAlert({
+                    show: true,
+                    type: "error",
+                    title: "Error",
+                    message: res?.message || "Delete failed",
+                });
+    
+            } catch (err) {
+                // ❌ ปิด loading (กันเหนียว)
+                Swal.close();
+    
+                console.error("FULL ERROR:", err);
+                console.error("RESPONSE:", err.response);
+                console.error("DATA:", err.response?.data);
+    
+                setAlert({
+                    show: true,
+                    type: "error",
+                    title: "Error",
+                    message: err.response?.data?.message || "Something went wrong",
+                });
+            }
+        };
+
+    const handleToggleExecutionMode = async (orderId, nextMode) => {
+        const order = executionList.find(o => o.order_id === orderId);
+
+        if (!order) return;
+
+        if (order.status !== "PENDING") return;
+
+        // 🔴 INBOUND = MANUAL ONLY
+        if (order.transfer_scenario === "INBOUND" && nextMode === "AUTO") {
             setAlert({
                 show: true,
-                type: "error",
-                title: "Error",
-                message: res?.message || "Delete failed",
+                type: "warning",
+                title: "Not Allowed",
+                message: "Order transfer from Non-WMS Store to WCS",
+            });
+            return;
+        }
+
+        try {
+            // 🔹 ยิง API ทันที
+            await OrdersAPI.updateExecutionModeMany({
+                orders: [
+                    {
+                        order_id: orderId,
+                        execution_mode: nextMode,
+                    },
+                ],
             });
 
-        } catch (err) {
-            // ❌ ปิด loading (กันเหนียว)
-            Swal.close();
+            // 🔹 ถ้าสำเร็จ → update state
+            setExecutionList(prev =>
+                prev.map(o =>
+                    o.order_id === orderId
+                        ? { ...o, execution_mode: nextMode }
+                        : o
+                )
+            );
 
-            console.error("FULL ERROR:", err);
-            console.error("RESPONSE:", err.response);
-            console.error("DATA:", err.response?.data);
+            // setAlert({
+            //     show: true,
+            //     type: "success",
+            //     title: "Success",
+            //     message: "Execution mode updated",
+            // });
+
+        } catch (err) {
+            console.error(err);
 
             setAlert({
                 show: true,
                 type: "error",
                 title: "Error",
-                message: err.response?.data?.message || "Something went wrong",
+                message: err.response?.data?.message || "Update failed",
             });
         }
     };
 
-
+    
     // --------------------------------------------------
     // TABLE COLUMNS
     // --------------------------------------------------
     const columnsWaiting = [
         { field: "mc_code", label: "Maintenance Contract" },
-        { field: "work_order", label: "Work Order" },
-        { field: "spr_no", label: "SPR No." },
-        { field: "usage_num", label: "Usage No." },
-        { field: "usage_line", label: "Usage Line" },
-        { field: "requested_at", label: "Date" },
+        { field: "object_id", label: "OBJECT ID" },
         { field: "stock_item", label: "Stock Item Number" },
         { field: "item_desc", label: "Stock Item Description" },
         { field: "cond", label: "Condition" },
-        { field: "loc", label: "From Location" },
-        { field: "box_loc", label: "From BIN" },
+        { field: "from_loc", label: "From Location" },
+        { field: "from_box_loc", label: "From BIN" },
+        { field: "to_loc", label: "To Location" },
+        { field: "to_box_loc", label: "To BIN" },
         { field: "unit_cost_handled", label: "Unit Cost" },
         { field: "total_cost_handled", label: "Total Cost" },
         { field: "plan_qty", label: "Required Quantity" },
@@ -574,17 +741,28 @@ const PickExecutionPage = () => {
             />
             ),
         },
+        {
+            field: "execution_mode",
+            label: "Auto / Manual",
+            renderCell: (_, row) => (
+                <ExecutionModeBadge
+                mode={row.execution_mode}
+                status={row.status}
+                onToggle={(nextMode) =>
+                    handleToggleExecutionMode(row.order_id, nextMode)
+                }
+                />
+            ),
+        },
         { field: "mc_code", label: "Maintenance Contract" },
-        { field: "work_order", label: "Work Order" },
-        { field: "spr_no", label: "SPR No." },
-        { field: "usage_num", label: "Usage No." },
-        { field: "usage_line", label: "Usage Line" },
-        { field: "requested_at", label: "Date" },
+        { field: "object_id", label: "OBJECT ID" },
         { field: "stock_item", label: "Stock Item Number" },
         { field: "item_desc", label: "Stock Item Description" },
         { field: "cond", label: "Condition" },
-        { field: "loc", label: "From Location" },
-        { field: "box_loc", label: "From BIN" },
+        { field: "from_loc", label: "From Location" },
+        { field: "from_box_loc", label: "From BIN" },
+        { field: "to_loc", label: "To Location" },
+        { field: "to_box_loc", label: "To BIN" },
         { field: "unit_cost_handled", label: "Unit Cost" },
         { field: "total_cost_handled", label: "Total Cost" },
         { field: "plan_qty", label: "Required Quantity" },
@@ -608,7 +786,7 @@ const PickExecutionPage = () => {
                 alignItems="center"
             >
                 <MDTypography variant="h3" color="inherit">
-                Pick - Waiting and Execution List
+                Transfer - Waiting and Execution List
                 </MDTypography>
             </MDBox>
 
@@ -648,12 +826,12 @@ const PickExecutionPage = () => {
                 Clear Pending
                 </MDButton>
             </MDBox>
-        </MDBox>
-
-        {/* --------------------------------------------------
+            </MDBox>
+            
+ {/* --------------------------------------------------
             เพิ่ม IMPORT
         --------------------------------------------------- */}
-            <MDBox 
+        <MDBox 
             p={2}
             display="flex"
             alignItems="stretch"
@@ -717,41 +895,11 @@ const PickExecutionPage = () => {
             <Grid item xs={12} md={5.8}>
                 <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
                 <MDTypography variant="h5" mb={4}>
-                    Pick - Waiting List
+                    Transfer - Waiting List
                 </MDTypography>
 
                 {/* Filters */}
                 <Grid container spacing={2} mb={2}>
-
-                    {/* Date */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Date</MDTypography>
-
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                        <DatePicker
-                        inputFormat="DD/MM/YYYY"   // ✅ รูปแบบ 24/01/2026
-                        value={
-                            searchWaiting.date
-                            ? dayjs(searchWaiting.date, "DD/MM/YYYY")
-                            : null
-                        }
-                        onChange={(newValue) => {
-                            setSearchWaiting({
-                            ...searchWaiting,
-                            date: newValue ? newValue.format("DD/MM/YYYY") : "",
-                            });
-                        }}
-                        renderInput={(params) => (
-                            <MDInput
-                            {...params}
-                            placeholder="Select date"
-                            fullWidth
-                            sx={{ height: "45px" }}
-                            />
-                        )}
-                        />
-                    </LocalizationProvider>
-                    </Grid>
 
                     {/* Maintenance Contract */}
                     <Grid item xs={12} md={4}>
@@ -775,15 +923,15 @@ const PickExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* Work Order */}
+                    {/* OBJECT ID */}
                     <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Work Order</MDTypography>
+                    <MDTypography variant="h6">OBJECT ID</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchWaiting.work_order}
+                        value={searchWaiting.object_id}
                         onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, work_order: e.target.value })
+                        setSearchWaiting({ ...searchWaiting, object_id: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -796,73 +944,7 @@ const PickExecutionPage = () => {
                         fullWidth
                     />
                     </Grid>
-
-                    {/* SPR No. */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">SPR No.</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchWaiting.spr_no}
-                        onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, spr_no: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
-                    {/* Usage No. */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Usage No.</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchWaiting.usage_num}
-                        onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, usage_num: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
-                    {/* Usage Line */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Usage Line</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchWaiting.usage_line}
-                        onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, usage_line: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
+                    
                     {/* Stock Item No. */}
                     <Grid item xs={12} md={4}>
                     <MDTypography variant="h6">Stock Item No.</MDTypography>
@@ -913,9 +995,75 @@ const PickExecutionPage = () => {
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchWaiting.loc}
+                        value={searchWaiting.from_loc}
                         onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, loc: e.target.value })
+                        setSearchWaiting({ ...searchWaiting, from_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+                    
+                    {/* From BIN */}
+                    <Grid item xs={12} md={4}>
+                    <MDTypography variant="h6">From BIN</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchWaiting.from_box_loc}
+                        onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, from_box_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
+                    {/* To Location */}
+                    <Grid item xs={12} md={4}>
+                    <MDTypography variant="h6">To Location</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchWaiting.to_loc}
+                        onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, to_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+                    
+                    {/* To BIN */}
+                    <Grid item xs={12} md={4}>
+                    <MDTypography variant="h6">To BIN</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchWaiting.to_box_loc}
+                        onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, to_box_loc: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -973,28 +1121,6 @@ const PickExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* From BIN */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">From BIN</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchWaiting.box_loc}
-                        onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, box_loc: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
                     {/* Condition */}
                     <Grid item xs={12} md={4}>
                     <MDTypography variant="h6">Condition</MDTypography>
@@ -1015,6 +1141,7 @@ const PickExecutionPage = () => {
                         </StyledSelect>
                     </FormControl>
                     </Grid>
+
 
                 </Grid>
 
@@ -1076,42 +1203,12 @@ const PickExecutionPage = () => {
             <Grid item xs={12} md={5.8}>
                 <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
                 <MDTypography variant="h5" mb={4}>
-                    Pick - Execution List
+                    Transfer - Execution List
                 </MDTypography>
 
                 {/* Filters */}
                 <Grid container spacing={2} mb={2}>
-
-                    {/* Date */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Date</MDTypography>
-
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                        <DatePicker
-                        inputFormat="DD/MM/YYYY"   // ✅ รูปแบบ 24/01/2026
-                        value={
-                            searchExecution.date
-                            ? dayjs(searchExecution.date, "DD/MM/YYYY")
-                            : null
-                        }
-                        onChange={(newValue) => {
-                            setSearchExecution({
-                            ...searchExecution,
-                            date: newValue ? newValue.format("DD/MM/YYYY") : "",
-                            });
-                        }}
-                        renderInput={(params) => (
-                            <MDInput
-                            {...params}
-                            placeholder="Select date"
-                            fullWidth
-                            sx={{ height: "45px" }}
-                            />
-                        )}
-                        />
-                    </LocalizationProvider>
-                    </Grid>
-
+{/* 
                     {/* Maintenance Contract */}
                     <Grid item xs={12} md={4}>
                     <MDTypography variant="h6">Maintenance Contract</MDTypography>
@@ -1133,82 +1230,16 @@ const PickExecutionPage = () => {
                         fullWidth
                     />
                     </Grid>
-                    
-                    {/* Work Order */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Work Order</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchExecution.work_order}
-                        onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, work_order: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
 
-                    {/* SPR No. */}
+                    {/* OBJECT ID */}
                     <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">SPR No.</MDTypography>
+                    <MDTypography variant="h6">OBJECT ID</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchExecution.spr_no}
+                        value={searchExecution.object_id}
                         onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, spr_no: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
-                    {/* Usage No. */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Usage No.</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchExecution.usage_num}
-                        onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, usage_num: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
-                    {/* Usage Line */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Usage Line</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchExecution.usage_line}
-                        onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, usage_line: e.target.value })
+                        setSearchExecution({ ...searchExecution, object_id: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1272,9 +1303,75 @@ const PickExecutionPage = () => {
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchExecution.loc}
+                        value={searchExecution.from_loc}
                         onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, loc: e.target.value })
+                        setSearchExecution({ ...searchExecution, from_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+                    
+                    {/* From BIN */}
+                    <Grid item xs={12} md={4}>
+                    <MDTypography variant="h6">From BIN</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchExecution.from_box_loc}
+                        onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, from_box_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
+                    {/* To Location */}
+                    <Grid item xs={12} md={4}>
+                    <MDTypography variant="h6">To Location</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchExecution.to_loc}
+                        onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, to_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+                    
+                    {/* To BIN */}
+                    <Grid item xs={12} md={4}>
+                    <MDTypography variant="h6">To BIN</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchExecution.to_box_loc}
+                        onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, to_box_loc: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1332,28 +1429,6 @@ const PickExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* From BIN */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">From BIN</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchExecution.box_loc}
-                        onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, box_loc: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
                     {/* Condition */}
                     <Grid item xs={12} md={4}>
                     <MDTypography variant="h6">Condition</MDTypography>
@@ -1397,6 +1472,7 @@ const PickExecutionPage = () => {
                         </StyledSelect>
                         </FormControl>
                     </Grid>
+
                 </Grid>
 
                 {/* Table */}
@@ -1453,4 +1529,4 @@ const PickExecutionPage = () => {
     );
 };
 
-export default PickExecutionPage;
+export default TransferExecutionPage;

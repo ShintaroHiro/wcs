@@ -185,7 +185,10 @@
         "put_create": "Create",
         "return": "Return",
         "return_execute": "Execute",
-        "return_create": "Create"
+        "return_create": "Create",
+        "transfer": "Transfer",
+        "transfer_execute": "Execute",
+        "transfer_create": "Create"
     },
     "role": {
         "role_title_1": "เพิ่มสิทธิ์การใช้งาน",

@@ -22,6 +22,7 @@ import { CounterRuntimeService } from './counter_runtime.service';
 import { broadcast } from "./sse.service";
 import { s_user } from "../entities/s_user.entity";
 import { v4 as uuidv4 } from 'uuid';
+import { OrdersTransfer } from "../entities/order_transfer.entity";
 
 const runtimeService = new CounterRuntimeService();
 
@@ -378,6 +379,100 @@ export class OrchestratedTaskService {
         }
     }
 
+    //เฉพาะ transfer
+    async transferChangeToBatch(
+        dto: {
+            items: { order_id: number }[];
+            transfer_status: string;
+        },
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+        const operation = "OrderTransferService.transferChangeToBatch";
+
+        if (!dto?.items?.length) {
+            return response.setIncomplete("items[] is required");
+        }
+
+        if (!dto?.transfer_status) {
+            return response.setIncomplete("transfer_status is required");
+        }
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager || queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete(
+                lang.msg("validation.no_entityManager_or_queryRunner_available")
+            );
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        try {
+
+            const orderTransferRepo = useManager.getRepository(OrdersTransfer);
+
+            const updated: number[] = [];
+
+            // 🔥 Strict loop — error ตัวเดียว rollback ทั้งหมด
+            for (const item of dto.items) {
+
+                const orderId = item.order_id;
+
+                // หา OrderTransfer ตาม order_id
+                const transfer = await orderTransferRepo.findOne({
+                    where: { order_id: orderId },
+                });
+
+                if (!transfer) {
+                    throw new Error(`OrderTransfer not found: ${orderId}`);
+                }
+
+                // อัปเดตเฉพาะ field transfer_status
+                await orderTransferRepo.update(
+                    { order_id: orderId },
+                    {
+                        transfer_status: dto.transfer_status
+                    }
+                );
+
+                updated.push(orderId);
+            }
+
+            // Commit
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete("transferChangeToBatch completed", {
+                updated,
+                transfer_status: dto.transfer_status,
+            });
+
+        } catch (error: any) {
+
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+
+            console.error(`Error during ${operation}:`, error);
+
+            return response.setIncomplete(error.message);
+
+        } finally {
+
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
+        }
+    }
+
     /** Ready to handle item for MRS*/
     async handleOrderItemMrs(
         order_id: number,
@@ -600,6 +695,214 @@ export class OrchestratedTaskService {
 
 
     //T1
+    // async handleOrderItemWRS(
+    //     order_id: number,
+    //     actual_qty: number,
+    //     reqUsername: string,
+    //     manager?: EntityManager
+    // ): Promise<ApiResponse<any>> {
+
+    //     const response = new ApiResponse<any>();
+    //     const operation = 'OrchestratedTaskService.handleOrderItemWRS';
+
+    //     const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+    //     const useManager = manager || queryRunner?.manager;
+
+    //     if (!useManager) {
+    //         return response.setIncomplete('No EntityManager or QueryRunner available');
+    //     }
+
+    //     if (!manager && queryRunner) {
+    //         await queryRunner.connect();
+    //         await queryRunner.startTransaction();
+    //     }
+
+    //     try {
+    //         const ordersRepo = useManager.getRepository(Orders);
+    //         const counterRepo = useManager.getRepository(Counter);
+    //         const wrsRepo = useManager.getRepository(WRS);
+
+    //         //-----------------------------------
+    //         // 1) LOAD ORDER
+    //         //-----------------------------------
+    //         const order = await ordersRepo.findOne({
+    //             where: { order_id },
+    //             lock: { mode: "pessimistic_write" }
+    //         });
+
+    //         if (!order) {
+    //             return response.setIncomplete(`Order not found: ${order_id}`);
+    //         }
+
+    //         if (order.store_type !== "T1") {
+    //             return response.setIncomplete('Order is not T1 type');
+    //         }
+
+    //         // T1 ปกติจะ scan ตอน PROCESSING
+    //         if (order.status !== StatusOrders.PROCESSING && order.is_confirm !== false) {
+    //             return response.setIncomplete('Only PROCESSING order can be scanned');
+    //         }
+
+    //         if (order.plan_qty === undefined) {
+    //             return response.setIncomplete(`Plan qty not set for order ${order_id}`);
+    //         }
+
+    //         if (actual_qty > order.plan_qty) {
+    //             return response.setIncomplete(
+    //                 `Actual quantity (${actual_qty}) exceeds planned quantity (${order.plan_qty})`
+    //             );
+    //         }
+
+    //         //-----------------------------------
+    //         // 2) UPDATE ORDER
+    //         //-----------------------------------
+    //         const isCompleted = actual_qty === order.plan_qty;
+
+    //         order.actual_qty = actual_qty;
+    //         order.actual_by = reqUsername;
+    //         order.finished_at = new Date();
+    //         order.is_confirm = true;
+
+    //         order.status = isCompleted
+    //             ? StatusOrders.COMPLETED
+    //             : StatusOrders.FINISHED;
+
+    //         order.actual_status = isCompleted
+    //             ? ScanStatus.COMPLETED
+    //             : ScanStatus.PARTIAL;
+
+    //         await ordersRepo.save(order);
+
+    //         // log
+    //         const logService = new OrdersLogService();
+    //         await logService.logTaskEvent(useManager, order, {
+    //             actor: reqUsername,
+    //             status: order.status
+    //         });
+
+    //         //-----------------------------------
+    //         // 3) UPDATE INVENTORY (CRITICAL SECTION)
+    //         //-----------------------------------
+    //         const invService = new InventoryService();
+
+    //         try {
+    //             switch (order.type) {
+    //                 case TypeInfm.RECEIPT:
+    //                     await invService.receipt(useManager, order);
+    //                     break;
+
+    //                 case TypeInfm.USAGE:
+    //                     await invService.usage(useManager, order);
+    //                     break;
+
+    //                 // case TypeInfm.RETURN:
+    //                 //     await invService.return(useManager, order);
+    //                 //     break;
+
+    //                 case TypeInfm.TRANSFER:
+    //                     await invService.transfer(useManager, order);
+    //                     break;
+
+    //                 default:
+    //                     throw new Error(`Unsupported order type: ${order.type}`);
+    //             }
+    //         } catch (invError) {
+    //             throw new Error(
+    //                 `Inventory update failed for order ${order.order_id}: ${invError}`
+    //             );
+    //         }
+
+    //         //-----------------------------------
+    //         // 4) RESET COUNTER + WRS
+    //         //-----------------------------------
+    //         //-----------------------------------
+    //         // 4.1) RESET COUNTER
+    //         //-----------------------------------
+    //         const counter = await counterRepo.findOne({
+    //             where: { current_order_id: order.order_id },
+    //             lock: { mode: "pessimistic_write" }
+    //         });
+
+    //         if (counter) {
+
+    //             await counterRepo.update(
+    //                 { counter_id: counter.counter_id },
+    //                 {
+    //                     status: "EMPTY",
+
+    //                     // 🔥 ต้องใช้ NULL เท่านั้นถึงจะล้างค่าใน DB
+    //                     current_order_id: () => 'NULL',
+    //                     light_color_hex: () => 'NULL',
+    //                     current_wrs_id: () => 'NULL',
+    //                     light_mode: "OFF",
+    //                     last_event_at: new Date()
+    //                 }
+    //             );
+
+    //             // reset hardware / runtime
+    //             await runtimeService.reset(counter.counter_id);
+
+    //             // broadcast ให้ frontend
+    //             broadcast((counter.counter_id), {
+    //                 counter_id: counter.counter_id,
+    //                 actualQty: 0
+    //             });
+    //         }
+
+    //             //-----------------------------------
+    //             // 4.2) RESET WRS
+    //             //-----------------------------------
+    //             const wrs = await wrsRepo.findOne({
+    //                 where: { current_order_id: order.order_id },
+    //                 lock: { mode: "pessimistic_write" }
+    //             });
+
+    //             if (wrs) {
+    //                 wrs.wrs_status = "IDLE";
+    //                 wrs.is_available = true;
+    //                 wrs.current_order_id = null;
+    //                 wrs.target_counter_id = null;
+    //                 wrs.last_heartbeat = new Date();
+
+    //                 await wrsRepo.save(wrs);
+    //             }
+
+    //             //-----------------------------------
+    //             // 5) CALL NEXT QUEUE (ใหม่)
+    //             //-----------------------------------
+    //             await this.callNextQueueT1(useManager);
+
+
+    //         if (!manager && queryRunner) {
+    //             await queryRunner.commitTransaction();
+    //         }
+
+    //         return response.setComplete('T1 order handled successfully', {
+    //             order_id: order.order_id,
+    //             plan_qty: order.plan_qty,
+    //             actual_qty: order.actual_qty,
+    //             finished_at: order.finished_at
+    //         });
+
+    //     } catch (error: any) {
+
+    //         if (!manager && queryRunner) {
+    //             await queryRunner.rollbackTransaction();
+    //         }
+
+    //         console.error('Error during handleOrderItemWRS:', error);
+
+    //         return response.setIncomplete(
+    //             error?.message || `Error in ${operation}`
+    //         );
+
+    //     } finally {
+    //         if (!manager && queryRunner) {
+    //             await queryRunner.release();
+    //         }
+    //     }
+    // }
+
     async handleOrderItemWRS(
         order_id: number,
         actual_qty: number,
@@ -622,38 +925,39 @@ export class OrchestratedTaskService {
             await queryRunner.startTransaction();
         }
 
+        let order: Orders | null = null;
+        let counterId: number | null = null;
+
         try {
+
             const ordersRepo = useManager.getRepository(Orders);
             const counterRepo = useManager.getRepository(Counter);
             const wrsRepo = useManager.getRepository(WRS);
 
             //-----------------------------------
-            // 1) LOAD ORDER
+            // 1) LOAD ORDER (LOCK)
             //-----------------------------------
-            const order = await ordersRepo.findOne({ where: { order_id } });
+            order = await ordersRepo.findOne({
+                where: { order_id },
+                lock: { mode: "pessimistic_write" }
+            });
 
-            if (!order) {
-                return response.setIncomplete(`Order not found: ${order_id}`);
-            }
+            if (!order)
+                throw new Error(`Order not found: ${order_id}`);
 
-            if (order.store_type !== "T1") {
-                return response.setIncomplete('Order is not T1 type');
-            }
+            if (order.store_type !== "T1")
+                throw new Error('Order is not T1 type');
 
-            // T1 ปกติจะ scan ตอน PROCESSING
-            if (order.status !== StatusOrders.PROCESSING) {
-                return response.setIncomplete('Only PROCESSING order can be scanned');
-            }
+            if (order.status !== StatusOrders.PROCESSING || order.is_confirm)
+                throw new Error('Only unconfirmed PROCESSING order can be scanned');
 
-            if (order.plan_qty === undefined) {
-                return response.setIncomplete(`Plan qty not set for order ${order_id}`);
-            }
+            if (order.plan_qty === undefined)
+                throw new Error(`Plan qty not set for order ${order_id}`);
 
-            if (actual_qty > order.plan_qty) {
-                return response.setIncomplete(
+            if (actual_qty > order.plan_qty)
+                throw new Error(
                     `Actual quantity (${actual_qty}) exceeds planned quantity (${order.plan_qty})`
                 );
-            }
 
             //-----------------------------------
             // 2) UPDATE ORDER
@@ -675,7 +979,6 @@ export class OrchestratedTaskService {
 
             await ordersRepo.save(order);
 
-            // log
             const logService = new OrdersLogService();
             await logService.logTaskEvent(useManager, order, {
                 actor: reqUsername,
@@ -683,42 +986,29 @@ export class OrchestratedTaskService {
             });
 
             //-----------------------------------
-            // 3) UPDATE INVENTORY (CRITICAL SECTION)
+            // 3) UPDATE INVENTORY
             //-----------------------------------
             const invService = new InventoryService();
 
-            try {
-                switch (order.type) {
-                    case TypeInfm.RECEIPT:
-                        await invService.receipt(useManager, order);
-                        break;
+            switch (order.type) {
+                case TypeInfm.RECEIPT:
+                    await invService.receipt(useManager, order);
+                    break;
 
-                    case TypeInfm.USAGE:
-                        await invService.usage(useManager, order);
-                        break;
+                case TypeInfm.USAGE:
+                    await invService.usage(useManager, order);
+                    break;
 
-                    // case TypeInfm.RETURN:
-                    //     await invService.return(useManager, order);
-                    //     break;
+                case TypeInfm.TRANSFER:
+                    await invService.transfer(useManager, order);
+                    break;
 
-                    case TypeInfm.TRANSFER:
-                        await invService.transfer(useManager, order);
-                        break;
-
-                    default:
-                        throw new Error(`Unsupported order type: ${order.type}`);
-                }
-            } catch (invError) {
-                throw new Error(
-                    `Inventory update failed for order ${order.order_id}: ${invError}`
-                );
+                default:
+                    throw new Error(`Unsupported order type: ${order.type}`);
             }
 
             //-----------------------------------
-            // 4) RESET COUNTER + WRS
-            //-----------------------------------
-            //-----------------------------------
-            // 4.1) RESET COUNTER
+            // 4) RESET COUNTER
             //-----------------------------------
             const counter = await counterRepo.findOne({
                 where: { current_order_id: order.order_id },
@@ -726,13 +1016,12 @@ export class OrchestratedTaskService {
             });
 
             if (counter) {
+                counterId = counter.counter_id; // 🔥 เก็บไว้ก่อน
 
                 await counterRepo.update(
                     { counter_id: counter.counter_id },
                     {
                         status: "EMPTY",
-
-                        // 🔥 ต้องใช้ NULL เท่านั้นถึงจะล้างค่าใน DB
                         current_order_id: () => 'NULL',
                         light_color_hex: () => 'NULL',
                         current_wrs_id: () => 'NULL',
@@ -740,51 +1029,31 @@ export class OrchestratedTaskService {
                         last_event_at: new Date()
                     }
                 );
-
-                // reset hardware / runtime
-                await runtimeService.reset(counter.counter_id);
-
-                // broadcast ให้ frontend
-                broadcast((counter.counter_id), {
-                    counter_id: counter.counter_id,
-                    actualQty: 0
-                });
             }
 
-                //-----------------------------------
-                // 4.2) RESET WRS
-                //-----------------------------------
-                const wrs = await wrsRepo.findOne({
-                    where: { current_order_id: order.order_id },
-                    lock: { mode: "pessimistic_write" }
-                });
+            //-----------------------------------
+            // 5) RESET WRS
+            //-----------------------------------
+            const wrs = await wrsRepo.findOne({
+                where: { current_order_id: order.order_id },
+                lock: { mode: "pessimistic_write" }
+            });
 
-                if (wrs) {
-                    wrs.wrs_status = "IDLE";
-                    wrs.is_available = true;
-                    wrs.current_order_id = null;
-                    wrs.target_counter_id = null;
-                    wrs.last_heartbeat = new Date();
+            if (wrs) {
+                wrs.wrs_status = "IDLE";
+                wrs.is_available = true;
+                wrs.current_order_id = null;
+                wrs.target_counter_id = null;
+                wrs.last_heartbeat = new Date();
+                await wrsRepo.save(wrs);
+            }
 
-                    await wrsRepo.save(wrs);
-                }
-
-                //-----------------------------------
-                // 5) CALL NEXT QUEUE (ใหม่)
-                //-----------------------------------
-                await this.callNextQueueT1(useManager);
-
-
+            //-----------------------------------
+            // ✅ COMMIT TRANSACTION FIRST
+            //-----------------------------------
             if (!manager && queryRunner) {
                 await queryRunner.commitTransaction();
             }
-
-            return response.setComplete('T1 order handled successfully', {
-                order_id: order.order_id,
-                plan_qty: order.plan_qty,
-                actual_qty: order.actual_qty,
-                finished_at: order.finished_at
-            });
 
         } catch (error: any) {
 
@@ -803,6 +1072,40 @@ export class OrchestratedTaskService {
                 await queryRunner.release();
             }
         }
+
+        if (!order) {
+            return response.setIncomplete('Order lost after transaction');
+        }
+        //-----------------------------------
+        // ✅ AFTER COMMIT SECTION (NO TX)
+        //-----------------------------------
+
+        try {
+
+            if (counterId) {
+                await runtimeService.reset(counterId);
+                broadcast(counterId, {
+                    counter_id: counterId,
+                    actualQty: 0
+                });
+            }
+
+            // 🔥 call next queue in NEW transaction scope
+            await AppDataSource.transaction(async (newManager) => {
+                await this.callNextQueueT1(newManager);
+            });
+
+        } catch (postError) {
+            console.error("Post-commit error:", postError);
+            // ไม่ throw เพราะ order หลัก commit แล้ว
+        }
+
+        return response.setComplete('T1 order handled successfully', {
+            order_id: order?.order_id,
+            plan_qty: order?.plan_qty,
+            actual_qty: order?.actual_qty,
+            finished_at: order?.finished_at
+        });
     }
 
     async callNextQueueT1(manager: EntityManager) {

@@ -7,7 +7,7 @@ const DEFAULT_BG_COLOR = "#FFF";
 
 const CounterBox = ({ counter, onClick }) => {
   const status = counter.status || "IDLE";
-  const isWaiting = status === "WAITING";
+  const isWaiting = status === "WAITING_PICK";
   const isIdle = status === "IDLE";
 
   const counterTextColor = isIdle
@@ -61,12 +61,15 @@ const CounterBox = ({ counter, onClick }) => {
       </MDBox>
 
       {/* Quantity */}
-      <MDTypography
-        variant="h5"
-        sx={{ color: quantityColor, mt: 4.5 }}
-      >
-        {counter.actual}/{counter.plan}
-      </MDTypography>
+      {!isWaiting && (
+        <MDTypography
+          variant="h5"
+          sx={{ color: quantityColor, mt: 4.5 }}
+        >
+          {counter.actual}/{counter.plan}
+        </MDTypography>
+      )}
+
     </MDBox>
   );
 };

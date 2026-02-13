@@ -100,16 +100,16 @@ export default class ImportFileAPI {
             "ITEM DESCRIPTION",
             "QUANTITY",
             "CONDITION",
-            "MAINTENANCE CONTRACT",
+            "MAINT. CONTRACT",
             "REQUIREDDATE",
             "REQUESTEDBY",
             "USETYPE",
             "WORK ORDER",
             "SPR NO.",
-            "INVUSENUM",
+            "USAGE",
             "USAGE LINE",
             "SPLIT",
-            "INVUSE STATUS",
+            "USAGE STATUS",
         ];
         const headers = rows[0];
 
@@ -148,17 +148,17 @@ export default class ImportFileAPI {
                 plan_qty: toNumber(r[col("QUANTITY")]),
                 cond: r[col("CONDITION")]?.toString().trim().toUpperCase(),
 
-                mc_code: r[col("MAINTENANCE CONTRACT")]?.toString().trim(),
+                mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
                 requested_at: r[col("REQUIREDDATE")]?.toString().trim(),
                 requested_by: r[col("REQUESTEDBY")]?.toString().trim(),
 
                 usage_type: r[col("USETYPE")]?.toString().trim(),
                 work_order: r[col("WORK ORDER")]?.toString().trim(),
                 spr_no: r[col("SPR NO.")]?.toString().trim(),
-                usage_num: r[col("INVUSENUM")]?.toString().trim(),
+                usage_num: r[col("USAGE")]?.toString().trim(),
                 usage_line: r[col("USAGE LINE")]?.toString().trim(),
                 split: Number(r[col("SPLIT")] ?? 0),
-                invuse_status: r[col("INVUSE STATUS")]?.toString().trim(),
+                invuse_status: r[col("USAGE STATUS")]?.toString().trim(),
                 };
             })
             // 🔥 ค่อยกรอง row ว่างออก "หลังจาก" ใส่ excel_row_no แล้ว
@@ -243,12 +243,14 @@ export default class ImportFileAPI {
 
             const expectedHeaders = [
             "TRANSTYPE",
-            //"PONUM",
+            "PONUM",
             "OBJECT_ID",
-            "AACONTRACT",
+            "MAINT. CONTRACT",
             "ITEMNUM",
             "DESCRIPTION",
             "CONDITIONCODE",
+            "FROM_STORE",
+            "FROM_BIN",
             "TO_STORE",
             "TO_BINNUM",
             "NEWCOST",
@@ -259,6 +261,8 @@ export default class ImportFileAPI {
             ];
 
             const headers = rows[0];
+            console.log("expectedHeaders",expectedHeaders);
+            console.log("headers",headers);
             if (!this.validateHeaders(expectedHeaders, headers)) {
             return new ApiResponse({
                 isCompleted: false,
@@ -290,10 +294,17 @@ export default class ImportFileAPI {
                     object_id: r[col("OBJECT_ID")]?.toString().trim(),
                     stock_item: r[col("ITEMNUM")]?.toString().trim(),
                     item_desc: r[col("DESCRIPTION")]?.toString().trim(),
-                    loc: r[col("TO_STORE")]?.toString().trim(),
-                    box_loc: r[col("TO_BINNUM")]?.toString().trim(),
+                    // // RECEIPT ใช้ TO
+                    // loc: r[col("TO_STORE")]?.toString().trim(),
+                    // box_loc: r[col("TO_BINNUM")]?.toString().trim(),
+
+                    // TRANSFER ใช้ FROM/TO
+                    from_store: r[col("FROM_STORE")]?.toString().trim(),
+                    from_bin: r[col("FROM_BIN")]?.toString().trim(),
+                    to_store: r[col("TO_STORE")]?.toString().trim(),
+                    to_bin: r[col("TO_BINNUM")]?.toString().trim(),
                     cond: r[col("CONDITIONCODE")]?.toString().trim().toUpperCase(),
-                    mc_code: r[col("AACONTRACT")]?.toString().trim(),
+                    mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
                     unit_cost_handled: toNumber(r[col("NEWCOST")]),
                     requested_at: r[col("TRANSDATE")]?.toString().trim(),
 

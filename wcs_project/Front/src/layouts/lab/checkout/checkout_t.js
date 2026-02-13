@@ -11,6 +11,10 @@ import CounterBox from "../components/counter_box";
 import SweetAlertComponent from "../components/sweetAlert";
 import ExecutionAPI from "api/TaskAPI";
 import StatusBadge from "../components/statusBadge";
+import {
+  normalizeStatus,
+  STATUS_STYLE,
+} from "common/utils/statusUtils";
 
 import { GlobalVar } from "common/GlobalVar";
 
@@ -165,6 +169,18 @@ const handleScan = async (row) => {
 
   /* ---------------- Table Columns By Requester ---------------- */
   const requesterColumns = [
+    {
+      field: "status",
+      label: "Order Status",
+      valueGetter: (row) => row.status,
+      renderCell: (status) => (
+      <StatusBadge
+          value={status}
+          normalize={normalizeStatus}
+          styles={STATUS_STYLE}
+      />
+      ),
+    },
     { field: "work_order", label: "Work Order" },
     { field: "spr_no", label: "SPR No." },
     { field: "usage_line", label: "Usage Line" },
@@ -177,12 +193,6 @@ const handleScan = async (row) => {
     { field: "total_cost_handled", label: "Total Cost" },
     { field: "plan_qty", label: "Required Qty" },
     { field: "actual_qty", label: "Actual Qty" },
-    {
-      field: "status",
-      label: "Status",
-      valueGetter: (row) => row.status,
-      renderCell: (status) => <StatusBadge status={status} />,
-    },
 {
   field: "scan",
   label: "Scan",
@@ -201,6 +211,18 @@ const handleScan = async (row) => {
 
   /* ---------------- Table Columns By Defualt ---------------- */
   const defaultColumns = [
+    {
+        field: "status",
+        label: "Order Status",
+        valueGetter: (row) => row.status,
+        renderCell: (status) => (
+        <StatusBadge
+            value={status}
+            normalize={normalizeStatus}
+            styles={STATUS_STYLE}
+        />
+        ),
+    },
     { field: "mc_code", label: "Maintenance Contract" },
     { field: "type", label: "Transaction Type" },
     { field: "work_order", label: "Work Order" },
@@ -220,12 +242,6 @@ const handleScan = async (row) => {
     { field: "total_cost_handled", label: "Total Cost" },
     { field: "plan_qty", label: "Required Quantity" },
     { field: "actual_qty", label: "Scanned Quantity" },
-    {
-      field: "status",
-      label: "Order Status",
-      valueGetter: (row) => row.status,
-      renderCell: (status) => <StatusBadge status={status} />,
-    },
     {
       field: "counter_id",
       label: "Counter",
@@ -372,44 +388,76 @@ const handleScan = async (row) => {
                     !scannedOrderIds.has(row.order_id)
                   }
                   onConfirmSku={async (row) => {
-                    try {
-                      const actual_qty = row.plan_qty;
+                  try {
+                    const actual_qty = row.plan_qty;
 
-                      const response = await ExecutionAPI.handleOrderItemT1(
-                        row.order_id,
-                        actual_qty
-                      );
+                    const response = await ExecutionAPI.handleOrderItemT1(
+                      row.order_id,
+                      actual_qty
+                    );
 
-                      if (response.isCompleted) {
-                        setAlert({
-                          show: true,
-                          type: "success",
-                          title: "Confirmed",
-                          message: response.message,
+                    if (response.isCompleted) {
+
+                      // 🔥 ยิง transferChangeStatus เฉพาะกรณีที่กำหนด
+                      if (
+                        row.type === "TRANSFER" &&
+                        row.transfer_scenario === "INTERNAL_OUT"
+                      ) {
+                        // 🔥 update transfer status
+                        await ExecutionAPI.transferChangeStatus({
+                          items: [{ order_id: row.order_id }],
+                          transfer_status: "PICK_SUCCESS",
                         });
 
-                        // 🔥 ลบออกจาก scanned set
-                        setScannedOrderIds((prev) => {
-                          const next = new Set(prev);
-                          next.delete(row.order_id);
-                          return next;
+                        // 🔥 NEW: update counter status
+                        await CounterAPI.counterChangeStatus({
+                          order_id: row.order_id,
+                          status: "WAITING_AMR",
                         });
-
-                        await fetchDataAll();
-                        await fetchCounters();
-                      } else {
-                        throw new Error(response.message || "Failed");
                       }
-                    } catch (err) {
-                      console.error(err);
+
+                      if (
+                        row.type === "TRANSFER" &&
+                        row.transfer_scenario === "INTERNAL_IN"
+                      ) {
+                        await ExecutionAPI.transferChangeStatus({
+                          items: [{ order_id: row.order_id }],
+                          transfer_status: "COMPLETED",
+                        });
+                      }
+
                       setAlert({
                         show: true,
-                        type: "error",
-                        title: "Error",
-                        message: "Something went wrong",
+                        type: "success",
+                        title: "Confirmed",
+                        message: response.message,
                       });
+
+                      // 🔥 ลบออกจาก scanned set
+                      setScannedOrderIds((prev) => {
+                        const next = new Set(prev);
+                        next.delete(row.order_id);
+                        return next;
+                      });
+
+                      await fetchDataAll();
+                      await fetchCounters();
+
+                    } else {
+                      throw new Error(response.message || "Failed");
                     }
-                  }}
+
+                  } catch (err) {
+                    console.error(err);
+                    setAlert({
+                      show: true,
+                      type: "error",
+                      title: "Error",
+                      message: "Something went wrong",
+                    });
+                  }
+                }}
+
                 />
               </MDBox>
             )}

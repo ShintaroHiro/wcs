@@ -3,6 +3,11 @@ import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 /**
  * inventory summary table เก็บค่าเฉลี่ยของ cost ของรายการ inventory เดียวกัน
  */
+@Index(
+    'UQ_inventory_sum_unique',
+    ['item_id', 'loc_id', 'mc_code', 'cond', 'is_active'],
+    { unique: true }
+)
 @Entity({ name: 'inventory_sum' })
 export class InventorySum {
     /** ไอดี summary inventory (PK) */

@@ -147,6 +147,7 @@ const PickCounterPage = () => {
           ) : (
             <CounterScreen
               counter={counter} // counter object
+              status={counter.status}
               stock_item={counter.stock_item} // จาก flattened row
               item_desc={counter.item_desc}
               plan_qty={counter.plan_qty}

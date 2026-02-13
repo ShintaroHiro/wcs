@@ -32,7 +32,7 @@ export default function CounterStandbyScreen({ counter }) {
           sx={{
             width: "100%", // 🔥 ยาวสุดขอบ
             height: "100%", // 🔥 สูงสุดเท่าที่ได้
-            borderRadius: 7,
+            borderRadius: 20,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

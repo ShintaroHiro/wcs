@@ -10,13 +10,14 @@ import { Orders } from "../entities/orders.entity";
 import { Inventory } from "../entities/inventory.entity";
 import { StockItems } from "../entities/m_stock_items.entity";
 import { InventoryTrx } from "../entities/inventory_transaction.entity";
-import { TypeInfm } from "../common/global.enum";
+import { TransferScenario, TypeInfm } from "../common/global.enum";
 import { Locations } from "../entities/m_location.entity";
 import { OrdersUsage } from "../entities/order_usage.entity";
 import { OrdersReturn } from "../entities/order_return.entity";
 import { UsageInventory } from "../entities/order_usage_inv.entity";
 import { ReturnInventory } from "../entities/order_return_inv.entity";
 import { InventorySum } from "../entities/inventory_sum.entity";
+import { TransferInventory } from "../entities/order_transfer_inv.entity";
 
 async function getInventoryFIFO(
     manager: EntityManager,
@@ -328,6 +329,165 @@ async usage(
     return true;
 }
 
+//ver. สมบูรณ์ ยังไม่เทส
+// async usage(
+//     manager: EntityManager,
+//     order: Orders
+// ) {
+//     const invRepo = manager.getRepository(Inventory);
+//     const sumRepo = manager.getRepository(InventorySum);
+//     const usageRepo = manager.getRepository(OrdersUsage);
+//     const usageInvRepo = manager.getRepository(UsageInventory);
+//     const trxRepo = manager.getRepository(InventoryTrx);
+//     const itemRepo = manager.getRepository(StockItems);
+//     const locRepo = manager.getRepository(Locations);
+
+//     if (!order.actual_qty || order.actual_qty <= 0) {
+//         throw new Error("actual_qty must be > 0");
+//     }
+
+//     // --------------------------------------------------
+//     // 1) load usage
+//     // --------------------------------------------------
+//     const usage = await usageRepo.findOne({
+//         where: { order_id: order.order_id },
+//         lock: { mode: "pessimistic_write" }
+//     });
+
+//     if (!usage || !usage.sum_inv_id) {
+//         throw new Error("OrdersUsage or sum_inv_id not found");
+//     }
+
+//     // โหลด master สำหรับ trx log
+//     const item = await itemRepo.findOne({
+//         where: { item_id: order.item_id },
+//         select: ["stock_item"],
+//     });
+
+//     const loc = await locRepo.findOne({
+//         where: { loc_id: order.loc_id },
+//         select: ["loc", "box_loc"],
+//     });
+
+//     // --------------------------------------------------
+//     // 2) lock inventory_sum
+//     // --------------------------------------------------
+//     const sumInv = await sumRepo.findOne({
+//         where: { sum_inv_id: usage.sum_inv_id },
+//         lock: { mode: "pessimistic_write" },
+//     });
+
+//     if (!sumInv) {
+//         throw new Error("InventorySum not found");
+//     }
+
+//     if (sumInv.sum_inv_qty < order.actual_qty) {
+//         throw new Error(
+//             `Stock not enough (available=${sumInv.sum_inv_qty})`
+//         );
+//     }
+
+//     // --------------------------------------------------
+//     // 3) load FIFO layers
+//     // --------------------------------------------------
+//     const inventories = await invRepo.find({
+//         where: {
+//             sum_inv_id: usage.sum_inv_id,
+//             is_active: true,
+//         },
+//         order: { inv_id: "ASC" },
+//         lock: { mode: "pessimistic_write" },
+//     });
+
+//     let remainingQty = order.actual_qty;
+//     let totalCostUsed = 0;
+
+//     // --------------------------------------------------
+//     // 4) FIFO deduction
+//     // --------------------------------------------------
+//     for (const inv of inventories) {
+//         if (remainingQty <= 0) break;
+//         if (inv.inv_qty <= 0) continue;
+
+//         const deductQty = Math.min(inv.inv_qty, remainingQty);
+
+//         inv.inv_qty -= deductQty;
+//         inv.total_cost_inv = Number(
+//             (inv.inv_qty * inv.unit_cost_inv).toFixed(2)
+//         );
+
+//         if (inv.inv_qty === 0) {
+//             inv.is_active = false;
+//         }
+
+//         inv.updated_at = new Date();
+//         await invRepo.save(inv);
+
+//         // mapping usage -> inventory
+//         await usageInvRepo.save({
+//             usage_id: usage.usage_id,
+//             inv_id: inv.inv_id,
+//             usage_qty: deductQty,
+//         });
+
+//         // trx log
+//         const trx = Object.assign(new InventoryTrx(), {
+//             inv_id: inv.inv_id,
+//             order_id: order.order_id,
+//             order_type: TypeInfm.USAGE,
+
+//             item_id: inv.item_id,
+//             stock_item: item?.stock_item ?? null,
+
+//             loc_id: inv.loc_id,
+//             loc: loc?.loc ?? null,
+//             box_loc: loc?.box_loc ?? null,
+
+//             qty: -deductQty,
+//             unit_cost: inv.unit_cost_inv,
+//             total_cost: Number(
+//                 (-deductQty * inv.unit_cost_inv).toFixed(2)
+//             ),
+//         });
+
+//         await trxRepo.save(trx);
+
+//         remainingQty -= deductQty;
+//         totalCostUsed += deductQty * inv.unit_cost_inv;
+//     }
+
+//     if (remainingQty > 0) {
+//         throw new Error("FIFO inventory not enough (unexpected)");
+//     }
+
+//     // --------------------------------------------------
+//     // 5) update inventory_sum
+//     // --------------------------------------------------
+//     sumInv.sum_inv_qty -= order.actual_qty;
+
+//     sumInv.total_cost_sum_inv = Number(
+//         (sumInv.total_cost_sum_inv - totalCostUsed).toFixed(2)
+//     );
+
+//     if (sumInv.sum_inv_qty < 0) {
+//         throw new Error("InventorySum qty < 0 (usage)");
+//     }
+
+//     sumInv.unit_cost_sum_inv =
+//         sumInv.sum_inv_qty > 0
+//             ? Number(
+//                   (
+//                       sumInv.total_cost_sum_inv /
+//                       sumInv.sum_inv_qty
+//                   ).toFixed(2)
+//               )
+//             : 0;
+
+//     sumInv.updated_at = new Date();
+//     await sumRepo.save(sumInv);
+
+//     return true;
+// }
 
 
 
@@ -497,162 +657,495 @@ async return(
 //---------------------------------------
 // 4) TRANSFER → ตัดจาก loc A (FIFO) + เพิ่มใน loc B ตามราคาเดิม
 //---------------------------------------
+// async transfer(manager: EntityManager, order: Orders) {
+//     const invRepo = manager.getRepository(Inventory);
+//     const trxRepo = manager.getRepository(InventoryTrx);
+//     const transferRepo = manager.getRepository(OrdersTransfer);
+//     const stockItemRepo = manager.getRepository(StockItems);
+//     const locRepo = manager.getRepository(Locations);
+
+//     if (!order.actual_qty || order.actual_qty <= 0) {
+//         throw new Error("actual_qty must be > 0");
+//     }
+
+//     const t = await transferRepo.findOne({
+//         where: { order_id: order.order_id }
+//     });
+
+//     if (!t) {
+//         throw new Error(`OrdersTransfer not found for order ${order.order_id}`);
+//     }
+
+//     const fromLoc = t.related_loc_id;
+//     const toLoc = order.loc_id;
+//     const qtyToMoveTotal = order.actual_qty;
+
+//     // ----------------------------
+//     // lookup สำหรับ log
+//     // ----------------------------
+//     const stockItem = await stockItemRepo.findOne({
+//         where: { item_id: order.item_id },
+//         select: ['stock_item']
+//     });
+
+//     const fromLocInfo = await locRepo.findOne({ where: { loc_id: fromLoc } });
+//     const toLocInfo = await locRepo.findOne({ where: { loc_id: toLoc } });
+
+//     // ----------------------------
+//     // 1) ดึง inventory ต้นทาง FIFO + lock
+//     // ----------------------------
+//     const sourceList = await invRepo
+//         .createQueryBuilder("inv")
+//         .setLock("pessimistic_write")
+//         .where("inv.item_id = :item_id", { item_id: order.item_id })
+//         .andWhere("inv.loc_id = :loc_id", { loc_id: fromLoc })
+//         .orderBy("inv.created_at", "ASC")
+//         .getMany();
+
+//     if (sourceList.length === 0) {
+//         throw new Error(`No inventory found at related_loc_id ${fromLoc}`);
+//     }
+
+//     // ----------------------------
+//     // 2) ตรวจ stock รวม
+//     // ----------------------------
+//     const totalStock = sourceList.reduce((sum, inv) => sum + inv.inv_qty, 0);
+
+//     if (totalStock < qtyToMoveTotal) {
+//         throw new Error("Not enough stock to transfer");
+//     }
+
+//     // ----------------------------
+//     // 3) FIFO transfer
+//     // ----------------------------
+//     let qtyToMove = qtyToMoveTotal;
+
+//     for (const src of sourceList) {
+//         if (qtyToMove <= 0) break;
+
+//         const moveQty = Math.min(src.inv_qty, qtyToMove);
+//         qtyToMove -= moveQty;
+
+//         const unitCost = Number(src.unit_cost_inv.toFixed(2));
+
+//         // ----------------------------
+//         // 3.1) ตัดต้นทาง
+//         // ----------------------------
+//         src.inv_qty -= moveQty;
+//         src.total_cost_inv = Number(
+//             (src.inv_qty * unitCost).toFixed(2)
+//         );
+//         src.updated_at = new Date();
+//         const savedSrc = await invRepo.save(src);
+
+//         // 🔻 inventory transaction (OUT)
+//         await trxRepo.save(
+//             trxRepo.create({
+//                 inv_id: savedSrc.inv_id,
+//                 order_id: order.order_id,
+//                 order_type: TypeInfm.TRANSFER,
+//                 item_id: order.item_id,
+//                 stock_item: stockItem?.stock_item ?? undefined,
+//                 loc_id: fromLoc,
+//                 loc: fromLocInfo?.loc ?? undefined,
+//                 box_loc: fromLocInfo?.box_loc ?? undefined,
+//                 qty: -moveQty,
+//                 unit_cost: unitCost,
+//                 total_cost: Number(
+//                     (-moveQty * unitCost).toFixed(2)
+//                 )
+//             })
+//         );
+
+//         // ----------------------------
+//         // 3.2) เพิ่มปลายทาง (merge ตาม cost)
+//         // ----------------------------
+//         let dest = await invRepo.findOne({
+//             where: {
+//                 item_id: order.item_id,
+//                 loc_id: toLoc,
+//                 unit_cost_inv: unitCost
+//             }
+//         });
+
+//         if (dest) {
+//             dest.inv_qty += moveQty;
+//             dest.total_cost_inv = Number(
+//                 (dest.inv_qty * unitCost).toFixed(2)
+//             );
+//             dest.updated_at = new Date();
+//             dest = await invRepo.save(dest);
+//         } else {
+//             dest = await invRepo.save(
+//                 invRepo.create({
+//                     item_id: order.item_id,
+//                     loc_id: toLoc,
+//                     unit_cost_inv: unitCost,
+//                     inv_qty: moveQty,
+//                     total_cost_inv: Number(
+//                         (moveQty * unitCost).toFixed(2)
+//                     ),
+//                     updated_at: new Date()
+//                 })
+//             );
+//         }
+
+//         // 🔺 inventory transaction (IN)
+//         await trxRepo.save(
+//             trxRepo.create({
+//                 inv_id: dest.inv_id,
+//                 order_id: order.order_id,
+//                 order_type: TypeInfm.TRANSFER,
+//                 item_id: order.item_id,
+//                 stock_item: stockItem?.stock_item ?? undefined,
+//                 loc_id: toLoc,
+//                 loc: toLocInfo?.loc ?? undefined,
+//                 box_loc: toLocInfo?.box_loc ?? undefined,
+//                 qty: moveQty,
+//                 unit_cost: unitCost,
+//                 total_cost: Number(
+//                     (moveQty * unitCost).toFixed(2)
+//                 )
+//             })
+//         );
+//     }
+
+//     return true;
+// }
+
 async transfer(manager: EntityManager, order: Orders) {
-    const invRepo = manager.getRepository(Inventory);
-    const trxRepo = manager.getRepository(InventoryTrx);
+
+    const actualQty = order.actual_qty ?? 0;
+
+    if (actualQty <= 0) {
+        throw new Error("actual_qty must be > 0");
+    }
+
+    switch (order.transfer_scenario) {
+
+        case TransferScenario.INTERNAL_IN:
+        case TransferScenario.INBOUND:
+            return this.transferIn(manager, order);
+
+        case TransferScenario.INTERNAL_OUT:
+        case TransferScenario.OUTBOUND:
+            return this.transferOut(manager, order);
+
+        default:
+            throw new Error("Execution mode not supported");
+    }
+}
+
+//helper หา unit_cost
+private async getTransferUnitCost(
+    manager: EntityManager,
+    order: Orders
+): Promise<number> {
+
     const transferRepo = manager.getRepository(OrdersTransfer);
-    const stockItemRepo = manager.getRepository(StockItems);
+
+    let transfer: OrdersTransfer | null = null;
+
+    if (order.transfer_scenario === TransferScenario.INTERNAL_IN) {
+
+        transfer = await transferRepo.findOne({
+            where: { related_order_id: order.order_id },
+            lock: { mode: 'pessimistic_read' }
+
+        });
+
+    } else if (order.transfer_scenario === TransferScenario.INBOUND) {
+
+        transfer = await transferRepo.findOne({
+            where: { order_id: order.order_id },
+            lock: { mode: 'pessimistic_read' }
+
+        });
+    }
+
+    if (!transfer) {
+        throw new Error("OrdersTransfer not found");
+    }
+
+    const unitCost = Number(
+        Number(transfer.unit_cost_handled ?? 0).toFixed(2)
+    );
+
+    if (unitCost <= 0) {
+        throw new Error("Invalid unit_cost_handled");
+    }
+
+    return unitCost;
+}
+
+private async transferIn(
+    manager: EntityManager,
+    order: Orders
+) {
+
+    const invRepo = manager.getRepository(Inventory);
+    const invSumRepo = manager.getRepository(InventorySum);
+    const trxRepo = manager.getRepository(InventoryTrx);
+    const itemRepo = manager.getRepository(StockItems);
+    const locRepo = manager.getRepository(Locations);
+
+    if (!order.actual_qty || order.actual_qty <= 0) {
+        throw new Error(`Invalid actual_qty for order ${order.order_id}`);
+    }
+
+    const unitCost = await this.getTransferUnitCost(manager, order);
+
+    // โหลด master สำหรับ trx log
+    const item = await itemRepo.findOne({
+        where: { item_id: order.item_id },
+        select: ['stock_item'],
+    });
+
+    const loc = await locRepo.findOne({
+        where: { loc_id: order.loc_id },
+        select: ['loc', 'box_loc'],
+    });
+
+    // ----------------------------
+    // 1) lock InventorySum
+    // ----------------------------
+    let invSum = await invSumRepo.findOne({
+        where: {
+            item_id: order.item_id,
+            loc_id: order.loc_id,
+            mc_code: order.mc_code ?? IsNull(),
+            cond: order.cond ?? IsNull(),
+            is_active: true,
+        },
+        lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!invSum) {
+        invSum = invSumRepo.create({
+            item_id: order.item_id,
+            loc_id: order.loc_id,
+            mc_code: order.mc_code ?? null,
+            cond: order.cond ?? null,
+            sum_inv_qty: 0,
+            unit_cost_sum_inv: 0,
+            total_cost_sum_inv: 0,
+            is_active: true,
+            updated_at: new Date(),
+        });
+    }
+
+    // ----------------------------
+    // 2) update InventorySum
+    // ----------------------------
+    const newQty = invSum.sum_inv_qty + order.actual_qty;
+    const newTotalCost =
+        invSum.total_cost_sum_inv +
+        unitCost * order.actual_qty;
+
+    invSum.sum_inv_qty = newQty;
+    invSum.total_cost_sum_inv = Number(newTotalCost.toFixed(2));
+    invSum.unit_cost_sum_inv =
+        newQty > 0
+            ? Number((newTotalCost / newQty).toFixed(2))
+            : 0;
+
+    invSum.updated_at = new Date();
+
+    const savedSum = await invSumRepo.save(invSum);
+
+    // ----------------------------
+    // 3) create Inventory layer
+    // ----------------------------
+    const newInv = await invRepo.save(
+        invRepo.create({
+            item_id: order.item_id,
+            loc_id: order.loc_id,
+            unit_cost_inv: unitCost,
+            inv_qty: order.actual_qty,
+            total_cost_inv: Number(
+                (unitCost * order.actual_qty).toFixed(2)
+            ),
+            sum_inv_id: savedSum.sum_inv_id,
+            is_active: true,
+            updated_at: new Date(),
+        })
+    );
+
+    // ----------------------------
+    // 4) trx log
+    // ----------------------------
+    const trx = Object.assign(new InventoryTrx(), {
+            inv_id: newInv.inv_id,
+            order_id: order.order_id,
+            order_type: TypeInfm.TRANSFER,
+            item_id: order.item_id,
+            stock_item: item?.stock_item ?? null,
+            loc_id: order.loc_id,
+            loc: loc?.loc ?? null,
+            box_loc: loc?.box_loc ?? null,
+            qty: order.actual_qty,
+            unit_cost: unitCost,
+            total_cost: Number(
+                (unitCost * order.actual_qty).toFixed(2)
+            ),
+        });
+
+    await trxRepo.save(trx);
+}
+
+private async transferOut(
+    manager: EntityManager,
+    order: Orders
+) {
+    const invRepo = manager.getRepository(Inventory);
+    const sumRepo = manager.getRepository(InventorySum);
+    const transferRepo = manager.getRepository(OrdersTransfer);
+    const transferInvRepo = manager.getRepository(TransferInventory);
+    const trxRepo = manager.getRepository(InventoryTrx);
+    const itemRepo = manager.getRepository(StockItems);
     const locRepo = manager.getRepository(Locations);
 
     if (!order.actual_qty || order.actual_qty <= 0) {
         throw new Error("actual_qty must be > 0");
     }
 
-    const t = await transferRepo.findOne({
-        where: { order_id: order.order_id }
-    });
-
-    if (!t) {
-        throw new Error(`OrdersTransfer not found for order ${order.order_id}`);
-    }
-
-    const fromLoc = t.from_loc_id;
-    const toLoc = order.loc_id;
-    const qtyToMoveTotal = order.actual_qty;
-
-    // ----------------------------
-    // lookup สำหรับ log
-    // ----------------------------
-    const stockItem = await stockItemRepo.findOne({
+    // โหลด master สำหรับ trx log
+    const item = await itemRepo.findOne({
         where: { item_id: order.item_id },
-        select: ['stock_item']
+        select: ['stock_item'],
     });
 
-    const fromLocInfo = await locRepo.findOne({ where: { loc_id: fromLoc } });
-    const toLocInfo = await locRepo.findOne({ where: { loc_id: toLoc } });
+    const loc = await locRepo.findOne({
+        where: { loc_id: order.loc_id },
+        select: ['loc', 'box_loc'],
+    });
 
-    // ----------------------------
-    // 1) ดึง inventory ต้นทาง FIFO + lock
-    // ----------------------------
-    const sourceList = await invRepo
-        .createQueryBuilder("inv")
-        .setLock("pessimistic_write")
-        .where("inv.item_id = :item_id", { item_id: order.item_id })
-        .andWhere("inv.loc_id = :loc_id", { loc_id: fromLoc })
-        .orderBy("inv.created_at", "ASC")
-        .getMany();
+    // --------------------------------------------------
+    // 1) load transfer
+    // --------------------------------------------------
+    const transfer = await transferRepo.findOne({
+        where: { order_id: order.order_id },
+        lock: { mode: "pessimistic_write" }
+    });
 
-    if (sourceList.length === 0) {
-        throw new Error(`No inventory found at from_loc_id ${fromLoc}`);
+    if (!transfer || !transfer.sum_inv_id) {
+        throw new Error("OrdersTransfer or sum_inv_id not found");
     }
 
-    // ----------------------------
-    // 2) ตรวจ stock รวม
-    // ----------------------------
-    const totalStock = sourceList.reduce((sum, inv) => sum + inv.inv_qty, 0);
+    // --------------------------------------------------
+    // 2) lock inventory_sum
+    // --------------------------------------------------
+    const sumInv = await sumRepo.findOne({
+        where: { sum_inv_id: transfer.sum_inv_id },
+        lock: { mode: "pessimistic_write" }
+    });
 
-    if (totalStock < qtyToMoveTotal) {
-        throw new Error("Not enough stock to transfer");
+    if (!sumInv) {
+        throw new Error("InventorySum not found");
     }
 
-    // ----------------------------
-    // 3) FIFO transfer
-    // ----------------------------
-    let qtyToMove = qtyToMoveTotal;
-
-    for (const src of sourceList) {
-        if (qtyToMove <= 0) break;
-
-        const moveQty = Math.min(src.inv_qty, qtyToMove);
-        qtyToMove -= moveQty;
-
-        const unitCost = Number(src.unit_cost_inv.toFixed(2));
-
-        // ----------------------------
-        // 3.1) ตัดต้นทาง
-        // ----------------------------
-        src.inv_qty -= moveQty;
-        src.total_cost_inv = Number(
-            (src.inv_qty * unitCost).toFixed(2)
+    if (sumInv.sum_inv_qty < order.actual_qty) {
+        throw new Error(
+            `Stock not enough (available=${sumInv.sum_inv_qty})`
         );
-        src.updated_at = new Date();
-        const savedSrc = await invRepo.save(src);
+    }
 
-        // 🔻 inventory transaction (OUT)
-        await trxRepo.save(
-            trxRepo.create({
-                inv_id: savedSrc.inv_id,
-                order_id: order.order_id,
-                order_type: TypeInfm.TRANSFER,
-                item_id: order.item_id,
-                stock_item: stockItem?.stock_item ?? undefined,
-                loc_id: fromLoc,
-                loc: fromLocInfo?.loc ?? undefined,
-                box_loc: fromLocInfo?.box_loc ?? undefined,
-                qty: -moveQty,
-                unit_cost: unitCost,
-                total_cost: Number(
-                    (-moveQty * unitCost).toFixed(2)
-                )
-            })
+    // --------------------------------------------------
+    // 3) load FIFO layers
+    // --------------------------------------------------
+    const inventories = await invRepo.find({
+        where: {
+            sum_inv_id: transfer.sum_inv_id,
+            is_active: true
+        },
+        order: { inv_id: "ASC" },
+        lock: { mode: "pessimistic_write" }
+    });
+
+    let remainingQty = order.actual_qty;
+    let totalCostUsed = 0;
+
+    // --------------------------------------------------
+    // 4) FIFO deduction
+    // --------------------------------------------------
+    for (const inv of inventories) {
+
+        if (remainingQty <= 0) break;
+        if (inv.inv_qty <= 0) continue;
+
+        const deductQty = Math.min(inv.inv_qty, remainingQty);
+
+        inv.inv_qty -= deductQty;
+        inv.total_cost_inv = Number(
+            (inv.inv_qty * inv.unit_cost_inv).toFixed(2)
         );
 
-        // ----------------------------
-        // 3.2) เพิ่มปลายทาง (merge ตาม cost)
-        // ----------------------------
-        let dest = await invRepo.findOne({
-            where: {
-                item_id: order.item_id,
-                loc_id: toLoc,
-                unit_cost_inv: unitCost
-            }
-        });
-
-        if (dest) {
-            dest.inv_qty += moveQty;
-            dest.total_cost_inv = Number(
-                (dest.inv_qty * unitCost).toFixed(2)
-            );
-            dest.updated_at = new Date();
-            dest = await invRepo.save(dest);
-        } else {
-            dest = await invRepo.save(
-                invRepo.create({
-                    item_id: order.item_id,
-                    loc_id: toLoc,
-                    unit_cost_inv: unitCost,
-                    inv_qty: moveQty,
-                    total_cost_inv: Number(
-                        (moveQty * unitCost).toFixed(2)
-                    ),
-                    updated_at: new Date()
-                })
-            );
+        if (inv.inv_qty === 0) {
+            inv.is_active = false;
         }
 
-        // 🔺 inventory transaction (IN)
-        await trxRepo.save(
-            trxRepo.create({
-                inv_id: dest.inv_id,
-                order_id: order.order_id,
-                order_type: TypeInfm.TRANSFER,
-                item_id: order.item_id,
-                stock_item: stockItem?.stock_item ?? undefined,
-                loc_id: toLoc,
-                loc: toLocInfo?.loc ?? undefined,
-                box_loc: toLocInfo?.box_loc ?? undefined,
-                qty: moveQty,
-                unit_cost: unitCost,
-                total_cost: Number(
-                    (moveQty * unitCost).toFixed(2)
-                )
-            })
-        );
+        inv.updated_at = new Date();
+        await invRepo.save(inv);
+
+        // mapping transfer -> inventory
+        await transferInvRepo.save({
+            transfer_id: transfer.transfer_id,
+            inv_id: inv.inv_id,
+            transfer_qty: deductQty
+        });
+
+        // trx log
+        const trx = Object.assign(new InventoryTrx(), {
+            inv_id: inv.inv_id,
+            order_id: order.order_id,
+            order_type: TypeInfm.TRANSFER,
+            item_id: inv.item_id,
+            stock_item: item?.stock_item ?? null,
+            loc_id: inv.loc_id,
+            loc: loc?.loc ?? null,
+            box_loc: loc?.box_loc ?? null,
+            qty: -deductQty,
+            unit_cost: inv.unit_cost_inv,
+            total_cost: Number(
+                (-deductQty * inv.unit_cost_inv).toFixed(2)
+            )
+        });
+        
+        await trxRepo.save(trx);
+
+        remainingQty -= deductQty;
+        totalCostUsed += deductQty * inv.unit_cost_inv;
     }
+
+    if (remainingQty > 0) {
+        throw new Error("FIFO inventory not enough (unexpected)");
+    }
+
+    // --------------------------------------------------
+    // 5) update inventory_sum
+    // --------------------------------------------------
+    sumInv.sum_inv_qty -= order.actual_qty;
+
+    sumInv.total_cost_sum_inv = Number(
+        (sumInv.total_cost_sum_inv - totalCostUsed).toFixed(2)
+    );
+
+    if (sumInv.sum_inv_qty < 0) {
+        throw new Error("InventorySum qty < 0 (transferOut)");
+    }
+
+    sumInv.unit_cost_sum_inv =
+        sumInv.sum_inv_qty > 0
+            ? Number(
+                (sumInv.total_cost_sum_inv / sumInv.sum_inv_qty).toFixed(2)
+              )
+            : 0;
+
+    sumInv.updated_at = new Date();
+    await sumRepo.save(sumInv);
 
     return true;
 }
-
 
 
     // ดึงข้อมูลมาแสดงผลในหน้า inventory balance แบบ stock item view

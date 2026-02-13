@@ -179,4 +179,58 @@ export const getByCounterIdPublic = async (req: Request, res: Response) => {
     }
 };
 
+export const counterChangeStatus = async (req: Request, res: Response) => {
+    const operation = 'counterController.counterChangeStatus';
+
+    // 🔹 ดึง username จาก token
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgRequiredUsername()
+        );
+    }
+
+    // 🔹 ตรวจสอบ body
+    const dto = req.body;
+
+    if (!dto || !dto.order_id) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            "Invalid request: order_id is required"
+        );
+    }
+
+    if (!dto.status) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            "Invalid request: status is required"
+        );
+    }
+
+    try {
+        // 🔥 เรียก service
+        const response = await counterService.counterChangeStatus(
+            dto,
+            reqUsername
+        );
+
+        // 🔥 ส่ง response กลับ client
+        return ResponseUtils.handleResponse(res, response);
+
+    } catch (error: any) {
+        console.error(`Error during ${operation}:`, error);
+
+        return ResponseUtils.handleErrorUpdate(
+            res,
+            operation,
+            error.message,
+            'change counter status',
+            true,
+            reqUsername
+        );
+    }
+};
+
+
 

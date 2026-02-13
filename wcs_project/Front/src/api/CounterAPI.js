@@ -178,6 +178,27 @@ static async scanBulk(counterId, qty) {
   }
 }
 
+static async counterChangeStatus(payload) {
+  try {
+    const token = GlobalVar.getToken();
+    const endpoint = "/api/counter/change-status";
+
+    const response = await ApiProvider.putData(
+      endpoint,
+      payload,
+      token
+    );
+
+    return response;
+
+  } catch (error) {
+    console.error(
+      "Error update status counter:",
+      error.message || error
+    );
+    throw new Error(`Error: ${error.message}`);
+  }
+}
 
 }
 

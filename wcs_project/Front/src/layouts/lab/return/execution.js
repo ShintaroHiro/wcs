@@ -25,8 +25,11 @@ import { StyledMenuItem, StyledSelect } from "common/Global.style";
 import { Condition, OrderStatusNoFinish } from "common/dataMain";
 import SearchIcon from "@mui/icons-material/Search";
 import { GlobalVar } from "common/GlobalVar";
-import { normalizeStatus } from "common/utils/statusUtils";
 import StatusBadge from "../components/statusBadge";
+import {
+  normalizeStatus,
+  STATUS_STYLE,
+} from "common/utils/statusUtils";
 import ButtonComponent from "../components/ButtonComponent";
 import Swal from "sweetalert2";
 
@@ -561,6 +564,18 @@ const ReturnExecutionPage = () => {
     ];
 
     const columnsExecute = [
+        {
+            field: "status",
+            label: "Order Status",
+            valueGetter: (row) => row.status,
+            renderCell: (status) => (
+            <StatusBadge
+                value={status}
+                normalize={normalizeStatus}
+                styles={STATUS_STYLE}
+            />
+            ),
+        },
         { field: "mc_code", label: "Maintenance Contract" },
         { field: "work_order", label: "Work Order" },
         { field: "spr_no", label: "SPR No." },
@@ -575,12 +590,6 @@ const ReturnExecutionPage = () => {
         { field: "unit_cost_handled", label: "Unit Cost" },
         { field: "total_cost_handled", label: "Total Cost" },
         { field: "plan_qty", label: "Required Quantity" },
-        {
-            field: "status",
-            label: "Order Status",
-            valueGetter: (row) => row.status, // เอาไว้ filter / sort
-            renderCell: (status) => <StatusBadge status={status} />,
-        }
     ];
 
     // --------------------------------------------------

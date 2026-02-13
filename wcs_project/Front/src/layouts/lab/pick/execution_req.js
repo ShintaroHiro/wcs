@@ -19,8 +19,11 @@ import { StyledMenuItem, StyledSelect } from "common/Global.style";
 import { OrderStatusNoFinish } from "common/dataMain";
 import SearchIcon from "@mui/icons-material/Search";
 import { GlobalVar } from "common/GlobalVar";
-import { normalizeStatus } from "common/utils/statusUtils";
 import StatusBadge from "../components/statusBadge";
+import {
+  normalizeStatus,
+  STATUS_STYLE,
+} from "common/utils/statusUtils";
 
 //requester
 const PickExecutionReqPage = () => {
@@ -348,6 +351,18 @@ const PickExecutionReqPage = () => {
   ];
 
   const columnsExecute = [
+    {
+      field: "status",
+      label: "Order Status",
+      valueGetter: (row) => row.status,
+      renderCell: (status) => (
+      <StatusBadge
+          value={status}
+          normalize={normalizeStatus}
+          styles={STATUS_STYLE}
+      />
+      ),
+    },
     { field: "mc_code", label: "Maintenance Contract" },
     { field: "spr_no", label: "SPR No." },
     { field: "work_order", label: "Work Order" },
@@ -359,13 +374,7 @@ const PickExecutionReqPage = () => {
     { field: "cond", label: "Condition" },
     // { field: "loc", label: "From Location" },
     // { field: "box_loc", label: "From Box Location" },
-    { field: "plan_qty", label: "Required Quantity" },
-    {
-      field: "status",
-      label: "Order Status",
-      valueGetter: (row) => row.status, // เอาไว้ filter / sort
-      renderCell: (status) => <StatusBadge status={status} />,
-    }
+    { field: "plan_qty", label: "Required Quantity" }
   ];
 
   // --------------------------------------------------

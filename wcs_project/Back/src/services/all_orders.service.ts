@@ -438,6 +438,219 @@ export class AllOrdersService {
         }
     }
 
+    async getTransferAll(
+        options?: {
+            isExecution?: boolean;   // ✅ true = status Waiting / false = all status except FINISHED/COMPLETED
+            store_type?: string;
+            mc_code?: string;
+        },
+        manager?: EntityManager
+        ): Promise<ApiResponse<any | null>> {
+    
+        const response = new ApiResponse<any | null>();
+        const operation = 'AllOrdersService.getTransferAll';
+
+        try {
+            const repository = manager
+                ? manager.getRepository(Orders)
+                : this.ordersRepository;
+
+            const query = repository
+                .createQueryBuilder('order')
+                .leftJoin('orders_transfer', 'transfer', 'transfer.order_id = order.order_id')
+                .leftJoin('m_stock_items', 'stock', 'stock.item_id = order.item_id')
+                .leftJoin('m_location', 'orderLoc', 'orderLoc.loc_id = order.loc_id')
+                .leftJoin('m_location', 'relatedLoc', 'relatedLoc.loc_id = transfer.related_loc_id')
+
+                .select([
+                    'order.order_id AS order_id',
+                    'order.mc_code AS mc_code',
+                    'order.type AS type',
+                    'order.execution_mode AS execution_mode', 
+                    'order.transfer_scenario AS transfer_scenario',  
+
+                    'transfer.transfer_id AS transfer_id',
+                    'transfer.object_id AS object_id',
+                    'transfer.unit_cost_handled AS unit_cost_handled',
+                    'transfer.related_order_id AS related_order_id',  
+                    
+                    'stock.item_id AS item_id',
+                    'stock.stock_item AS stock_item',
+                    'stock.item_desc AS item_desc',
+
+                    'order.store_type AS store_type',
+                    'order.cond AS cond',
+                    'order.plan_qty AS plan_qty',
+                    'order.actual_qty AS actual_qty',
+
+                    // ✅ คำนวณ total_cost_handled
+                    '(IFNULL(transfer.unit_cost_handled,0) * IFNULL(order.plan_qty,0)) AS total_cost_handled',
+
+                    'order.requested_by AS requested_by',
+                    "DATE_FORMAT(order.requested_at, '%d/%m/%Y') AS requested_at",
+
+                    `
+                    CASE
+                        WHEN order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN transfer.transfer_status
+                        ELSE order.status
+                    END AS status
+                    `,
+
+                    /* from_loc + from_box_loc*/
+                    `
+                    CASE
+                        WHEN order.transfer_scenario IN ('OUTBOUND', 'INTERNAL_OUT')
+                            THEN COALESCE(orderLoc.loc, '-')
+                        ELSE '-'
+                    END AS from_loc
+                    `,
+                    `
+                    CASE
+                        WHEN order.transfer_scenario IN ('OUTBOUND', 'INTERNAL_OUT')
+                            THEN COALESCE(orderLoc.box_loc, '-')
+                        ELSE '-'
+                    END AS from_box_loc
+                    `,
+
+
+
+                    /* to_loc + to_box_loc*/
+                    `
+                    CASE
+                        WHEN order.transfer_scenario = 'INBOUND'
+                            THEN COALESCE(orderLoc.loc, '-')
+                        WHEN order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN COALESCE(relatedLoc.loc, '-')
+                        ELSE '-'
+                    END AS to_loc
+                    `,
+                    `
+                    CASE
+                        WHEN order.transfer_scenario = 'INBOUND'
+                            THEN COALESCE(orderLoc.box_loc, '-')
+                        WHEN order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN COALESCE(relatedLoc.box_loc, '-')
+                        ELSE '-'
+                    END AS to_box_loc
+                    `,
+
+                ])
+
+                // 🔒 base condition
+                .where('order.type = :type', { type: 'TRANSFER' })
+                .andWhere('order.transfer_scenario != :excludedScenario', {
+                    excludedScenario: 'INTERNAL_IN',
+                })
+                .orderBy('order.requested_at', 'ASC')
+                .cache(false);
+
+            // 🔥 true = status Waiting / false = all status except FINISHED/COMPLETED / undefined = all status
+            // if (options?.isExecution === true) {
+            //         // เฉพาะ WAITING
+            //         query.andWhere(`
+            //             (
+            //                 (order.transfer_scenario = 'INTERNAL_OUT'
+            //                     AND transfer.transfer_status = :waitingTransfer)
+            //                 OR
+            //                 (order.transfer_scenario != 'INTERNAL_OUT'
+            //                     AND order.status = :waitingOrder)
+            //             )
+            //         `, {
+            //             waitingTransfer: StatusOrders.WAITING,
+            //             waitingOrder: StatusOrders.WAITING,
+            //         });
+           if (options?.isExecution === true) {
+    query.andWhere(`
+        (
+            CASE
+                WHEN order.transfer_scenario = 'INTERNAL_OUT'
+                    THEN transfer.transfer_status
+                ELSE order.status
+            END
+        ) = :waitingStatus
+    `, {
+        waitingStatus: StatusOrders.WAITING,
+    });
+} else if (options?.isExecution === false) {
+    query.andWhere(`
+        (
+            CASE
+                WHEN order.transfer_scenario = 'INTERNAL_OUT'
+                    THEN transfer.transfer_status
+                ELSE order.status
+            END
+        ) NOT IN (:...excludedStatuses)
+    `, {
+        excludedStatuses: [
+            StatusOrders.WAITING,
+            StatusOrders.FINISHED,
+            StatusOrders.COMPLETED,
+        ],
+    });
+}
+
+            // undefined → ไม่ใส่ where (ได้ทุกสถานะ)
+
+            // 🔎 filter store_type
+            if (options?.store_type) {
+                query.andWhere('order.store_type = :store_type', {
+                    store_type: options.store_type,
+                });
+            }
+
+            // 🔎 filter mc_code
+            if (options?.mc_code) {
+                query.andWhere('order.mc_code = :mc_code', {
+                    mc_code: options.mc_code,
+                });
+            }
+
+            const rawData = await query.getRawMany();
+
+            if (!rawData || rawData.length === 0) {
+                return response.setIncomplete(lang.msgNotFound('field.transfer'));
+            }
+
+            // ✅ normalize ค่าเหมือนเดิม
+            const cleanedData = rawData.map((item: any) => ({
+                ...item,
+                actual_qty:
+                    item.actual_qty != null && !isNaN(Number(item.actual_qty))
+                        ? Number(item.actual_qty)
+                        : 0,
+
+                plan_qty:
+                    item.plan_qty != null && !isNaN(Number(item.plan_qty))
+                        ? Number(item.plan_qty)
+                        : 0,
+
+                unit_cost_handled:
+                    item.unit_cost_handled != null && !isNaN(Number(item.unit_cost_handled))
+                        ? Number(item.unit_cost_handled)
+                        : 0,
+
+                total_cost_handled:
+                    item.total_cost_handled != null && !isNaN(Number(item.total_cost_handled))
+                        ? Number(item.total_cost_handled)
+                        : 0,
+            }));
+
+            return response.setComplete(lang.msgFound('field.transfer'), cleanedData);
+
+        } catch (error: any) {
+            console.error(`Error in ${operation}:`, error);
+
+            if (error instanceof QueryFailedError) {
+                return response.setIncomplete(
+                    lang.msgErrorFunction(operation, error.message)
+                );
+            }
+
+            throw new Error(lang.msgErrorFunction(operation, error.message));
+        }
+    }
+
     async getStatusAll(
         options?: {
             isExecution?: boolean;
@@ -492,18 +705,31 @@ export class AllOrdersService {
                 )
 
                 // ----------------------------
+                // TRANSFER
+                // ----------------------------
+                .leftJoin(
+                    'orders_transfer',
+                    'transfer',
+                    `transfer.order_id = order.order_id AND order.type = 'TRANSFER'`
+                )
+
+                // from = order.loc_id
+                .leftJoin('m_location', 'fromLoc', 'fromLoc.loc_id = order.loc_id')
+
+                // to = transfer.related_loc_id
+                .leftJoin(
+                    'm_location',
+                    'toLoc',
+                    'toLoc.loc_id = transfer.related_loc_id'
+                )
+
+                // ----------------------------
                 // master data
                 // ----------------------------
                 .leftJoin(
                     'm_stock_items',
                     'stock',
                     'stock.item_id = order.item_id'
-                )
-
-                .leftJoin(
-                    'm_location',
-                    'loc',
-                    'loc.loc_id = order.loc_id'
                 )
 
                 // ----------------------------
@@ -520,6 +746,17 @@ export class AllOrdersService {
                     'order.actual_qty AS actual_qty',
                     'order.item_id AS item_id',
                     'order.loc_id AS loc_id',
+                    'order.transfer_scenario AS transfer_scenario',
+                    'order.execution_mode AS execution_mode',
+
+                    `
+                    CASE
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN transfer.transfer_status
+                        ELSE order.status
+                    END AS display_status
+                    `,
 
                     // ----------------------------
                     // usage info (USAGE / RETURN)
@@ -574,36 +811,90 @@ export class AllOrdersService {
                     'stock.item_desc AS item_desc',
 
                     // ----------------------------
-                    // location
+                    // location (NEW LOGIC)
                     // ----------------------------
+
+                    // ---------- FROM ----------
                     `
                     CASE
+                        -- USAGE → from = order.loc_id
                         WHEN order.type = 'USAGE'
-                            THEN loc.loc
+                            THEN fromLoc.loc
+
+                        -- TRANSFER OUTBOUND
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'OUTBOUND'
+                            THEN fromLoc.loc
+
+                        -- TRANSFER INTERNAL_OUT
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN fromLoc.loc
+
                         ELSE NULL
                     END AS from_loc
                     `,
                     `
                     CASE
                         WHEN order.type = 'USAGE'
-                            THEN loc.box_loc
+                            THEN fromLoc.box_loc
+
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'OUTBOUND'
+                            THEN fromLoc.box_loc
+
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN fromLoc.box_loc
+
                         ELSE NULL
                     END AS from_box_loc
                     `,
+
+                    // ---------- TO ----------
                     `
                     CASE
-                        WHEN order.type IN ('RECEIPT','RETURN')
-                            THEN loc.loc
+                        -- RECEIPT
+                        WHEN order.type = 'RECEIPT'
+                            THEN fromLoc.loc
+
+                        -- RETURN
+                        WHEN order.type = 'RETURN'
+                            THEN fromLoc.loc
+
+                        -- TRANSFER INBOUND → ใช้ order.loc_id
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INBOUND'
+                            THEN fromLoc.loc
+
+                        -- TRANSFER INTERNAL_OUT → ใช้ related_loc_id
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN toLoc.loc
+
                         ELSE NULL
                     END AS to_loc
                     `,
                     `
                     CASE
-                        WHEN order.type IN ('RECEIPT','RETURN')
-                            THEN loc.box_loc
+                        WHEN order.type = 'RECEIPT'
+                            THEN fromLoc.box_loc
+
+                        WHEN order.type = 'RETURN'
+                            THEN fromLoc.box_loc
+
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INBOUND'
+                            THEN fromLoc.box_loc
+
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN toLoc.box_loc
+
                         ELSE NULL
                     END AS to_box_loc
                     `,
+
 
                     "DATE_FORMAT(order.requested_at, '%d/%m/%Y') AS requested_at",
                 ])
@@ -626,14 +917,52 @@ export class AllOrdersService {
             // filters (เหมือนเดิม)
             // ----------------------------
             if (options?.isExecution === true) {
-                query.andWhere('order.status = :waiting', {
-                    waiting: StatusOrders.WAITING,
-                });
-            } else if (options?.isExecution === false) {
-                query.andWhere('order.status <> :waiting', {
-                    waiting: StatusOrders.WAITING,
+                query.andWhere(`
+                    (
+                        (order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT'
+                            AND transfer.transfer_status = :waitingTransfer)
+                        OR
+                        (
+                            NOT (order.type = 'TRANSFER'
+                                AND order.transfer_scenario = 'INTERNAL_OUT')
+                            AND order.status = :waitingOrder
+                        )
+                    )
+                `, {
+                    waitingTransfer: StatusOrders.WAITING,
+                    waitingOrder: StatusOrders.WAITING,
                 });
             }
+            else if (options?.isExecution === false) {
+                query.andWhere(`
+                    (
+                        (order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT'
+                            AND transfer.transfer_status != :waitingTransfer)
+                        OR
+                        (
+                            NOT (order.type = 'TRANSFER'
+                                AND order.transfer_scenario = 'INTERNAL_OUT')
+                            AND order.status != :waitingOrder
+                        )
+                    )
+                `, {
+                    waitingTransfer: StatusOrders.WAITING,
+                    waitingOrder: StatusOrders.WAITING,
+                });
+            }
+
+            // ----------------------------
+            // exclude INTERNAL_IN (TRANSFER only)
+            // ----------------------------
+            query.andWhere(`
+                (
+                    order.type != 'TRANSFER'
+                    OR order.transfer_scenario != 'INTERNAL_IN'
+                )
+            `);
+
 
             if (options?.store_type) {
                 query.andWhere('order.store_type = :store_type', {

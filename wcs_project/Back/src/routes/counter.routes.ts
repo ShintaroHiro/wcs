@@ -119,4 +119,47 @@ router.get('/get-by-id-public/:counterId'
     , authenticateWCS
     , counterController.getByCounterIdPublic);
 
+    /**
+ * @swagger
+ * /api/counter/change-status:
+ *   put:
+ *     summary: เปลี่ยนสถานะ counter ตาม order_id
+ *     tags: [Counter]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - order_id
+ *               - status
+ *             properties:
+ *               order_id:
+ *                 type: integer
+ *                 example: 1001
+ *               status:
+ *                 type: string
+ *                 enum: [EMPTY, WAITING_AMR, READY_TO_PICK, ERROR, WAITING_PICK]
+ *                 example: WAITING_PICK
+ *     responses:
+ *       200:
+ *         description: เปลี่ยนสถานะ counter สำเร็จ
+ *       400:
+ *         description: ข้อมูลไม่ถูกต้อง
+ *       404:
+ *         description: ไม่พบ counter ตาม order_id
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.put(
+    '/change-status',
+    authenticateToken,
+    counterController.counterChangeStatus
+);
+
 export default router;

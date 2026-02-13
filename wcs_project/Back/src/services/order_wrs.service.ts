@@ -342,14 +342,31 @@ async executeT1Order(
     order.started_at = new Date();
     await ordersRepo.save(order);
 
-    // ---- Counter ----
-    counter.status = 'WAITING_AMR';
-    counter.current_order_id = order.order_id;
-    counter.current_wrs_id = amr.wrs_id;
-    counter.light_color_hex = user.user_color_hex;
-    counter.light_mode = 'ON';
-    counter.last_event_at = new Date();
-    await counterRepo.save(counter);
+    // // ---- Counter ----
+    // counter.status = 'WAITING_AMR';
+    // counter.current_order_id = order.order_id;
+    // counter.current_wrs_id = amr.wrs_id;
+    // counter.light_color_hex = user.user_color_hex;
+    // counter.light_mode = 'ON';
+    // counter.last_event_at = new Date();
+    // await counterRepo.save(counter);
+    
+// ---- Counter ----
+const isInternalInTransfer =
+  order.type === 'TRANSFER' &&
+  order.transfer_scenario === 'INTERNAL_IN';
+
+counter.status = isInternalInTransfer
+  ? 'WAITING_PICK'
+  : 'WAITING_AMR';
+
+counter.current_order_id = order.order_id;
+counter.current_wrs_id = amr.wrs_id;
+counter.light_color_hex = user.user_color_hex;
+counter.light_mode = 'ON';
+counter.last_event_at = new Date();
+
+await counterRepo.save(counter);
 
     // ---- AMR ----
     amr.wrs_status = 'DELIVERING';

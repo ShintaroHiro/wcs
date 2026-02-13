@@ -110,6 +110,7 @@ import CheckOutTPage from "layouts/lab/checkout/checkout_t";
 import PickCounterPage from "layouts/lab/checkout/pick_counter_page";
 import PutExecutionPage from "layouts/lab/put/execution";
 import ReturnExecutionPage from "layouts/lab/return/execution";
+import TransferExecutionPage from "layouts/lab/transfer/execution";
 
 const getComponent = (componentName) => {
   switch (componentName) {
@@ -168,6 +169,8 @@ const getComponent = (componentName) => {
         return <PutExecutionPage />;
     case "return-execute":
         return <ReturnExecutionPage />;
+    case "transfer-execute":
+        return <TransferExecutionPage />;
 
     // เพิ่มกรณีสำหรับ components อื่นๆ
     default:

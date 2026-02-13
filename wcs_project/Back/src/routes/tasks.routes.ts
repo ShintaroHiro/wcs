@@ -143,6 +143,63 @@ export default function createTasksRouter(orchestrator: OrchestratedTaskService)
         c.changeToPendingBatch
     );
 
+/**
+ * @swagger
+ * /api/execution/transfer-change-status:
+ *   post:
+ *     summary: เปลี่ยนสถานะรายการ order transfer แบบ batch
+ *     tags: [Execution]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - items
+ *               - transfer_status
+ *             properties:
+ *               items:
+ *                 type: array
+ *                 description: รายการ order ที่ต้องการเปลี่ยนสถานะ
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - order_id
+ *                   properties:
+ *                     order_id:
+ *                       type: number
+ *                       example: 1001
+ *               transfer_status:
+ *                 type: string
+ *                 description: สถานะใหม่ของ transfer
+ *                 example: CONFIRMED
+ *           example:
+ *             items:
+ *               - order_id: 1001
+ *               - order_id: 1002
+ *               - order_id: 1003
+ *             transfer_status: CONFIRMED
+ *     responses:
+ *       200:
+ *         description: เปลี่ยนสถานะรายการ order สำเร็จ
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้องหรือไม่ครบถ้วน
+ *       404:
+ *         description: ไม่พบรายการ order
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.post(
+    '/transfer-change-status',
+    authenticateToken,
+    c.transferChangeToBatch
+);
+
     /**
      * @swagger
      * /api/execution/handle-order-item/{order_id}/{actual_qty}:

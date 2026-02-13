@@ -96,7 +96,7 @@ const create = async (req: Request, res: Response) => {
         } catch (error: any) {
             console.error(`Error during ${operation}:`, error);
 
-            return ResponseUtils.handleErrorDelete(
+            return ResponseUtils.handleErrorUpdate(
                 res,
                 operation,
                 error.message,
@@ -136,11 +136,58 @@ const create = async (req: Request, res: Response) => {
         } catch (error: any) {
             console.error(`Error during ${operation}:`, error);
 
-            return ResponseUtils.handleErrorDelete(
+            return ResponseUtils.handleErrorUpdate(
                 res,
                 operation,
                 error.message,
                 'change To Waiting',
+                true,
+                reqUsername
+            );
+        }
+    };
+    
+    const transferChangeToBatch = async (req: Request, res: Response) => {
+        const operation = 'TasksController.transferChangeToBatch';
+
+        // ดึง username ของผู้เปลี่ยน status
+        const reqUsername = RequestUtils.getUsernameToken(req, res);
+        if (!reqUsername) {
+            return ResponseUtils.handleBadRequest(res, lang.msgRequiredUsername());
+        }
+
+        // ตรวจสอบ body
+        const dto = req.body;
+
+        if (!dto || !Array.isArray(dto.items) || dto.items.length === 0) {
+            return ResponseUtils.handleBadRequest(
+                res,
+                "Invalid request: items[] is required"
+            );
+        }
+        
+        if (!dto.transfer_status) {
+            return ResponseUtils.handleBadRequest(
+                res,
+                "Invalid request: transfer_status is required"
+            );
+        }
+
+        try {
+            // เรียก service transferChangeToBatch
+            const response = await orchestrator.transferChangeToBatch(dto, reqUsername);
+
+            // ส่งผลลัพธ์กลับ client
+            return ResponseUtils.handleResponse(res, response);
+
+        } catch (error: any) {
+            console.error(`Error during ${operation}:`, error);
+
+            return ResponseUtils.handleErrorUpdate(
+                res,
+                operation,
+                error.message,
+                'change status transfer',
                 true,
                 reqUsername
             );
@@ -171,7 +218,7 @@ const create = async (req: Request, res: Response) => {
             return ResponseUtils.handleResponse(res, response);
         } catch (error: any) {
             console.error(`Error during ${operation}:`, error);
-            return ResponseUtils.handleErrorDelete(
+            return ResponseUtils.handleErrorCreate(
                 res,
                 operation,
                 error.message,
@@ -206,7 +253,7 @@ const create = async (req: Request, res: Response) => {
             return ResponseUtils.handleResponse(res, response);
         } catch (error: any) {
             console.error(`Error during ${operation}:`, error);
-            return ResponseUtils.handleErrorDelete(
+            return ResponseUtils.handleErrorCreate(
                 res,
                 operation,
                 error.message,
@@ -235,5 +282,5 @@ const create = async (req: Request, res: Response) => {
         }
     };
 
-    return { create, changeToWaitingBatch , changeToPendingBatch , handleOrderItemMrs , handleOrderItemWRS, getAll};
+    return { create, changeToWaitingBatch , changeToPendingBatch ,transferChangeToBatch, handleOrderItemMrs , handleOrderItemWRS, getAll};
 }

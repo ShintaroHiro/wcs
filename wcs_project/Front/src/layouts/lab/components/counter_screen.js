@@ -3,6 +3,7 @@ import { alpha } from "@mui/material/styles";
 
 export default function CounterScreen({
   counter, // counter object จาก API
+  status,
   stock_item,
   item_desc,
   plan_qty,
@@ -36,7 +37,7 @@ export default function CounterScreen({
       ["OBJECT ID", object_id],
     ];
   } else if (type === "TRANSFER") {
-    transactionFields = [["PO NO.", po_num]];
+    transactionFields = [["OBJECT ID", object_id]];
   } else {
     transactionFields = [
       ["SPR NO.", spr_no],
@@ -56,6 +57,7 @@ export default function CounterScreen({
         borderRadius: 0,
         p: 4,
         boxSizing: "border-box",
+        position: "relative",
       }}
     >
       {/* Counter Title */}
@@ -294,6 +296,43 @@ export default function CounterScreen({
           </Grid>
         </Grid>
       </Grid>
+      {/* WAITING Overlay */}
+      {status === "WAITING_PICK" && (
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 20,
+          }}
+        >
+          <Box
+            sx={{
+              width: "85%",
+              height: "75%",
+              backgroundColor: "#ffffff",
+              borderRadius: 20,
+              boxShadow: "0 15px 40px rgba(0,0,0,0.4)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: { xs: 80, md: 160, lg: 200 },
+                fontWeight: "bold",
+                color: counterColor,
+                letterSpacing: 6,
+              }}
+            >
+              WAITING
+            </Typography>
+          </Box>
+        </Box>
+      )}
     </Card>
   );
 }

@@ -7,6 +7,7 @@ import Cog from "../../../assets/images/Icon_cog.png";
 import PickHome from "./index_sub";
 import PutHome from "./index_sub_put";
 import ReturnHome from "./index_sub_return";
+import TransferHome from "./index_sub_transfer";
 import InventoryHome from "./index_sub_inv";
 
 import { GlobalVar } from "common/GlobalVar";
@@ -17,6 +18,7 @@ const HomePage = () => {
   const [openPickHome, setOpenPickHome] = useState(false);
   const [openPutHome, setOpenPutHome] = useState(false);
   const [openReturnHome, setOpenReturnHome] = useState(false);
+  const [openTransferHome, setOpenTransferHome] = useState(false);
   const [openInvHome, setOpenInvHome] = useState(false);
 
 
@@ -42,6 +44,7 @@ const HomePage = () => {
     { title: "Check In & Out", path: "/checkout-t1" },
     { title: "Put", path: "/put/execute" },
     { title: "Return", path: "/return/execute" },
+    { title: "Transfer", path: "/transfer/execute" },
     // ✅ แสดงเฉพาะ WCS
     ...(storeType === "WCS" ? [{ title: "Inventory", path: "/inventory" }] : []),
   ];
@@ -58,6 +61,7 @@ const HomePage = () => {
     { title: "Pick", path: "/pick" },
     { title: "Put", path: "/put" },
     { title: "Return", path: "/return" },
+    { title: "Transfer", path: "/transfer" },
     { title: "Transfer", path: "" },
     { title: "Status", path: "/status" },
     { title: "Check In & Out", path: "/checkout-t1" },
@@ -116,6 +120,8 @@ const HomePage = () => {
           <PutHome />
         ) : openReturnHome ? (
           <ReturnHome />
+        ) : openTransferHome ? (
+          <TransferHome />
         ) : openInvHome ? (
           <InventoryHome />
         ) : (
@@ -150,6 +156,8 @@ const HomePage = () => {
                           setOpenPutHome(true); // 👈 สำคัญ
                         } else if (item.title === "Return" && userRole === "STORE") {
                           setOpenReturnHome(true); // 👈 สำคัญ
+                        } else if (item.title === "Transfer" && userRole === "STORE") {
+                          setOpenTransferHome(true); // 👈 สำคัญ
                         } else if (item.title === "Inventory" && storeType === "WCS") {
                           setOpenInvHome(true); // 👈 สำคัญ
                         } else {

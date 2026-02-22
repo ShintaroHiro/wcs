@@ -28,9 +28,8 @@ export const getAll = async (req: Request, res: Response) => {
     }
 };
 
-
-export const getByLoc = async (req: Request, res: Response) => {
-    const operation = 'InventoryController.getByLoc';
+export const getBoxAll = async (req: Request, res: Response) => {
+    const operation = 'InventoryController.getBoxAll';
 
     const reqUsername = RequestUtils.getUsernameToken(req, res);
     if (!reqUsername) {
@@ -38,7 +37,7 @@ export const getByLoc = async (req: Request, res: Response) => {
     }
 
     try {
-        const response = await inventoryService.getByLoc();
+        const response = await inventoryService.getBoxAll();
         return ResponseUtils.handleResponse(res, response);
     } catch (error: any) {
         console.error(`Error during ${operation}:`, error);

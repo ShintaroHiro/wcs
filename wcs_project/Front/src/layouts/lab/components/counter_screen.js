@@ -295,8 +295,8 @@ export default function CounterScreen({
           </Grid>
         </Grid>
       </Grid>
-      {/* WAITING Overlay */}
-      {status === "WAITING_PICK" && (
+      {/* WAITING / ERROR Overlay */}
+      {(status === "WAITING_PICK" || status === "ERROR") && (
         <Box
           sx={{
             position: "absolute",
@@ -305,6 +305,7 @@ export default function CounterScreen({
             alignItems: "center",
             justifyContent: "center",
             zIndex: 20,
+            backgroundColor: "rgba(0,0,0,0.15)",
           }}
         >
           <Box
@@ -323,11 +324,14 @@ export default function CounterScreen({
               sx={{
                 fontSize: { xs: 80, md: 160, lg: 200 },
                 fontWeight: "bold",
-                color: counterColor,
+                color:
+                  status === "ERROR"
+                    ? "#000"               // 👈 ERROR = สีดำ
+                    : counterColor,        // WAITING = สี counter
                 letterSpacing: 6,
               }}
             >
-              WAITING
+              {status === "ERROR" ? "ERROR" : "WAITING"}
             </Typography>
           </Box>
         </Box>

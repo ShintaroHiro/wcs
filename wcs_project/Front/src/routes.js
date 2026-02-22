@@ -111,6 +111,9 @@ import PickCounterPage from "layouts/lab/checkout/pick_counter_page";
 import PutExecutionPage from "layouts/lab/put/execution";
 import ReturnExecutionPage from "layouts/lab/return/execution";
 import TransferExecutionPage from "layouts/lab/transfer/execution";
+import LocationMaster from "layouts/lab/inventory/location";
+import TransferCreatePage from "layouts/lab/transfer/create";
+import EventsPage from "layouts/lab/events/events";
 
 const getComponent = (componentName) => {
   switch (componentName) {
@@ -169,8 +172,14 @@ const getComponent = (componentName) => {
         return <PutExecutionPage />;
     case "return-execute":
         return <ReturnExecutionPage />;
+    case "transfer-create":
+        return <TransferCreatePage />;
     case "transfer-execute":
         return <TransferExecutionPage />;
+    case "inventory-location":
+        return <LocationMaster/>;
+    case "events-page":
+        return <EventsPage/>;
 
     // เพิ่มกรณีสำหรับ components อื่นๆ
     default:
@@ -264,7 +273,7 @@ export async function generateRoutesFromApi(apiRoutes) {
     // ❌ ถ้าไม่ใช่ WCS → ซ่อน inventory menus
     if (
       storeType !== "WCS" &&
-      ["inventory","inventory-profile", "inventory-balance"].includes(route.key)
+      ["inventory","inventory-profile", "inventory-balance","inventory-location","events-page"].includes(route.key)
     ) {
       return false;
     }

@@ -2,7 +2,7 @@ import { GlobalVar } from "../common/GlobalVar";
 import ApiProvider from "./ApiProvider";
 import ApiResponse from "../common/ApiResponse";
 
-class InventoryAPI {
+class EventsAPI {
     static async fetchData(endpoint, method = "GET", data = null) {
         try {
         const token = GlobalVar.getToken();
@@ -46,37 +46,50 @@ class InventoryAPI {
         }
     }
 
+    static async setOrderError(order_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/events/set-order-error/${order_id}`;
+
+            const response = await ApiProvider.postData(endpoint, {}, token);
+            return response;
+        } catch (error) {
+            console.error("Error in Order Error:", error);
+            throw error;
+        }
+    }
+
     static async getAll() {
         try {
         const token = GlobalVar.getToken();
-        const endpoint = "/api/inventory/get-all";
+        const endpoint = "/api/events/get-all";
         const response = await ApiProvider.getData(endpoint, {}, token);
-        //console.log("API Response:", response);
-            
-            return response; // ส่งค่ากลับไป
+            //console.log("API Response:", response);
+        return response; // ส่งค่ากลับไป
 
         } catch (error) {
-        console.error("Error search Inventory Data:", error.message || error);
+        console.error("Error search Events Data:", error.message || error);
         throw new Error(`Error: ${error.message}`);
 
         }
     }
 
-    static async getBoxAll() {
+    static async getByID(related_id) {
         try {
-        const token = GlobalVar.getToken();
-        const endpoint = "/api/inventory/group-by-location";
-        const response = await ApiProvider.getData(endpoint, {}, token);
-        //console.log("API Response:", response);
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/events/by-related/${related_id}`;
+            
+            // ทำการเรียก API ด้วย token และ endpoint
+            const response = await ApiProvider.getData(endpoint, {}, token);
+            //console.log("API Response:", response);
             
             return response; // ส่งค่ากลับไป
-
         } catch (error) {
-        console.error("Error search Inventory Data:", error.message || error);
-        throw new Error(`Error: ${error.message}`);
-
+            console.error("Error in Events Data:", error);
+            throw error;
         }
     }
 
 }
-export default InventoryAPI;
+
+export default EventsAPI;

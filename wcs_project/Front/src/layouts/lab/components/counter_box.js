@@ -9,6 +9,7 @@ const CounterBox = ({ counter, onClick }) => {
   const status = counter.status || "IDLE";
   const isWaiting = status === "WAITING_PICK";
   const isIdle = status === "IDLE";
+  const isError = status === "ERROR";
 
   const counterTextColor = isIdle
     ? DEFAULT_TEXT_COLOR
@@ -58,10 +59,25 @@ const CounterBox = ({ counter, onClick }) => {
             WAITING
           </MDTypography>
         )}
+        {isError && (
+          <MDTypography
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%) rotate(-45deg)",
+              color: "#000",   // 👈 สีดำ
+              fontWeight: "bold",
+              fontSize: "2.9rem",
+            }}
+          >
+            ERROR
+          </MDTypography>
+        )}
       </MDBox>
 
       {/* Quantity */}
-      {!isWaiting && (
+      {!isWaiting && !isError && (
         <MDTypography
           variant="h5"
           sx={{ color: quantityColor, mt: 4.5 }}

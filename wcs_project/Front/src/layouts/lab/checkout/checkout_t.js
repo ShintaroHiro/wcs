@@ -5,6 +5,7 @@ import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import CounterAPI from "api/CounterAPI";
+import EventsAPI from "api/EventsAPI";
 import ReusableDataTable from "../components/table_component_v2";
 import CounterBox from "../components/counter_box";
 //import ScanQtyDialog from "../transactions/scan_qty_form";
@@ -17,6 +18,7 @@ import {
 } from "common/utils/statusUtils";
 
 import { GlobalVar } from "common/GlobalVar";
+import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
 
 const CheckOutTPage = () => {
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,7 @@ const [scannedOrderIds, setScannedOrderIds] = useState(new Set());
 
   const role = GlobalVar.getRole();
   const storeType = GlobalVar.getStoreType();
+  const storeTypeTrans = getStoreTypeTrans(storeType);
 
   const FIXED_COUNTER_IDS = [1, 2, 3, 4, 5, 6];
 
@@ -117,55 +120,53 @@ const [scannedOrderIds, setScannedOrderIds] = useState(new Set());
     [counters]
   );
 
-const handleScan = async (row) => {
-  try {
-    if (!row?.order_id) throw new Error("Order not found");
+  const handleScan = async (row) => {
+    try {
+      if (!row?.order_id) throw new Error("Order not found");
 
-    // 🔒 scan ได้ครั้งเดียว
-    if (scannedOrderIds.has(row.order_id)) return;
+      // 🔒 scan ได้ครั้งเดียว
+      if (scannedOrderIds.has(row.order_id)) return;
 
-    const counterId = row.counter_id;
-    const planQty = Number(row.plan_qty || 0);
+      const counterId = row.counter_id;
+      const planQty = Number(row.plan_qty || 0);
 
-    if (!counterId || planQty <= 0) {
-      throw new Error("Invalid counter or plan qty");
+      if (!counterId || planQty <= 0) {
+        throw new Error("Invalid counter or plan qty");
+      }
+
+      const res = await CounterAPI.scanBulk(counterId, planQty);
+
+      if (!res?.ok) {
+        throw new Error(res?.message || "Scan failed");
+      }
+
+      // ✅ mark ว่า order นี้ scan แล้ว
+      setScannedOrderIds((prev) => {
+        const next = new Set(prev);
+        next.add(row.order_id);
+        return next;
+      });
+
+      setAlert({
+        show: true,
+        type: "success",
+        title: "Scanned",
+        message: "Scan completed",
+      });
+
+      await fetchDataAll();
+      await fetchCounters();
+
+    } catch (err) {
+      console.error("handleScan error:", err);
+      setAlert({
+        show: true,
+        type: "error",
+        title: "Error",
+        message: err.message || "Scan failed",
+      });
     }
-
-    const res = await CounterAPI.scanBulk(counterId, planQty);
-
-    if (!res?.ok) {
-      throw new Error(res?.message || "Scan failed");
-    }
-
-    // ✅ mark ว่า order นี้ scan แล้ว
-    setScannedOrderIds((prev) => {
-      const next = new Set(prev);
-      next.add(row.order_id);
-      return next;
-    });
-
-    setAlert({
-      show: true,
-      type: "success",
-      title: "Scanned",
-      message: "Scan completed",
-    });
-
-    await fetchDataAll();
-    await fetchCounters();
-
-  } catch (err) {
-    console.error("handleScan error:", err);
-    setAlert({
-      show: true,
-      type: "error",
-      title: "Error",
-      message: err.message || "Scan failed",
-    });
-  }
-};
-
-
+  };
 
   /* ---------------- Table Columns By Requester ---------------- */
   const requesterColumns = [
@@ -207,6 +208,39 @@ const handleScan = async (row) => {
         </span>
       ),
     },
+//     {
+//   field: "counter_id",
+//   label: "Counter",
+//   renderCell: (value, row) => {
+//     const isError = row.status === "ERROR";
+
+//     return (
+//       <div style={{ display: "flex", flexDirection: "column" }}>
+//         <span
+//           style={{
+//             color: row.counter_color || "#000",
+//             fontWeight: 600,
+//           }}
+//         >
+//           Counter {value}
+//         </span>
+
+//         {isError && (
+//           <span
+//             style={{
+//               color: "red",
+//               fontWeight: 700,
+//               fontSize: "0.8rem",
+//               marginTop: "2px",
+//             }}
+//           >
+//             ERROR
+//           </span>
+//         )}
+//       </div>
+//     );
+//   },
+// }
   ];
 
   /* ---------------- Table Columns By Defualt ---------------- */
@@ -258,12 +292,13 @@ const handleScan = async (row) => {
           </span>
         ),
     },
-{
-  field: "scan",
-  label: "Scan",
-  type: "scanSku",
-},
+    {
+      field: "scan",
+      label: "Scan",
+      type: "scanSku",
+    },
     { field: "is_confirm", label: "Confirm", type: "confirmSku" },
+    { field: "set_error", label: "Set Error", type: "setError" },
   ];
 
   const columns = React.useMemo(() => {
@@ -272,30 +307,6 @@ const handleScan = async (row) => {
     }
     return defaultColumns;
   }, [role]);
-
-  //แปลงชื่อคลัง
-  let storeTypeTrans = "";
-
-  switch (storeType) {
-    case "T1":
-      storeTypeTrans = "T1 Store";
-      break;
-
-    case "T1M":
-      storeTypeTrans = "T1M Store";
-      break;
-
-    case "AGMB":
-      storeTypeTrans = "AGMB Store";
-      break;
-
-    case "WCS":
-      storeTypeTrans = "WCS";
-      break;
-
-    default:
-      storeTypeTrans = storeType;
-  }
 
   return (
     <DashboardLayout>
@@ -377,12 +388,14 @@ const handleScan = async (row) => {
                   pageSizeOptions={[10, 25, 50]}
                   fontSize="0.8rem"
 
+                  /* ---------------- SCAN ---------------- */
                   scanSkuDisabled={(row) =>
                     row?.status !== "PROCESSING" ||
                     scannedOrderIds.has(row.order_id)
                   }
                   onScanSku={(row) => handleScan(row)}
 
+                  /* ---------------- CONFIRM ---------------- */
                   confirmSkuDisabled={(row) =>
                     row?.status !== "PROCESSING" ||
                     !scannedOrderIds.has(row.order_id)
@@ -458,6 +471,45 @@ const handleScan = async (row) => {
                   }
                 }}
 
+                /* ---------------- ERROR BUTTON ---------------- */
+                errorDisabled={(row) =>
+                  row?.status !== "PROCESSING"
+                }
+                onError={async (row) => {
+                  try {
+                    const res = await EventsAPI.setOrderError(row.order_id);
+
+                    if (!res?.isCompleted) {
+                      throw new Error(res?.message || "Failed");
+                    }
+
+                    setAlert({
+                      show: true,
+                      type: "success",
+                      title: "Set Error",
+                      message: res.message,
+                    });
+
+                    // 🔥 ลบออกจาก scanned set
+                    setScannedOrderIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(row.order_id);
+                      return next;
+                    });
+
+                    await fetchDataAll();
+                    await fetchCounters();
+
+                  } catch (err) {
+                    console.error(err);
+                    setAlert({
+                      show: true,
+                      type: "error",
+                      title: "Error",
+                      message: "Failed to set error",
+                    });
+                  }
+                }}
                 />
               </MDBox>
             )}

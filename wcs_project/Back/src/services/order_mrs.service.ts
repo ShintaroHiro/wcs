@@ -92,9 +92,7 @@ export class T1MOrdersService {
         params?: {
             actor?: string | null;
             source?: TaskSource | string | null;
-            subsystem?: TaskSubsystem | string | null;
-            reason_code?: string | null;
-            meta?: any;
+            message?: any;
             status?: StatusOrders | string | null;
         }
     ): Promise<void> {
@@ -125,9 +123,6 @@ export class T1MOrdersService {
         const resolvedSource: TaskSource =
             (params?.source as TaskSource) ?? TaskSource.SYSTEM;
 
-        const resolvedSubsystem: TaskSubsystem =
-            (params?.subsystem as TaskSubsystem) ?? TaskSubsystem.CORE;
-
         const resolvedActor: string | null =
             params?.actor ??
             (resolvedSource === TaskSource.API ? null : String(resolvedSource));
@@ -155,10 +150,7 @@ export class T1MOrdersService {
 
             actor: resolvedActor,
             source: resolvedSource,
-            subsystem: resolvedSubsystem,
-            reason_code: (params?.reason_code as any) ?? null,
-
-            meta_json: params?.meta ?? null,
+            message: params?.message ?? null,
         });
     }
 

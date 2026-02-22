@@ -9,8 +9,9 @@ export class WRS {
     @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
     wrs_id!: number;
 
-    @Column({ type: 'varchar', length: 50, unique: true })
-    wrs_code!: string;
+    //รหัส parent amr
+    @Column({ type: 'varchar', length: 50, nullable: true })
+    wrs_code: string;
 
     /** Idle / Delivering / Returning / Error */
     @Column({ type: 'varchar', length: 30 })

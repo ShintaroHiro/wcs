@@ -61,6 +61,12 @@ export default function ReusableDataTable({
   onRowClick,
   selectedId,
 
+  onClear,
+  clearDisabled = false,
+
+  onError,
+  errorDisabled = false,
+
   // สำหรับ checkbox
   enableSelection = false, // true = เปิด checkbox
   selectedRows = [], // array of ids ที่เลือกอยู่
@@ -68,12 +74,35 @@ export default function ReusableDataTable({
   isRowSelectable, //ถ้าไม่ส่งเลือกได้ทุกแถว
 
   disableHorizontalScroll = false, //ปิด horizontal scroll
+
+  expandable = false,
+  getParentId,
+  getLevel,
+
+  pagination = true,
+
+  onQuantityChange,
+  quantityDisabled = false,
+  minQuantity = 0,
+  maxQuantity,
 }) {
   // ---- local state ----
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(defaultPageSize);
   const [orderBy, setOrderBy] = useState(null); // field
   const [order, setOrder] = useState("asc"); // 'asc' | 'desc'
+
+  //ทำtree
+  const [expandedIds, setExpandedIds] = useState([]);
+
+  const toggleExpand = (id) => {
+    setExpandedIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    );
+  };
+
 
   // Normalize actions list
   const actionsList = useMemo(() => {
@@ -131,11 +160,38 @@ export default function ReusableDataTable({
     return arr;
   }, [safeRows, columns, orderBy, order]);
 
+  const visibleRows = useMemo(() => {
+  if (!expandable || !getParentId) return sortedRows;
+
+  const isRowVisible = (row) => {
+    let parentId = getParentId(row);
+
+    while (parentId) {
+      if (!expandedIds.includes(parentId)) {
+        return false;
+      }
+
+      const parentRow = sortedRows.find(
+        (r) => getRowId(r) === parentId
+      );
+
+      if (!parentRow) break;
+
+      parentId = getParentId(parentRow);
+    }
+
+    return true;
+  };
+
+  return sortedRows.filter(isRowVisible);
+}, [sortedRows, expandable, expandedIds]);
+
+
   const pagedRows = useMemo(() => {
     const start = page * rowsPerPage;
     const end = start + rowsPerPage;
-    return sortedRows.slice(start, end);
-  }, [sortedRows, page, rowsPerPage]);
+    return visibleRows.slice(start, end);
+  }, [visibleRows, page, rowsPerPage]);
 
   const handleSort = (field, sortable = true) => {
     if (!sortable) return;
@@ -314,6 +370,220 @@ export default function ReusableDataTable({
       </MDButton>
     );
   };
+
+  //clear
+  const renderClearCell = (row) => {
+    const hidden =
+      typeof clearDisabled === "function"
+        ? clearDisabled(row)
+        : clearDisabled;
+
+    if (hidden) return null;
+
+    return (
+      <MDButton
+        variant="contained"
+        size="small"
+        color="info"
+        onClick={() => onClear?.(row)}
+      >
+        Clear
+      </MDButton>
+    );
+  };
+
+  //setError
+  const renderErrorCell = (row) => {
+    const disabled =
+      typeof errorDisabled === "function"
+        ? !!errorDisabled(row)
+        : !!errorDisabled;
+
+    return (
+      <MDButton
+        variant="contained"
+        size="small"
+        color={disabled ? "secondary" : "error"}
+        disabled={disabled}
+        onClick={() => !disabled && onError?.(row)}
+      >
+        Error
+      </MDButton>
+    );
+  };
+
+  //+/- qty
+  const renderQuantityCell = (row) => {
+
+  const baseDisabled =
+    typeof quantityDisabled === "function"
+      ? !!quantityDisabled(row)
+      : !!quantityDisabled;
+
+  const value = Number(row.actual_qty ?? 0);
+
+  const max =
+    typeof maxQuantity === "function"
+      ? maxQuantity(row)
+      : maxQuantity;
+
+  const handleDecrease = () => {
+    if (baseDisabled) return;
+    const newValue = Math.max(minQuantity, value - 1);
+    onQuantityChange?.(row, newValue);
+  };
+
+  const handleIncrease = () => {
+    if (baseDisabled) return;
+
+    let newValue = value + 1;
+
+    if (max !== undefined) {
+      newValue = Math.min(max, newValue);
+    }
+
+    onQuantityChange?.(row, newValue);
+  };
+
+  return (
+    <Box display="flex" alignItems="center" gap={1}>
+      <MDButton
+        size="small"
+        variant="contained"
+        color="secondary"
+        disabled={baseDisabled || value <= minQuantity}
+        onClick={handleDecrease}
+        sx={{
+          minWidth: 24,      // 🔥 เดิม 32 → ลดลง
+          width: 24,
+          height: 20,
+          px: 0,
+          fontSize: "0.7rem"
+        }}
+      >
+        -
+      </MDButton>
+
+      <Typography
+        sx={{
+          minWidth: 20,
+          textAlign: "center",
+          fontSize: "1.0rem",   // 🔥 ลดขนาดตัวเลข
+          fontWeight: 500
+        }}
+      >
+        {value}
+      </Typography>
+
+      <MDButton
+        size="small"
+        variant="contained"
+        color="secondary"
+        disabled={baseDisabled || (max !== undefined && value >= max)}
+        onClick={handleIncrease}
+        sx={{
+          minWidth: 24,      // 🔥 เดิม 32 → ลดลง
+          width: 24,
+          height: 24,
+          px: 0,
+          fontSize: "0.7rem"
+        }}
+      >
+        +
+      </MDButton>
+    </Box>
+  );
+};
+
+// version กรอกเลขได้
+// const renderQuantityCell = (row) => {
+
+//   const baseDisabled =
+//     typeof quantityDisabled === "function"
+//       ? !!quantityDisabled(row)
+//       : !!quantityDisabled;
+
+//   const value = Number(row.actual_qty ?? 0);
+
+//   const max =
+//     typeof maxQuantity === "function"
+//       ? maxQuantity(row)
+//       : maxQuantity;
+
+//   const handleDecrease = () => {
+//     if (baseDisabled) return;
+//     const newValue = Math.max(minQuantity, value - 1);
+//     onQuantityChange?.(row, newValue);
+//   };
+
+//   const handleIncrease = () => {
+//     if (baseDisabled) return;
+
+//     let newValue = value + 1;
+//     if (max !== undefined) {
+//       newValue = Math.min(max, newValue);
+//     }
+
+//     onQuantityChange?.(row, newValue);
+//   };
+
+//   const handleManualChange = (e) => {
+//     if (baseDisabled) return;
+
+//     let newValue = Number(e.target.value);
+
+//     if (isNaN(newValue)) newValue = 0;
+
+//     if (max !== undefined) {
+//       newValue = Math.min(max, newValue);
+//     }
+
+//     newValue = Math.max(minQuantity, newValue);
+
+//     onQuantityChange?.(row, newValue);
+//   };
+
+//   return (
+//     <Box display="flex" alignItems="center" gap={1}>
+//       <MDButton
+//         size="small"
+//         variant="contained"
+//         color="secondary"
+//         disabled={baseDisabled || value <= minQuantity}
+//         onClick={handleDecrease}
+//         sx={{ minWidth: 32, px: 1 }}
+//       >
+//         -
+//       </MDButton>
+
+//       <TextField
+//         type="number"
+//         size="small"
+//         value={value}
+//         onChange={handleManualChange}
+//         inputProps={{
+//           min: minQuantity,
+//           max: max,
+//           style: { textAlign: "center", width: 60 }
+//         }}
+//         disabled={baseDisabled}
+//       />
+
+//       <MDButton
+//         size="small"
+//         variant="contained"
+//         color="secondary"
+//         disabled={baseDisabled || (max !== undefined && value >= max)}
+//         onClick={handleIncrease}
+//         sx={{ minWidth: 32, px: 1 }}
+//       >
+//         +
+//       </MDButton>
+//     </Box>
+//   );
+// };
+
+
 
   const selectableRows = isRowSelectable ? safeRows.filter(isRowSelectable) : safeRows;
 
@@ -498,10 +768,18 @@ export default function ReusableDataTable({
                     </TableCell>
                   )}
 
-                  {columns.map((col) => {
-
+                  {columns.map((col, colIndex) => {
   const key = `${col.field}-${col.type || "data"}`;
+  const rowId = getRowId(row, idx);
 
+  const level = getLevel ? getLevel(row) : 0;
+  const isParent =
+    expandable &&
+    safeRows.some((r) => getParentId?.(r) === rowId);
+
+  const paddingLeft = expandable ? level * 24 : 0;
+
+  // ===== scanSku =====
   if (col.type === "scanSku") {
     return (
       <TableCell key={key} align="center">
@@ -510,6 +788,7 @@ export default function ReusableDataTable({
     );
   }
 
+  // ===== confirmSku =====
   if (col.type === "confirmSku") {
     return (
       <TableCell key={key} align={col.align || "center"}>
@@ -518,7 +797,60 @@ export default function ReusableDataTable({
     );
   }
 
+  // ===== clear =====
+  if (col.type === "clear") {
+    return (
+      <TableCell key={key} align={col.align || "center"}>
+        {renderClearCell(row)}
+      </TableCell>
+    );
+  }
+
+  // ===== setError =====
+  if (col.type === "setError") {
+    return (
+      <TableCell key={key} align={col.align || "center"}>
+        {renderErrorCell(row)}
+      </TableCell>
+    );
+  }
+
+  // ===== quantityControl =====
+  if (col.type === "quantityControl") {
+    return (
+      <TableCell key={key} align="center">
+        {renderQuantityCell(row)}
+      </TableCell>
+    );
+  }
+
+
   const value = getValue(row, col);
+
+  // ===== TREE UI เฉพาะ column แรก =====
+  if (colIndex === 0 && expandable) {
+    return (
+      <TableCell key={key} align={col.align || "left"}>
+        <Box sx={{ pl: paddingLeft, display: "flex", alignItems: "center" }}>
+          {isParent && (
+            <span
+              style={{ cursor: "pointer", marginRight: 6 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpand(rowId);
+              }}
+            >
+              {expandedIds.includes(rowId) ? "▼" : "▶"}
+            </span>
+          )}
+
+          {col.renderCell ? col.renderCell(value, row) : value}
+        </Box>
+      </TableCell>
+    );
+  }
+
+  // ===== cell ปกติ =====
   return (
     <TableCell key={key} align={col.align || "left"}>
       {col.renderCell ? col.renderCell(value, row) : value}
@@ -547,6 +879,7 @@ export default function ReusableDataTable({
         </Table>
       </TableContainer>
 
+    {pagination && (
       <TablePagination
         component="div"
         count={safeRows.length}
@@ -560,6 +893,7 @@ export default function ReusableDataTable({
         rowsPerPageOptions={pageSizeOptions}
         labelDisplayedRows={({ from, to, count }) => `Showing ${from} to ${to} of ${count} entries`}
       />
+    )}
     </Card>
   );
 }
@@ -576,7 +910,7 @@ ReusableDataTable.propTypes = {
       valueGetter: PropTypes.func,
       renderCell: PropTypes.func,
       // ✅ ใหม่: ระบุว่าเป็นคอลัมน์ปุ่ม Confirm SKU
-      type: PropTypes.oneOf(["confirmSku","scanSku"]),
+      type: PropTypes.oneOf(["confirmSku","scanSku","clear","setError","quantityControl"]),
     })
   ).isRequired,
   rows: PropTypes.array.isRequired,
@@ -612,8 +946,19 @@ ReusableDataTable.propTypes = {
   onScanSku: PropTypes.func,
   scanSkuDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
 
+  onClear: PropTypes.func,
+  clearDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
+
+  onError: PropTypes.func,
+  errorDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
+
   onRowClick: PropTypes.func,
   selectedId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+
+  onQuantityChange: PropTypes.func,
+  quantityDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
+  minQuantity: PropTypes.number,
+  maxQuantity: PropTypes.number,
 
   // 🔥 ต้องเพิ่มเอง
   enableSelection: PropTypes.bool,
@@ -622,5 +967,11 @@ ReusableDataTable.propTypes = {
   isRowSelectable: PropTypes.func,
 
   disableHorizontalScroll: PropTypes.bool,
+
+  expandable: PropTypes.bool,
+  getParentId: PropTypes.func,
+  getLevel: PropTypes.func,
+
+  pagination: PropTypes.bool,
 
 };

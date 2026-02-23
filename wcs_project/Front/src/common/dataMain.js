@@ -173,6 +173,7 @@ export const StoreType =[
   {value: "T1" , text: "T1 Store"},
   {value: "AGMB" , text: "AGMB Store"},
   {value: "WCS" , text: "WCS"},
+  {value: "NON_WCS" , text: "Non WCS"},
 ];
 
 export const Condition =[ 
@@ -193,4 +194,15 @@ export const OrderStatusNoFinish =[
   {value: "PENDING" , text: "PENDING"},
   {value: "PROCESSING" , text: "PROCESSING"},
   {value: "ERROR" , text: "ERROR"},
+];
+
+export const EventType =[
+  {value: "ERROR" , text: "ERROR"},
+  {value: "EVENT" , text: "EVENT"},
+];
+
+export const Equipment =[
+  {value: "WRS" , text: "WRS"},
+  {value: "ORDERS" , text: "ORDERS"},
+  {value: "SESSION" , text: "SESSION"},
 ];

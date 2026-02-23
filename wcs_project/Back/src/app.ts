@@ -33,6 +33,7 @@ import allOrdersRouter from './routes/all_orders.routes';
 import counterRouter from './routes/counter.routes';
 import sseRouters from "./routes/sse.routes";
 import importRouters from "./routes/import_excel.routes";
+import eventsRouter from "./routes/events.routes";
 
 import swaggerApp from './swagger'; // นำเข้า swagger
 
@@ -154,6 +155,7 @@ app.use('/api/locations', locationRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/counter', counterRouter);
 app.use('/api/import', importRouters);
+app.use('/api/events', eventsRouter);
 
 app.use('/api/orders', allOrdersRouter);
 

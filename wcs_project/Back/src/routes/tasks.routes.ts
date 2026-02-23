@@ -278,6 +278,56 @@ router.post(
 
     /**
      * @swagger
+     * /api/execution/handle-error-order-item-t1:
+     *   post:
+     *     summary: Clear error event and process multiple orders
+     *     tags: [Execution]
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - event_id
+     *               - items
+     *             properties:
+     *               event_id:
+     *                 type: number
+     *                 example: 1
+     *               items:
+     *                 type: array
+     *                 items:
+     *                   type: object
+     *                   required:
+     *                     - order_id
+     *                     - actual_qty
+     *                   properties:
+     *                     order_id:
+     *                       type: number
+     *                       example: 101
+     *                     actual_qty:
+     *                       type: number
+     *                       example: 5
+     *     responses:
+     *       200:
+     *         description: Error handled successfully
+     *       400:
+     *         description: Invalid request
+     *       500:
+     *         description: Server error
+     */
+    router.post(
+        '/handle-error-order-item-t1',
+        authenticateToken,
+        c.handleErrorOrderItemWRS
+    );
+
+
+    /**
+     * @swagger
      * /api/execution/get-all:
      *   get:
      *     summary: ดึงข้อมูล Execution ทั้งหมด

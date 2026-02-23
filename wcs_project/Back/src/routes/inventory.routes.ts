@@ -35,11 +35,11 @@ router.get('/get-all'
     , authenticateToken
     , inventoryController.getAll);
 
-    /**
+/**
  * @swagger
  * /api/inventory/group-by-location:
  *   get:
- *     summary: ดึงข้อมูลคลังสินค้า ตาม location
+ *     summary: ดึงข้อมูลคลังสินค้าตาม location
  *     tags: [Inventory]
  *     security:
  *       - bearerAuth: []
@@ -47,7 +47,7 @@ router.get('/get-all'
  *       - $ref: '#/components/parameters/lng'
  *     responses:
  *       200:
- *         description: พบข้อมูลคลังสินค้า (หรือ array ว่างหากไม่มีข้อมูล)
+ *         description: พบข้อมูลคลังสินค้า 
  *       400:
  *         description: ข้อมูลที่ส่งมาไม่ถูกต้องหรือไม่ครบถ้วน
  *       404:
@@ -57,6 +57,6 @@ router.get('/get-all'
  */
 router.get('/group-by-location'
     , authenticateToken
-    , inventoryController.getByLoc);
+    , inventoryController.getBoxAll);
 
 export default router;

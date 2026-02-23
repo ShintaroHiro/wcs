@@ -9,6 +9,7 @@ import * as lang from '../utils/LangHelper'; // ใช้ helper function
 import { DataSanitizer } from '../utils/DataSanitizer'; // นำเข้า DataSanitizer
 import { s_user } from '../entities/s_user.entity';
 import RequestUtils from '../utils/RequestUtils'; // Import the utility class
+import { EventService } from '../utils/EventService';
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ const userService = new UserService();
 const JWT_SECRET = config.JwtConfig.Key;
 const TOKEN_EXPIRE_MINUTES  = parseInt(config.JwtConfig.ExpireMinutes);
 
+const eventService = new EventService();
 
 // export const login = async (req: Request, res: Response) => {
 //   const operation = 'UserController.login';
@@ -45,12 +47,23 @@ const TOKEN_EXPIRE_MINUTES  = parseInt(config.JwtConfig.ExpireMinutes);
 
 export const login = async (req: Request, res: Response) => {
   const operation = 'UserController.login';
-  const { username, password } = req.body;
+  const { username, password , store_type} = req.body;
 
   try {
     const response = await userService.validate(username, password);
 
     if (!response.isCompleted || !response.data) {
+
+      // ✅ ใส่ตรงนี้
+      await eventService.createEvent(null,{
+        type: 'ERROR',
+        category: 'SESSION',
+        event_code: 'USER_LOGIN_FAILED',
+        message: `Failed login attempt in ${store_type} Store`,
+        level: 'WARNING',
+        created_by: username,
+      });
+
       return ResponseUtils.handleCustomResponse(
         res,
         response,
@@ -62,6 +75,16 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const { user, mc_codes } = response.data;
+
+    await eventService.createEvent(null,{
+      type: 'EVENT',
+      category: 'SESSION',
+      event_code: 'USER_LOGIN_SUCCESS',
+      message: `User ${user.username} logged in in ${store_type} Store`,
+      related_id: user.user_id,
+      level: 'INFO',
+      created_by: user.username,
+    });
 
     // ✅ สร้าง JWT (ยังคงใส่เฉพาะข้อมูลที่จำเป็น)
     const token = jwt.sign(
@@ -104,6 +127,15 @@ export const login = async (req: Request, res: Response) => {
     );
 
   } catch (error: any) {
+    await eventService.createEvent(null,{
+      type: 'ERROR',
+      category: 'SYSTEM',
+      event_code: 'LOGIN_EXCEPTION',
+      message: error.message,
+      level: 'ERROR',
+      created_by: username,
+    });
+
     console.error(`Error during ${operation}:`, error);
     return ResponseUtils.handleError(
       res,

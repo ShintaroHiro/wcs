@@ -15,9 +15,11 @@ import SearchIcon from "@mui/icons-material/Search";
 import ImportFileAPI from "api/ImportAPI";
 import ButtonComponent from "../components/ButtonComponent";
 import Swal from "sweetalert2";
+import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
 
 const InventoryProfile = () => {
     const storeType = GlobalVar.getStoreType();
+    const storeTypeTrans = getStoreTypeTrans(storeType);
     
     const [loading , setLoading] = useState(true);
     const [deleteItems, setDeleteItems] = useState(null); // รหัสที่จะลบ
@@ -82,7 +84,15 @@ const InventoryProfile = () => {
         const filtered = itemsList.filter(
             (item) =>
                 includesIgnoreCase(item.stock_item, searchItems.stock_item) &&
-                includesIgnoreCase(item.item_desc, searchItems.item_desc)
+                includesIgnoreCase(item.item_desc, searchItems.item_desc) &&
+                includesIgnoreCase(item.item_img, searchItems.item_img) &&
+                includesIgnoreCase(item.mc_code, searchItems.mc_code) &&
+                includesIgnoreCase(item.order_unit, searchItems.order_unit) &&
+                includesIgnoreCase(item.com_group, searchItems.com_group) &&
+                includesIgnoreCase(item.system, searchItems.system) &&
+                includesIgnoreCase(item.cond_en, searchItems.cond_en) &&
+                includesIgnoreCase(item.item_status, searchItems.item_status) &&
+                includesIgnoreCase(item.catg_code, searchItems.catg_code)
             );
         setFilteredItems(filtered);
     }, [itemsList, searchItems]);
@@ -119,7 +129,7 @@ const InventoryProfile = () => {
         fetchDataById(row.item_id); // ใช้ item_id ดึงข้อมูล
     };
 
-    const handleSubmitUser = async (payload) => {
+    const handleSubmitForm = async (payload) => {
         try {
 
         let res;
@@ -148,7 +158,7 @@ const InventoryProfile = () => {
             return false;
         }
         } catch (err) {
-        console.error("Error in handleSubmitUser:", err);
+        console.error("Error in handleSubmitForm:", err);
         return false;
         }
     };
@@ -339,30 +349,6 @@ const InventoryProfile = () => {
         { field: "catg_code", label: "Category Code" },
         { field: "item_system", label: "System" },
     ];
-
-    //แปลงชื่อคลัง
-    let storeTypeTrans = "";
-
-    switch (storeType) {
-        case "T1":
-        storeTypeTrans = "T1 Store";
-        break;
-
-        case "T1M":
-        storeTypeTrans = "T1M Store";
-        break;
-
-        case "AGMB":
-        storeTypeTrans = "AGMB Store";
-        break;
-
-        case "WCS":
-        storeTypeTrans = "WCS";
-        break;
-
-        default:
-        storeTypeTrans = storeType;
-    }
     
     return (
         <DashboardLayout>
@@ -471,7 +457,7 @@ const InventoryProfile = () => {
                 {
                 <Grid container spacing={2} sx={{ mb: 0.5 }}>
                     {/* Stock Item No. */}
-                    <Grid item xs={12} md={3}>
+                    <Grid item xs={12} md={2.4}>
                     <MDTypography variant="caption" fontWeight="bold">
                         Stock Item No.
                     </MDTypography>
@@ -493,7 +479,7 @@ const InventoryProfile = () => {
                     </Grid>
                     
                     {/* Stock Item Description */}
-                    <Grid item xs={12} md={3}>
+                    <Grid item xs={12} md={2.4}>
                     <MDTypography variant="caption" fontWeight="bold">
                         Stock Item Description
                     </MDTypography>
@@ -502,6 +488,182 @@ const InventoryProfile = () => {
                         sx={{ height: "45px" }}
                         value={searchItems.item_desc}
                         onChange={(e) => setSearchItems({ ...searchItems, item_desc: e.target.value })}
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                            <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
+                    {/* Photo */}
+                    <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">
+                        Photo
+                    </MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.item_img}
+                        onChange={(e) => setSearchItems({ ...searchItems, item_img: e.target.value })}
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                            <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+                    
+                    {/* Maintenance Contract */}
+                    <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">
+                        Maintenance Contract
+                    </MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.mc_code}
+                        onChange={(e) => setSearchItems({ ...searchItems, mc_code: e.target.value })}
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                            <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
+                    {/* Order Unit */}
+                    <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">
+                        Order Unit
+                    </MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.order_unit}
+                        onChange={(e) => setSearchItems({ ...searchItems, order_unit: e.target.value })}
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                            <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+                    
+                    {/* Commodity Group */}
+                    <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">
+                        Commodity Group
+                    </MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.com_group}
+                        onChange={(e) => setSearchItems({ ...searchItems, com_group: e.target.value })}
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                            <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
+                    {/* Condition Enabled */}
+                    <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">
+                        Condition Enabled
+                    </MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.cond_en}
+                        onChange={(e) => setSearchItems({ ...searchItems, cond_en: e.target.value })}
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                            <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+                    
+                    {/* Status */}
+                    <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">
+                        Status
+                    </MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.item_status}
+                        onChange={(e) => setSearchItems({ ...searchItems, item_status: e.target.value })}
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                            <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
+                    {/* Category Code */}
+                    <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">
+                        Category Code
+                    </MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.catg_code}
+                        onChange={(e) => setSearchItems({ ...searchItems, catg_code: e.target.value })}
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                            <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+                    
+                    {/* System */}
+                    <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">
+                        System
+                    </MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.system}
+                        onChange={(e) => setSearchItems({ ...searchItems, system: e.target.value })}
                         displayEmpty
                         InputProps={{
                         endAdornment: (
@@ -542,7 +704,7 @@ const InventoryProfile = () => {
             mode={formMode}
             initialData={editingItems}
             onClose={() => setFormOpen(false)}
-            onSubmit={handleSubmitUser}
+            onSubmit={handleSubmitForm}
         />
 
         {confirmAlert && (

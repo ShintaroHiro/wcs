@@ -34,6 +34,10 @@ const router = Router();
  *                 type: string
  *                 description: Password
  *                 example: 1234
+ *               store_type:
+ *                 type: string
+ *                 description: Store Type
+ *                 example: T1
  *     responses:
  *       200:
  *         description: Login Successfully

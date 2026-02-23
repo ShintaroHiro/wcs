@@ -10,7 +10,7 @@ import { Orders } from "../entities/orders.entity";
 import { Inventory } from "../entities/inventory.entity";
 import { StockItems } from "../entities/m_stock_items.entity";
 import { InventoryTrx } from "../entities/inventory_transaction.entity";
-import { TransferScenario, TypeInfm } from "../common/global.enum";
+import { StatusOrders, TaskSource, TaskSubsystem, TransferScenario, TypeInfm } from "../common/global.enum";
 import { Locations } from "../entities/m_location.entity";
 import { OrdersUsage } from "../entities/order_usage.entity";
 import { OrdersReturn } from "../entities/order_return.entity";
@@ -18,6 +18,7 @@ import { UsageInventory } from "../entities/order_usage_inv.entity";
 import { ReturnInventory } from "../entities/order_return_inv.entity";
 import { InventorySum } from "../entities/inventory_sum.entity";
 import { TransferInventory } from "../entities/order_transfer_inv.entity";
+import { OrdersLog } from "../entities/orders_log.entity";
 
 async function getInventoryFIFO(
     manager: EntityManager,
@@ -813,6 +814,43 @@ async return(
 //     return true;
 // }
 
+async logTransferDestination(
+    manager: EntityManager,
+    order: Orders
+): Promise<void> {
+
+    if (order.type !== TypeInfm.TRANSFER) return;
+
+    const transferRepo = manager.getRepository(OrdersTransfer);
+    const logRepo = manager.getRepository(OrdersLog);
+
+    const transfer = await transferRepo
+        .createQueryBuilder("t")
+        .leftJoin("m_location", "loc", "loc.loc_id = t.related_loc_id")
+        .select([
+            "t.related_loc_id AS related_loc_id",
+            "loc.loc AS to_loc",
+            "loc.box_loc AS to_box_loc"
+        ])
+        .where("t.order_id = :order_id", { order_id: order.order_id })
+        .getRawOne();
+
+    if (!transfer) {
+        throw new Error(
+            `OrdersTransfer not found for order_id ${order.order_id}`
+        );
+    }
+
+    await logRepo.update(
+        { order_id: order.order_id },
+        {
+            to_loc_id: transfer.related_loc_id,
+            to_loc: transfer.to_loc,
+            to_box_loc: transfer.to_box_loc
+        }
+    );
+}
+
 async transfer(manager: EntityManager, order: Orders) {
 
     const actualQty = order.actual_qty ?? 0;
@@ -825,16 +863,22 @@ async transfer(manager: EntityManager, order: Orders) {
 
         case TransferScenario.INTERNAL_IN:
         case TransferScenario.INBOUND:
-            return this.transferIn(manager, order);
+            await this.transferIn(manager, order);
+            break;
 
         case TransferScenario.INTERNAL_OUT:
         case TransferScenario.OUTBOUND:
-            return this.transferOut(manager, order);
+            await this.transferOut(manager, order);
+            break;
 
         default:
             throw new Error("Execution mode not supported");
     }
+
+    // 🔥 เรียก update log ตรงนี้
+    await this.logTransferDestination(manager, order);
 }
+
 
 //helper หา unit_cost
 private async getTransferUnitCost(
@@ -888,6 +932,16 @@ private async transferIn(
     const trxRepo = manager.getRepository(InventoryTrx);
     const itemRepo = manager.getRepository(StockItems);
     const locRepo = manager.getRepository(Locations);
+    const transferRepo = manager.getRepository(OrdersTransfer);
+
+    const transfer = await transferRepo.findOne({
+        where: { related_order_id: order.order_id },
+        lock: { mode: 'pessimistic_read' }
+    });
+
+    if (!transfer) {
+        throw new Error("OrdersTransfer not found");
+    }
 
     if (!order.actual_qty || order.actual_qty <= 0) {
         throw new Error(`Invalid actual_qty for order ${order.order_id}`);
@@ -902,7 +956,7 @@ private async transferIn(
     });
 
     const loc = await locRepo.findOne({
-        where: { loc_id: order.loc_id },
+        where: { loc_id: transfer.related_loc_id },
         select: ['loc', 'box_loc'],
     });
 
@@ -912,7 +966,7 @@ private async transferIn(
     let invSum = await invSumRepo.findOne({
         where: {
             item_id: order.item_id,
-            loc_id: order.loc_id,
+            loc_id: transfer.related_loc_id,
             mc_code: order.mc_code ?? IsNull(),
             cond: order.cond ?? IsNull(),
             is_active: true,
@@ -923,7 +977,7 @@ private async transferIn(
     if (!invSum) {
         invSum = invSumRepo.create({
             item_id: order.item_id,
-            loc_id: order.loc_id,
+            loc_id: transfer.related_loc_id,
             mc_code: order.mc_code ?? null,
             cond: order.cond ?? null,
             sum_inv_qty: 0,
@@ -959,7 +1013,7 @@ private async transferIn(
     const newInv = await invRepo.save(
         invRepo.create({
             item_id: order.item_id,
-            loc_id: order.loc_id,
+            loc_id: transfer.related_loc_id,
             unit_cost_inv: unitCost,
             inv_qty: order.actual_qty,
             total_cost_inv: Number(
@@ -980,7 +1034,7 @@ private async transferIn(
             order_type: TypeInfm.TRANSFER,
             item_id: order.item_id,
             stock_item: item?.stock_item ?? null,
-            loc_id: order.loc_id,
+            loc_id: transfer.related_loc_id,
             loc: loc?.loc ?? null,
             box_loc: loc?.box_loc ?? null,
             qty: order.actual_qty,
@@ -991,6 +1045,7 @@ private async transferIn(
         });
 
     await trxRepo.save(trx);
+
 }
 
 private async transferOut(
@@ -1138,7 +1193,7 @@ private async transferOut(
         sumInv.sum_inv_qty > 0
             ? Number(
                 (sumInv.total_cost_sum_inv / sumInv.sum_inv_qty).toFixed(2)
-              )
+            )
             : 0;
 
     sumInv.updated_at = new Date();
@@ -1180,6 +1235,7 @@ private async transferOut(
                     "COALESCE(stock.item_desc, '-') AS item_desc",
                     "COALESCE(stock.item_status, '-') AS item_status",
 
+                    "COALESCE(loc.store_type, '-') AS store_type",
                     "COALESCE(loc.loc, '-') AS loc",
                     "COALESCE(loc.box_loc, '-') AS box_loc",
 
@@ -1220,112 +1276,112 @@ private async transferOut(
         }
     }
 
-
-    // จัดกลุ่มตาม location ID ( item_id, mc_code, org_id, dept, cond, item_status )
-    async getByLoc(manager?: EntityManager): Promise<ApiResponse<any | null>> {
-    const response = new ApiResponse<any | null>();
-    const operation = 'InventoryService.getByLoc';
-
-    try {
-        const locRepo = manager
-            ? manager.getRepository(Location)
-            : this.locationRepo;
-
-        const rows = await locRepo
-            .createQueryBuilder('loc')
-            .leftJoin('inventory', 'inv', 'inv.loc_id = loc.loc_id')
-            .leftJoin('m_stock_items', 'stock', 'stock.item_id = inv.item_id')
-            .leftJoin('orders_receipt', 'receipt', 'receipt.receipt_id = inv.receipt_id')
-            .leftJoin('orders', 'o', 'o.order_id = receipt.order_id')
-            .select([
-                // 📍 location
-                'loc.loc_id AS loc_id',
-                'loc.loc AS loc',
-                'loc.box_loc AS box_loc',
-
-                // 📦 inventory group key
-                'inv.item_id AS item_id',
-                'o.mc_code AS mc_code',
-                'inv.org_id AS org_id',
-                'inv.dept AS dept',
-                'o.cond AS cond',
-                'stock.item_status AS item_status',
-
-                'stock.stock_item AS stock_item',
-                'stock.item_desc AS item_desc',
-
-                // 🔢 aggregate
-                "GROUP_CONCAT(inv.inv_id SEPARATOR ',') AS inv_ids",
-                'SUM(inv.inv_qty) AS total_inv_qty',
-                'SUM(inv.total_cost_inv) AS total_cost_inv',
-                'COALESCE(ROUND(SUM(inv.total_cost_inv) / NULLIF(SUM(inv.inv_qty),0),4),0) AS avg_unit_cost'
-            ])
-            .groupBy('loc.loc_id')
-            .addGroupBy('loc.loc')
-            .addGroupBy('loc.box_loc')
-
-            .addGroupBy('inv.item_id')
-            .addGroupBy('o.mc_code')
-            .addGroupBy('inv.org_id')
-            .addGroupBy('inv.dept')
-            .addGroupBy('o.cond')
-            .addGroupBy('stock.item_status')
-            .getRawMany();
-
-        // 🔄 จัดรูปแบบ nested
-        const result = Object.values(
-            rows.reduce((acc: any, row: any) => {
-                const locKey = row.loc_id;
-
-                if (!acc[locKey]) {
-                    acc[locKey] = {
-                        loc_id: row.loc_id,
-                        loc: row.loc,
-                        box_loc: row.box_loc,
-                        items: []
-                    };
+    async getBoxAll(manager?: EntityManager): Promise<ApiResponse<any | null>> {
+            const response = new ApiResponse<any | null>();
+            const operation = 'InventoryService.getBoxAll';
+    
+            try {
+                const repository = manager
+                    ? manager.getRepository(Locations)
+                    : this.locationRepo;
+    
+                const rawData = await repository
+                    .createQueryBuilder('locs')
+                    .innerJoin('inventory_sum', 'inv', 'inv.loc_id = locs.loc_id')
+                    .leftJoin('m_stock_items', 'item', 'item.item_id = inv.item_id')
+                    .select([
+                        'locs.store_type AS store_type',
+                        'locs.loc AS loc',
+                        'locs.box_loc AS box_loc',
+    
+                        'inv.sum_inv_id AS sum_inv_id',
+                        'inv.mc_code AS mc_code',
+                        'inv.cond AS cond',
+                        'inv.unit_cost_sum_inv AS unit_cost_sum_inv',
+                        'inv.total_cost_sum_inv AS total_cost_sum_inv',
+                        'inv.sum_inv_qty AS sum_inv_qty',
+                        'inv.item_id AS item_id',
+    
+                        'item.stock_item AS stock_item',
+                        'item.item_desc AS item_desc'
+                    ])
+                    .orderBy('locs.store_type', 'ASC')
+                    .addOrderBy('locs.loc', 'ASC')
+                    .addOrderBy('locs.box_loc', 'ASC')
+                    .cache(false)
+                    .getRawMany();
+    
+                if (!rawData || rawData.length === 0) {
+                    return response.setIncomplete(lang.msgNotFound('location data'));
                 }
-
-                // ⚠️ location ที่ไม่มี inventory → item_id จะเป็น null
-                if (row.item_id !== null) {
-                    acc[locKey].items.push({
-                        item_id: row.item_id,
-                        mc_code: row.mc_code,
-                        org_id: row.org_id,
-                        dept: row.dept,
-                        cond: row.cond,
-                        item_status: row.item_status,
-
-                        inv_ids: row.inv_ids
-                            ? row.inv_ids.split(',').map((id: string) => Number(id))
-                            : [],
-
-                        total_inv_qty: Number(row.total_inv_qty ?? 0),
-                        total_cost_inv: Number(row.total_cost_inv ?? 0),
-                        avg_unit_cost: Number(row.avg_unit_cost ?? 0)
-                    });
+    
+                // 🔥 Transform ข้อมูลให้เป็น hierarchical structure
+                // const grouped = rawData.reduce((acc: any[], row: any) => {
+    
+                //     let store = acc.find(s => s.store_type === row.store_type);
+                //     if (!store) {
+                //         store = {
+                //             store_type: row.store_type,
+                //             locations: []
+                //         };
+                //         acc.push(store);
+                //     }
+    
+                //     let location = store.locations.find((l: any) => l.loc === row.loc);
+                //     if (!location) {
+                //         location = {
+                //             loc: row.loc,
+                //             boxes: []
+                //         };
+                //         store.locations.push(location);
+                //     }
+    
+                //     let box = location.boxes.find((b: any) => b.box_loc === row.box_loc);
+                //     if (!box) {
+                //         box = {
+                //             box_loc: row.box_loc,
+                //             items: []
+                //         };
+                //         location.boxes.push(box);
+                //     }
+    
+                //     if (
+                //         row.sum_inv_id &&
+                //         !box.items.some((i: any) => i.sum_inv_id === row.sum_inv_id)
+                //     ) {
+                //         box.items.push({
+                //             sum_inv_id: row.sum_inv_id,
+                //             mc_code: row.mc_code,
+                //             cond: row.cond,
+                //             unit_cost_sum_inv: row.unit_cost_sum_inv,
+                //             total_cost_sum_inv: row.total_cost_sum_inv,
+                //             sum_inv_qty: row.sum_inv_qty,
+                //             item_id: row.item_id,
+                //             stock_item: row.stock_item,
+                //             item_desc: row.item_desc
+                //         });
+                //     }
+    
+                //     return acc;
+    
+                // }, []);
+    
+                return response.setComplete(
+                    lang.msgFound('location data'),
+                    rawData
+                );
+    
+            } catch (error: any) {
+                console.error('Error in getBoxAll:', error);
+    
+                if (error instanceof QueryFailedError) {
+                    return response.setIncomplete(
+                        lang.msgErrorFunction(operation, error.message)
+                    );
                 }
-
-                return acc;
-            }, {})
-        );
-
-        // ✅ list API → ไม่มีข้อมูล = array ว่าง
-        return response.setComplete(lang.msgFound('inventory'), result);
-
-    } catch (error: any) {
-        console.error('Error in getByLoc:', error);
-
-        if (error instanceof QueryFailedError) {
-            return response.setIncomplete(
-                lang.msgErrorFunction(operation, error.message)
-            );
+    
+                throw new Error(lang.msgErrorFunction(operation, error.message));
+            }
         }
-
-        throw new Error(lang.msgErrorFunction(operation, error.message));
-    }
-}
-
-
 }
 

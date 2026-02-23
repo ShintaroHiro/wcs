@@ -13,7 +13,7 @@ export class OrdersTransfer {
     @Column({ type: 'int', unsigned: true })
     order_id!: number;
 
-    /** ไอดี location (Fk) โดย related_loc_id เก็บ to location เก็บINTERNAL_IN และ loc_id ใน Orders คือfrom location เก็บINTERNAL_OUT ใช้เฉพาะกรณี INTERNAL*/
+    /** ไอดี location (Fk) โดย related_loc_id เก็บ to location เก็บINTERNAL_IN และ loc_id ใน Orders คือfrom location เก็บINTERNAL_OUT */
     @Column({ type: 'int', unsigned: true, nullable: true, })
     related_loc_id: number;
 

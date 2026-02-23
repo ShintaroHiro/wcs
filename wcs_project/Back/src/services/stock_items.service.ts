@@ -326,6 +326,7 @@ export class StockItemService {
             throw new Error(lang.msgErrorFunction(operation, error.message));
         }
     }
+    
     private async doDelete(
         item_id: number,
         manager: EntityManager

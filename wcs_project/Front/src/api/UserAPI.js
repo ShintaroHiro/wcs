@@ -134,9 +134,9 @@ class UserApi {
 
 
 
-  static async login(username, password) {
+  static async login(username, password,storeType) {
     try {
-      const data = { username, password };
+      const data = { username, password ,store_type: storeType};
       const endpoint = "/api/users/login";
 
       const apiResponse = await ApiProvider.postData(endpoint, data);

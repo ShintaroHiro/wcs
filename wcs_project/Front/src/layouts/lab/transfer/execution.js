@@ -222,18 +222,37 @@ const TransferExecutionPage = () => {
         if (selectedWaitingIds.length === 0) return;
 
         try {
+
+            const selectedOrders = waitingList.filter(o =>
+                selectedWaitingIds.includes(o.order_id)
+            );
+
             const payload = {
                 items: selectedWaitingIds.map(id => ({ order_id: id }))
             };
 
-            // 🔥 ยิงพร้อมกัน
-            await Promise.all([
-                ExecutionAPI.changeToPending(payload),
-                ExecutionAPI.transferChangeStatus({
-                    ...payload,
-                    transfer_status: "PENDING"
-                })
-            ]);
+            // 🔥 หาเฉพาะ INTERNAL
+            const internalOrders = selectedOrders.filter(o =>
+                o.transfer_scenario === "INTERNAL_OUT" ||
+                o.transfer_scenario === "INTERNAL_IN"
+            );
+
+            // ยิง changeToPending เสมอ
+            const promises = [
+                ExecutionAPI.changeToPending(payload)
+            ];
+
+            // 🔥 ยิง transferChangeStatus เฉพาะ INTERNAL
+            if (internalOrders.length > 0) {
+                promises.push(
+                    ExecutionAPI.transferChangeStatus({
+                        items: internalOrders.map(o => ({ order_id: o.order_id })),
+                        transfer_status: "PENDING"
+                    })
+                );
+            }
+
+            await Promise.all(promises);
 
             await Promise.all([
                 fetchDataWaitingAll(),
@@ -261,6 +280,7 @@ const TransferExecutionPage = () => {
     };
 
 
+
     // --------------------------------------------------
     // DELETE EXECUTION -> BACK TO WAITING
     // --------------------------------------------------
@@ -268,18 +288,36 @@ const TransferExecutionPage = () => {
         if (selectedExecutionIds.length === 0) return;
 
         try {
+
+            const selectedOrders = executionList.filter(o =>
+                selectedExecutionIds.includes(o.order_id)
+            );
+
             const payload = {
                 items: selectedExecutionIds.map(id => ({ order_id: id }))
             };
 
-            // 🔥 ยิงพร้อมกัน
-            await Promise.all([
-                ExecutionAPI.changeToWaiting(payload),
-                ExecutionAPI.transferChangeStatus({
-                    ...payload,
-                    transfer_status: "WAITING"
-                })
-            ]);
+            // 🔥 หาเฉพาะ INTERNAL
+            const internalOrders = selectedOrders.filter(o =>
+                o.transfer_scenario === "INTERNAL_OUT" ||
+                o.transfer_scenario === "INTERNAL_IN"
+            );
+
+            const promises = [
+                ExecutionAPI.changeToWaiting(payload)
+            ];
+
+            // 🔥 ยิง transferChangeStatus เฉพาะ INTERNAL
+            if (internalOrders.length > 0) {
+                promises.push(
+                    ExecutionAPI.transferChangeStatus({
+                        items: internalOrders.map(o => ({ order_id: o.order_id })),
+                        transfer_status: "WAITING"
+                    })
+                );
+            }
+
+            await Promise.all(promises);
 
             await Promise.all([
                 fetchDataWaitingAll(),
@@ -307,6 +345,7 @@ const TransferExecutionPage = () => {
     };
 
 
+
     // --------------------------------------------------
     // ALL Go TO PROCESSING
     // --------------------------------------------------
@@ -327,15 +366,19 @@ const TransferExecutionPage = () => {
                 o => (o.execution_mode ?? "AUTO") === "AUTO"
             );
 
-            const payload = {
-                items: selectedExecutionIds.map(id => ({ order_id: id }))
-            };
-
             // 🔥 เปลี่ยนเป็น PROCESSING ก่อน
-            await ExecutionAPI.transferChangeStatus({
-                ...payload,
-                transfer_status: "PROCESSING"
-            });
+            const internalOrders = selectedOrders.filter(o =>
+                o.transfer_scenario === "INTERNAL_OUT" ||
+                o.transfer_scenario === "INTERNAL_IN"
+            );
+
+            if (internalOrders.length > 0) {
+                await ExecutionAPI.transferChangeStatus({
+                    items: internalOrders.map(o => ({ order_id: o.order_id })),
+                    transfer_status: "PROCESSING"
+                });
+            }
+
 
             // 🔹 MANUAL
 if (manualOrders.length > 0) {

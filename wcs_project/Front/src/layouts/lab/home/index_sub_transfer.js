@@ -3,38 +3,17 @@ import { Grid, Card, Typography, Box } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import Cog from "../../../assets/images/Icon_cog.png";
 import { GlobalVar } from "common/GlobalVar";
+import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
 
 const TransferHome = () => {
   const navigate = useNavigate();
   const storeType = GlobalVar.getStoreType();
+  const storeTypeTrans = getStoreTypeTrans(storeType);
+
   const transferMenus = [
     { title: "Create", path: "" },
     { title: "Execute", path: "/transfer/execute" },
   ];
-
-  //แปลงชื่อคลัง
-  let storeTypeTrans = "";
-
-  switch (storeType) {
-    case "T1":
-      storeTypeTrans = "T1 Store";
-      break;
-
-    case "T1M":
-      storeTypeTrans = "T1M Store";
-      break;
-
-    case "AGMB":
-      storeTypeTrans = "AGMB Store";
-      break;
-
-    case "WCS":
-      storeTypeTrans = "WCS";
-      break;
-
-    default:
-      storeTypeTrans = storeType;
-  }
 
   return (
     <Box p={2}>

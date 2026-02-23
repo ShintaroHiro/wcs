@@ -18,7 +18,7 @@ export class Counter {
     group_color?: string;
 
     @Column({ type: 'varchar', length: 7, nullable: true })
-    light_color_hex?: string;
+    light_color_hex?: string | null;
 
     @Column({ type: 'enum', enum: ['OFF','ON','BLINK'] })
     light_mode!: string;
@@ -27,10 +27,10 @@ export class Counter {
     gate_open!: boolean;
 
     @Column({ type: 'int', unsigned: true, nullable: true })
-    current_order_id?: number;
+    current_order_id: number | null;
 
     @Column({ type: 'int', unsigned: true, nullable: true })
-    current_wrs_id?: number;
+    current_wrs_id: number | null;
 
     @Column({ type: 'timestamp', nullable: true })
     last_event_at?: Date;

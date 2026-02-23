@@ -263,6 +263,62 @@ const create = async (req: Request, res: Response) => {
             );
         }
     };
+    
+    const handleErrorOrderItemWRS = async (req: Request, res: Response) => {
+
+        const operation = 'TasksController.handleErrorOrderItemWRS';
+
+        const reqUsername = RequestUtils.getUsernameToken(req, res);
+        if (!reqUsername) {
+            return ResponseUtils.handleBadRequest(res, lang.msgRequiredUsername());
+        }
+
+        const { event_id, items } = req.body;
+
+        if (!event_id || isNaN(Number(event_id))) {
+            return ResponseUtils.handleBadRequest(res, "Invalid event_id");
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return ResponseUtils.handleBadRequest(res, "Items must be a non-empty array");
+        }
+
+        for (const item of items) {
+            if (
+                !item.order_id ||
+                isNaN(Number(item.order_id)) ||
+                isNaN(Number(item.actual_qty)) ||
+                item.actual_qty < 0
+            ) {
+                return ResponseUtils.handleBadRequest(res, "Invalid order data");
+            }
+        }
+
+        try {
+
+            const response = await orchestrator.handleErrorOrderItemWRS(
+                Number(event_id),
+                items,
+                reqUsername
+            );
+
+            return ResponseUtils.handleResponse(res, response);
+
+        } catch (error: any) {
+
+            console.error(`Error during ${operation}:`, error);
+
+            return ResponseUtils.handleErrorCreate(
+                res,
+                operation,
+                error.message,
+                'handle error order items',
+                true,
+                reqUsername
+            );
+        }
+    };
+
 
     const getAll = async (req: Request, res: Response) => {
         const operation = 'TasksController.getAll';
@@ -282,5 +338,5 @@ const create = async (req: Request, res: Response) => {
         }
     };
 
-    return { create, changeToWaitingBatch , changeToPendingBatch ,transferChangeToBatch, handleOrderItemMrs , handleOrderItemWRS, getAll};
+    return { create, changeToWaitingBatch , changeToPendingBatch ,transferChangeToBatch, handleOrderItemMrs , handleOrderItemWRS, handleErrorOrderItemWRS, getAll};
 }

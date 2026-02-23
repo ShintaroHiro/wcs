@@ -173,6 +173,7 @@
         "inventory": "Inventory",
         "inventory_profile": "Item Master",
         "inventory_balance": "Inventory Balance",
+        "inventory_location": "Location Master",
         "pick": "Pick",
         "pick_execute_req": "Execute",
         "pick_execute": "Execute",
@@ -188,7 +189,8 @@
         "return_create": "Create",
         "transfer": "Transfer",
         "transfer_execute": "Execute",
-        "transfer_create": "Create"
+        "transfer_create": "Create",
+        "events_page": "Events"
     },
     "role": {
         "role_title_1": "เพิ่มสิทธิ์การใช้งาน",

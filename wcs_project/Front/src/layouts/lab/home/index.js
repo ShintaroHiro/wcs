@@ -11,6 +11,7 @@ import TransferHome from "./index_sub_transfer";
 import InventoryHome from "./index_sub_inv";
 
 import { GlobalVar } from "common/GlobalVar";
+import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ const HomePage = () => {
   const hiddenRoles = ["REQUESTER", "STORE"];
   const userRole = GlobalVar.getRole(); // ดึง Role ของผู้ใช้
   const storeType = GlobalVar.getStoreType();
+  const storeTypeTrans = getStoreTypeTrans(storeType);
 
   // menu_route
   const menuItems = [
@@ -46,7 +48,10 @@ const HomePage = () => {
     { title: "Return", path: "/return/execute" },
     { title: "Transfer", path: "/transfer/execute" },
     // ✅ แสดงเฉพาะ WCS
-    ...(storeType === "WCS" ? [{ title: "Inventory", path: "/inventory" }] : []),
+    ...(storeType === "WCS" ? [
+      { title: "Inventory", path: "/inventory" },
+      {title: "Events", path: "/events"}
+    ] : []),
   ];
 
   //menu_route
@@ -62,11 +67,13 @@ const HomePage = () => {
     { title: "Put", path: "/put" },
     { title: "Return", path: "/return" },
     { title: "Transfer", path: "/transfer" },
-    { title: "Transfer", path: "" },
     { title: "Status", path: "/status" },
     { title: "Check In & Out", path: "/checkout-t1" },
     // ✅ แสดงเฉพาะ WCS
-    ...(storeType === "WCS" ? [{ title: "Inventory", path: "/inventory" }] : []),
+    ...(storeType === "WCS" ? [
+      { title: "Inventory", path: "/inventory" },
+      {title: "Events", path: "/events"}
+    ] : []),
   ];
 
   // 🧠 Logic เพื่อเลือกเมนูตาม Role
@@ -83,30 +90,6 @@ const HomePage = () => {
   // ❌ ปิด Check In & Out เมื่อเป็น WCS
   if (storeType === "WCS") {
     roleMenu = roleMenu.filter((item) => item.title !== "Check In & Out");
-  }
-
-  //แปลงชื่อคลัง
-  let storeTypeTrans = "";
-
-  switch (storeType) {
-    case "T1":
-      storeTypeTrans = "T1 Store";
-      break;
-
-    case "T1M":
-      storeTypeTrans = "T1M Store";
-      break;
-
-    case "AGMB":
-      storeTypeTrans = "AGMB Store";
-      break;
-
-    case "WCS":
-      storeTypeTrans = "WCS";
-      break;
-
-    default:
-      storeTypeTrans = storeType;
   }
 
   // 🔁 แทนที่ส่วน return เก่า ด้วยโค้ดนี้

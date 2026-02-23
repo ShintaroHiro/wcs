@@ -14,6 +14,9 @@ import { WRS } from "../entities/wrs.entity";
 import { Counter } from "../entities/counter.entity";
 import { WrsLog } from "../entities/wrs_log.entity";
 import { s_user } from "../entities/s_user.entity";
+import { EventService } from "../utils/EventService";
+import { OrdersLogService } from "../utils/logTaskEvent";
+import { WrsLogService } from "../utils/LogWrsService";
 
 export type ExecuteResult =
   | 'EXECUTED'
@@ -21,6 +24,9 @@ export type ExecuteResult =
   | 'NO_AMR'
   | 'SKIPPED';
 
+const ordersLogService = new OrdersLogService();
+const eventService = new EventService();
+const wrsLogService = new WrsLogService();
 export class T1OrdersService {
     private ordersRepo: Repository<Orders>;
     private logRepo: Repository<OrdersLog>;
@@ -33,193 +39,6 @@ export class T1OrdersService {
         this.stockItemsRepo = AppDataSource.getRepository(StockItems);
         this.locationRepo = AppDataSource.getRepository(Locations);
     }
-
-//     async startExecutionService(order_id: string, reqUsername: string, manager: EntityManager) {
-//         const ordersRepo = manager.getRepository(Orders);
-//         const wrsRepo = manager.getRepository(WRS);
-//         const counterRepo = manager.getRepository(Counter);
-//         const wrsLogRepo = manager.getRepository(WrsLog);
-
-//         // 1) โหลด order
-//         const order = await ordersRepo.findOne({ where: { order_id } });
-//         if (!order) throw new Error("Order not found");
-
-//         // 2) หา AMR ที่พร้อม
-//         const amr = await wrsRepo.findOne({ where: { is_available: true } });
-//         if (!amr) throw new Error("No available AMR");
-
-//         // 3) โหลด counter
-//         const counter = await counterRepo.findOne({ where: { counter_id: order.target_counter_id } });
-//         if (!counter) throw new Error("Counter not found");
-
-//         // 4) อัปเดต order
-//         order.status = StatusOrders.PROCESSING;
-//         order.started_at = new Date();
-//         await ordersRepo.save(order);
-
-//         // 5) อัปเดต AMR
-//         amr.wrs_status = "Delivering";
-//         amr.current_order_id = order_id;
-//         amr.is_available = false;
-//         await wrsRepo.save(amr);
-
-//         // 6) อัปเดต Counter
-//         counter.status = "WAITING_AMR";
-//         counter.current_order_id = order_id;
-//         await counterRepo.save(counter);
-
-//         // 7) Log
-//         await wrsLogRepo.save([
-//             wrsLogRepo.create({ wrs_id: amr.wrs_id, order_id, status: "Delivering", operator: ControlSource.AUTO, event: "Assigned order", message: `AMR assigned to order ${order_id}` }),
-//         ]);
-
-//         return { order_id, amr_id: amr.wrs_id, counter_id: counter.counter_id };
-//     }
-
-//     async amrDeliverBoxService(order_id: string, manager: EntityManager) {
-//         const ordersRepo = manager.getRepository(Orders);
-//         const wrsRepo = manager.getRepository(WRS);
-//         const counterRepo = manager.getRepository(Counter);
-//         const wrsLogRepo = manager.getRepository(WrsLog);
-
-//         // 1) โหลด order
-//         const order = await ordersRepo.findOne({ where: { order_id } });
-//         if (!order) throw new Error("Order not found");
-
-//         // 2) โหลด AMR
-//         const amr = await wrsRepo.findOne({ where: { current_order_id: order_id } });
-//         if (!amr) throw new Error("AMR not assigned");
-
-//         // 3) โหลด counter
-//         const counter = await counterRepo.findOne({ where: { current_order_id: order_id } });
-//         if (!counter) throw new Error("Counter not found");
-
-//         // 4) Simulate AMR moving
-//         await wrsLogRepo.save(wrsLogRepo.create({ wrs_id: amr.wrs_id, order_id, status: "Delivering", operator: ControlSource.AUTO, event: "AMR moving to storage", message: "AMR going to storage location" }));
-//         await new Promise(res => setTimeout(res, 5000)); // simulate 5 sec
-//         await wrsLogRepo.save(wrsLogRepo.create({ wrs_id: amr.wrs_id, order_id, status: "Delivering", operator: ControlSource.AUTO, event: "AMR pick up box", message: "AMR picked up box" }));
-//         await new Promise(res => setTimeout(res, 5000)); // simulate 5 sec
-//         await wrsLogRepo.save(wrsLogRepo.create({ wrs_id: amr.wrs_id, order_id, status: "Delivering", operator: ControlSource.AUTO, event: "AMR moving to counter", message: "AMR going to counter location" }));
-//         await new Promise(res => setTimeout(res, 5000)); // simulate 5 sec
-//         await wrsLogRepo.save(wrsLogRepo.create({ wrs_id: amr.wrs_id, order_id, status: "Delivering", operator: ControlSource.AUTO, event: "AMR put down box", message: "AMR put down box" }));
-
-//         // 5) AMR idle
-//         amr.wrs_status = "Idle";
-//         amr.current_order_id = null;
-//         amr.is_available = true;
-//         await wrsRepo.save(amr);
-
-//         return { order_id, amr_id: amr.wrs_id };
-//     }
-
-// async counterReadyToPickService(order_id: string, reqUsername: string, manager: EntityManager) {
-//     const counterRepo = manager.getRepository(Counter);
-//     const wrsLogRepo = manager.getRepository(WrsLog);
-
-//     // โหลด counter ที่เกี่ยวข้องกับ order
-//     const counter = await counterRepo.findOne({ where: { current_order_id: order_id } });
-//     if (!counter) throw new Error("Counter not found");
-
-//     // อัปเดต counter → READY_TO_PICK
-//     counter.status = "READY_TO_PICK";
-//     counter.gate_open = true;
-//     await counterRepo.save(counter);
-
-//     // log event
-//     await wrsLogRepo.save(wrsLogRepo.create({
-//         wrs_id: counter.current_wrs_id!,
-//         order_id,
-//         status: "READY_TO_PICK",
-//         operator: ControlSource.MANUAL,
-//         event: "Counter ready to pick",
-//         message: `${reqUsername} pressed 'Ready to handle item'`
-//     }));
-
-//     return { order_id, counter_id: counter.counter_id };
-// }
-
-// async confirmOrderService(order_id: string, reqUsername: string, manager: EntityManager) {
-//     const ordersRepo = manager.getRepository(Orders);
-//     const counterRepo = manager.getRepository(Counter);
-//     const wrsLogRepo = manager.getRepository(WrsLog);
-
-//     // โหลด order
-//     const order = await ordersRepo.findOne({ where: { order_id } });
-//     if (!order) throw new Error("Order not found");
-
-//     // โหลด counter
-//     const counter = await counterRepo.findOne({ where: { current_order_id: order_id } });
-//     if (!counter) throw new Error("Counter not found");
-
-//     // 1) User confirm → ปิด roller gate
-//     counter.status = "WAITING_AMR";
-//     counter.current_order_id = null;
-//     counter.gate_open = false;
-//     await counterRepo.save(counter);
-
-//     // 2) Update order → FINISHED
-//     order.status = StatusOrders.FINISHED;
-//     order.finished_at = new Date();
-//     await ordersRepo.save(order);
-
-//     // log event
-//     await wrsLogRepo.save(wrsLogRepo.create({
-//         wrs_id: counter.current_wrs_id!,
-//         order_id,
-//         status: "FINISHED",
-//         operator: ControlSource.MANUAL,
-//         event: "Order finished",
-//         message: `${reqUsername} confirmed order and closed gate`
-//     }));
-
-//     return { order_id, status: order.status, counter_id: counter.counter_id };
-// }
-
-
-// async amrReturnTaskService(order_id: string, manager: EntityManager) {
-//     const wrsRepo = manager.getRepository(WRS);
-//     const counterRepo = manager.getRepository(Counter);
-//     const wrsLogRepo = manager.getRepository(WrsLog);
-
-//     // โหลด AMR ที่ทำ order นี้
-//     const amr = await wrsRepo.findOne({ where: { current_order_id: order_id } });
-//     if (!amr) throw new Error("AMR not assigned");
-
-//     // โหลด counter
-//     const counter = await counterRepo.findOne({ where: { current_order_id: null } });
-//     if (!counter) throw new Error("Counter not found");
-
-//     // 1) AMR returning
-//     amr.wrs_status = "Returning";
-//     await wrsRepo.save(amr);
-
-//     await wrsLogRepo.save(wrsLogRepo.create({
-//         wrs_id: amr.wrs_id,
-//         order_id,
-//         status: "Returning",
-//         operator: ControlSource.AUTO,
-//         event: "AMR returning",
-//         message: "AMR received returning task"
-//     }));
-
-//     // 2) AMR goes to counter → pick up → Counter empty
-//     await wrsLogRepo.save(wrsLogRepo.create({ wrs_id: amr.wrs_id, order_id, status: "Returning", operator: ControlSource.AUTO, event: "AMR pick up at counter", message: "AMR picked up box" }));
-//     counter.status = "Empty";
-//     await counterRepo.save(counter);
-
-//     // 3) AMR goes to storage → put down
-//     await new Promise(res => setTimeout(res, 10000)); // simulate 10 sec
-//     await wrsLogRepo.save(wrsLogRepo.create({ wrs_id: amr.wrs_id, order_id, status: "Returning", operator: ControlSource.AUTO, event: "AMR put down at storage", message: "AMR put down box at storage" }));
-
-//     // 4) AMR idle
-//     amr.wrs_status = "Idle";
-//     amr.current_order_id = null;
-//     amr.is_available = true;
-//     await wrsRepo.save(amr);
-
-//     return { order_id, amr_id: amr.wrs_id };
-// }
-
 
 async executeT1Order(
   order_id: number,
@@ -245,8 +64,8 @@ async executeT1Order(
     const ordersRepo = useManager.getRepository(Orders);
     const counterRepo = useManager.getRepository(Counter);
     const wrsRepo = useManager.getRepository(WRS);
-    const wrsLogRepo = useManager.getRepository(WrsLog);
     const userRepo = useManager.getRepository(s_user);
+    const locationRepo = useManager.getRepository(Locations);
 
     /* ------------------------------------------------
      * 1) Load + lock order
@@ -266,6 +85,17 @@ async executeT1Order(
     if (!order) {
       return 'SKIPPED';
     }
+
+    const user = await userRepo.findOne({
+      where: { user_id: order.executed_by_user_id }
+    });
+    if (!user) {
+      throw new Error(`User not found for order ${order.order_id}`);
+    }
+
+    const location = await locationRepo.findOne({
+      where: { loc_id: order.loc_id }
+    });
 
     /* ------------------------------------------------
      * 2) หา counter ว่าง (lock)
@@ -288,6 +118,21 @@ async executeT1Order(
         await ordersRepo.save(order);
       }
 
+      await ordersLogService.logTaskEvent(useManager, order, {
+        status: StatusOrders.QUEUE,
+        message: 'no counter available'
+      });
+
+      // ---- Log Event----
+      await eventService.createEvent(useManager,{
+        type: 'EVENT',
+        category: 'ORDERS',
+        event_code: 'ORDER_QUEUE',
+        message: `User ${user.username} has started processing order(QUEUE).`,
+        related_id: order.order_id,
+        created_by: user.username
+      });
+
       if (!manager && queryRunner) {
         await queryRunner.commitTransaction();
       }
@@ -303,6 +148,9 @@ async executeT1Order(
         wrs_status: 'IDLE',
         is_available: true
       },
+      order: {
+        wrs_id: 'ASC'
+      },
       lock: { mode: 'pessimistic_write' }
     });
 
@@ -312,6 +160,12 @@ async executeT1Order(
         order.queued_at = new Date();
         await ordersRepo.save(order);
       }
+
+      // ---- Log Orders----
+      await ordersLogService.logTaskEvent(useManager, order, {
+        status: StatusOrders.QUEUE,
+        message: 'no AMR available'
+      });
 
       if (!manager && queryRunner) {
         await queryRunner.commitTransaction();
@@ -323,11 +177,7 @@ async executeT1Order(
     /* ------------------------------------------------
      * 4) Resolve user color
      * ---------------------------------------------- */
-    const user = await userRepo.findOne({
-      where: { user_id: order.executed_by_user_id }
-    });
-
-    if (!user?.user_color_hex) {
+    if (!user.user_color_hex) {
       throw new Error(
         `User color not configured: ${order.executed_by_user_id}`
       );
@@ -338,58 +188,78 @@ async executeT1Order(
      * ---------------------------------------------- */
 
     // ---- Order ----
+    // const previousStatus = order.status;
+
     order.status = StatusOrders.PROCESSING;
     order.started_at = new Date();
     await ordersRepo.save(order);
 
-    // // ---- Counter ----
-    // counter.status = 'WAITING_AMR';
-    // counter.current_order_id = order.order_id;
-    // counter.current_wrs_id = amr.wrs_id;
-    // counter.light_color_hex = user.user_color_hex;
-    // counter.light_mode = 'ON';
-    // counter.last_event_at = new Date();
-    // await counterRepo.save(counter);
+    // if (previousStatus === StatusOrders.PENDING &&
+    // order.status === StatusOrders.PROCESSING){
+      // ---- Log Orders----
+      await ordersLogService.logTaskEvent(useManager, order, {
+        status: StatusOrders.PROCESSING,
+        message: 'Orders has started processing'
+      });
+
+      // ---- Log Event----
+      await eventService.createEvent(useManager,{
+        type: 'EVENT',
+        category: 'ORDERS',
+        event_code: 'ORDER_PROCESSING',
+        message: `User ${user.username} has started processing order.`,
+        related_id: order.order_id,
+        created_by: user.username
+      });
+    // }
     
-// ---- Counter ----
-const isInternalInTransfer =
-  order.type === 'TRANSFER' &&
-  order.transfer_scenario === 'INTERNAL_IN';
+    // ---- Counter ----
+    const isInternalInTransfer =
+      order.type === 'TRANSFER' &&
+      order.transfer_scenario === 'INTERNAL_IN';
 
-counter.status = isInternalInTransfer
-  ? 'WAITING_PICK'
-  : 'WAITING_AMR';
+    counter.status = isInternalInTransfer
+      ? 'WAITING_PICK'
+      : 'WAITING_AMR';
 
-counter.current_order_id = order.order_id;
-counter.current_wrs_id = amr.wrs_id;
-counter.light_color_hex = user.user_color_hex;
-counter.light_mode = 'ON';
-counter.last_event_at = new Date();
+    counter.current_order_id = order.order_id;
+    counter.current_wrs_id = amr.wrs_id;
+    counter.light_color_hex = user.user_color_hex;
+    counter.light_mode = 'ON';
+    counter.last_event_at = new Date();
 
-await counterRepo.save(counter);
+    await counterRepo.save(counter);
 
     // ---- AMR ----
-    amr.wrs_status = 'DELIVERING';
+    amr.wrs_status = 'MOVING';
     amr.is_available = false;
     amr.current_order_id = order.order_id;
     amr.target_counter_id = counter.counter_id;
     await wrsRepo.save(amr);
 
-    // ---- Log ----
-    await wrsLogRepo.save(
-      wrsLogRepo.create({
-        wrs_id: amr.wrs_id,
-        order_id: order.order_id,
-        status: 'MOVING',
-        operator: ControlSource.AUTO,
-        event: 'Assign order',
-        message: `Assigned to AMR ${amr.wrs_code}`
-      })
-    );
+    // ---- Log WRS----
+    await wrsLogService.createLog(useManager,{
+      wrs_id: amr.wrs_id,
+      order_id: order.order_id,
+      status: 'MOVING',
+      operator: ControlSource.AUTO,
+      event: 'Assign order',
+      message: `Assigned to AMR ${amr.wrs_code}`
+    });
 
     if (!manager && queryRunner) {
       await queryRunner.commitTransaction();
     }
+
+    // ---- Log Event----
+    await eventService.createEvent(null,{
+      type: 'EVENT',
+      category: 'WRS',
+      event_code: 'AMR_MOVING',
+      related_id: amr.wrs_id,
+      message: `AMR-${amr.wrs_code} started moving to lift bin of Binnum ${location?.box_loc ?? '-'}`,
+      created_by: 'SYSTEM AMR'
+    });
 
     /* ------------------------------------------------
      * 6) Trigger AMR (outside transaction)
@@ -416,86 +286,174 @@ await counterRepo.save(counter);
   }
 }
 
+
+//AMR
 private async mockAmrPickAndPlace(
-    orderId: number,
-    wrsId: number
+  orderId: number,
+  wrsId: number
 ) {
-    const delay = (ms: number) =>
-        new Promise(res => setTimeout(res, ms));
+  const delay = (ms: number) =>
+    new Promise(res => setTimeout(res, ms));
 
-    setTimeout(async () => {
-        const manager = AppDataSource.manager;
+  setTimeout(async () => {
 
-        const wrsRepo = manager.getRepository(WRS);
-        const wrsLogRepo = manager.getRepository(WrsLog);
-        const orderRepo = manager.getRepository(Orders);
-        const locRepo = manager.getRepository(Locations);
+    /* =========================================================
+     * PHASE 1: Start Delivering (Short TX)
+     * =======================================================*/
+    const startRunner = AppDataSource.createQueryRunner();
+    await startRunner.connect();
+    await startRunner.startTransaction();
 
-        const order = await orderRepo.findOne({
-            where: { order_id: orderId }
-        });
-        if (!order) return;
+    try {
+      const manager = startRunner.manager;
 
-        const wrs = await wrsRepo.findOne({
-            where: { wrs_id: wrsId }
-        });
-        if (!wrs) return;
+      const wrsRepo = manager.getRepository(WRS);
+      const orderRepo = manager.getRepository(Orders);
+      const locRepo = manager.getRepository(Locations);
+      const counterRepo = manager.getRepository(Counter);
 
-        const location = await locRepo.findOne({
-            where: { loc_id: order.loc_id }
-        });
+      // 🔒 Lock order
+      const order = await orderRepo.findOne({
+        where: { order_id: orderId },
+        lock: { mode: 'pessimistic_write' }
+      });
 
-        /* -----------------------------------------
-         * 1) LOG: Start Delivering
-         * ----------------------------------------- */
-        await wrsLogRepo.save(
-            wrsLogRepo.create({
-                wrs_id: wrs.wrs_id,
-                order_id: order.order_id,
-                status: 'DELIVERING',
-                operator: ControlSource.AUTO,
-                event: 'Mock pick',
-                message: `Mock AMR picking from ${location?.loc ?? '-'}`
-            })
-        );
+      if (!order || order.status !== StatusOrders.PROCESSING) {
+        await startRunner.rollbackTransaction();
+        await startRunner.release();
+        return;
+      }
 
-        console.log(`[MOCK-AMR] Picking item from`, {
-            loc: location?.loc,
-            box_loc: location?.box_loc
-        });
+      // 🔒 Lock WRS
+      const wrs = await wrsRepo.findOne({
+        where: { wrs_id: wrsId },
+        lock: { mode: 'pessimistic_write' }
+      });
 
-        await delay(12000); // simulate AMR travel
+      if (!wrs || wrs.current_order_id !== orderId) {
+        await startRunner.rollbackTransaction();
+        await startRunner.release();
+        return;
+      }
 
-        console.log(`[MOCK-AMR] Delivered order ${orderId} to counter`);
+      const location = await locRepo.findOne({
+        where: { loc_id: order.loc_id }
+      });
 
-        /* -----------------------------------------
-         * 2) LOG: Delivered
-         * ----------------------------------------- */
-        await wrsLogRepo.save(
-            wrsLogRepo.create({
-                wrs_id: wrs.wrs_id,
-                order_id: order.order_id,
-                status: 'IDLE',
-                operator: ControlSource.AUTO,
-                event: 'Mock deliver completed',
-                message: `Mock AMR delivered order ${order.order_id}`
-            })
-        );
+      /* -----------------------------
+       * Update → DELIVERING
+       * ----------------------------- */
+      wrs.wrs_status = 'DELIVERING';
+      wrs.last_heartbeat = new Date();
+      await wrsRepo.save(wrs);
 
-        /* -----------------------------------------
-         * 3) Reset WRS
-         * ----------------------------------------- */
-        await wrsRepo.update(
-            { wrs_id: wrsId },
-            {
-                wrs_status: 'IDLE',
-                is_available: true,
-                current_order_id: null,
-                target_counter_id: null
-            }
-        );
+      // ---- WRS LOG ----
+      await wrsLogService.createLog(manager,{
+        wrs_id: wrs.wrs_id,
+        order_id: order.order_id,
+        status: 'DELIVERING',
+        operator: ControlSource.AUTO,
+        event: 'Mock pick',
+        message: `Mock AMR picking from Bin Location: ${location?.box_loc ?? '-'}`
+      });
 
-    }, 0);
+      await startRunner.commitTransaction();
+      await startRunner.release();
+
+      /* -----------------------------
+       * Event (outside TX)
+       * ----------------------------- */
+      await eventService.createEvent(null,{
+        type: 'EVENT',
+        category: 'WRS',
+        event_code: 'AMR_DELIVERING',
+        related_id: wrs.wrs_id,
+        message: `AMR-${wrs.wrs_code} lifts bin of Binnum "${location?.box_loc ?? '-'}" from storage to counter`,
+        created_by: 'SYSTEM AMR'
+      });
+
+    } catch (err) {
+      await startRunner.rollbackTransaction();
+      await startRunner.release();
+      console.error('Mock AMR start error:', err);
+      return;
+    }
+
+    /* =========================================================
+     * Simulate Travel (NO LOCK HERE)
+     * =======================================================*/
+    await delay(12000);
+
+    /* =========================================================
+     * PHASE 2: Finish Delivering (Short TX)
+     * =======================================================*/
+    const finishRunner = AppDataSource.createQueryRunner();
+    await finishRunner.connect();
+    await finishRunner.startTransaction();
+
+    try {
+      const manager = finishRunner.manager;
+
+      const wrsRepo = manager.getRepository(WRS);
+      const orderRepo = manager.getRepository(Orders);
+      const counterRepo = manager.getRepository(Counter);
+      const locRepo = manager.getRepository(Locations);
+
+      // 🔒 Lock order again
+      const order = await orderRepo.findOne({
+        where: { order_id: orderId },
+        lock: { mode: 'pessimistic_write' }
+      });
+
+      if (!order || order.status !== StatusOrders.PROCESSING) {
+        await finishRunner.rollbackTransaction();
+        await finishRunner.release();
+        return;
+      }
+
+      // 🔒 Lock WRS again
+      const wrs = await wrsRepo.findOne({
+        where: { wrs_id: wrsId },
+        lock: { mode: 'pessimistic_write' }
+      });
+
+      if (!wrs || wrs.current_order_id !== orderId) {
+        await finishRunner.rollbackTransaction();
+        await finishRunner.release();
+        return;
+      }
+
+      const counter = await counterRepo.findOne({
+        where: { current_order_id: orderId }
+      });
+
+      const location = await locRepo.findOne({
+        where: { loc_id: order.loc_id }
+      });
+
+      await finishRunner.commitTransaction();
+      await finishRunner.release();
+
+      /* -----------------------------
+       * Event (outside TX)
+       * ----------------------------- */
+      await eventService.createEvent(null,{
+        type: 'EVENT',
+        category: 'WRS',
+        event_code: 'AMR_DELIVERED',
+        related_id: wrs.wrs_id,
+        message: `AMR-${wrs.wrs_code} placed bin "${location?.box_loc ?? '-'}" at counter ${counter?.counter_id ?? '-'}`,
+        created_by: 'SYSTEM AMR'
+      });
+
+    } catch (err) {
+      await finishRunner.rollbackTransaction();
+      await finishRunner.release();
+      console.error('Mock AMR finish error:', err);
+      return;
+    }
+
+  }, 0);
 }
 
 

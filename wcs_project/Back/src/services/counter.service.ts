@@ -237,11 +237,8 @@ export class CounterService {
                     CASE
                         WHEN order.type = 'USAGE'
                             THEN fromLoc.loc
-
                         WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario IN ('OUTBOUND','INTERNAL_OUT','INTERNAL_IN')
                             THEN fromLoc.loc
-
                         ELSE NULL
                     END AS from_loc
                     `,
@@ -249,11 +246,8 @@ export class CounterService {
                     CASE
                         WHEN order.type = 'USAGE'
                             THEN fromLoc.box_loc
-
                         WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario IN ('OUTBOUND','INTERNAL_OUT','INTERNAL_IN')
                             THEN fromLoc.box_loc
-
                         ELSE NULL
                     END AS from_box_loc
                     `,
@@ -263,11 +257,8 @@ export class CounterService {
                     CASE
                         WHEN order.type IN ('RECEIPT','RETURN')
                             THEN fromLoc.loc
-
-                        WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario IN ('INBOUND','INTERNAL_OUT','INTERNAL_IN')
-                            THEN toLoc.loc
-
+                            WHEN order.type = 'TRANSFER'
+                                THEN toLoc.loc
                         ELSE NULL
                     END AS to_loc
                     `,
@@ -275,11 +266,8 @@ export class CounterService {
                     CASE
                         WHEN order.type IN ('RECEIPT','RETURN')
                             THEN fromLoc.box_loc
-
                         WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario IN ('INBOUND','INTERNAL_OUT','INTERNAL_IN')
                             THEN toLoc.box_loc
-
                         ELSE NULL
                     END AS to_box_loc
                     `,
@@ -289,50 +277,52 @@ export class CounterService {
                 /* =======================
                 * WHERE
                 * ======================= */
-  .where(
-`
-(
-    -- 1) INTERNAL_OUT (ยกเว้น PICK_SUCCESS)
-    (
-        order.type = 'TRANSFER'
-        AND order.transfer_scenario = 'INTERNAL_OUT'
-        AND transfer.transfer_status IN (:...statuses)
-        AND transfer.transfer_status != 'PICK_SUCCESS'
-    )
+            .where(
+            `
+            (
+                -- 1) INTERNAL_OUT (ยกเว้น PICK_SUCCESS)
+                (
+                    order.type = 'TRANSFER'
+                    AND order.transfer_scenario = 'INTERNAL_OUT'
+                    AND transfer.transfer_status IN (:...statuses)
+                    AND transfer.transfer_status != 'PICK_SUCCESS'
+                )
 
-    OR
+                OR
 
-    -- 2) INTERNAL_IN ที่มาจาก INTERNAL_OUT PICK_SUCCESS
-    (
-        order.type = 'TRANSFER'
-        AND order.transfer_scenario = 'INTERNAL_IN'
-        AND order.status IN (:...statuses)
-        AND EXISTS (
-            SELECT 1
-            FROM orders o2
-            LEFT JOIN orders_transfer t2 ON t2.order_id = o2.order_id
-            WHERE 
-                o2.transfer_scenario = 'INTERNAL_OUT'
-                AND t2.related_order_id = order.order_id
-                AND t2.transfer_status = 'PICK_SUCCESS'
-        )
-    )
+                -- 2) INTERNAL_IN ที่มาจาก INTERNAL_OUT PICK_SUCCESS
+                (
+                    order.type = 'TRANSFER'
+                    AND order.transfer_scenario = 'INTERNAL_IN'
+                    AND order.status IN (:...statuses)
+                    AND EXISTS (
+                        SELECT 1
+                        FROM orders o2
+                        LEFT JOIN orders_transfer t2 ON t2.order_id = o2.order_id
+                        WHERE 
+                            o2.transfer_scenario = 'INTERNAL_OUT'
+                            AND t2.related_order_id = order.order_id
+                            AND t2.transfer_status = 'PICK_SUCCESS'
+                    )
+                )
 
-    OR
+                OR
 
-    -- 3) Order อื่น ๆ
-    (
-        order.transfer_scenario NOT IN ('INTERNAL_OUT', 'INTERNAL_IN')
-        AND order.status IN (:...statuses)
-    )
-)
-`,
-{
-    statuses: ['PROCESSING', 'QUEUE'],
-}
-);
+                -- 3) Order อื่น ๆ
+                (
+                    (
+                        order.transfer_scenario NOT IN ('INTERNAL_OUT', 'INTERNAL_IN')
+                        OR order.transfer_scenario IS NULL
+                    )
+                    AND order.status IN (:...statuses)
+                )
 
-
+            )
+            `,
+            {
+                statuses: ['PROCESSING', 'QUEUE', 'ERROR'],
+            }
+            );
 
             /* filter user */
             if (userId) {

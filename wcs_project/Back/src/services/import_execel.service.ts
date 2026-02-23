@@ -1,4 +1,4 @@
-import { EntityManager, FindOptionsWhere } from 'typeorm';
+import { EntityManager, FindOptionsWhere, In } from 'typeorm';
 import { AppDataSource } from '../config/app-data-source';
 import { ApiResponse } from '../models/api-response.model';
 import * as lang from '../utils/LangHelper';
@@ -309,7 +309,7 @@ export class ImportService {
                 status: StatusOrders.WAITING,
                 actor: reqUsername,
                 source: TaskSource.SYSTEM,
-                subsystem: TaskSubsystem.CORE,
+                message: "Created by importing usage data",
             },
                 item_id: stockItem.item_id,
                 loc_id: location.loc_id,
@@ -435,11 +435,43 @@ export class ImportService {
         }
     }
 
+
+    private async resolveTransferScenario(
+        manager: EntityManager,
+        fromLocId: number,
+        toLocId: number
+    ): Promise<'INTERNAL_OUT' | 'OUTBOUND' | 'INBOUND'> {
+
+        const locRepo = manager.getRepository(Locations);
+
+        const fromLoc = await locRepo.findOne({ where: { loc_id: fromLocId } });
+        const toLoc = await locRepo.findOne({ where: { loc_id: toLocId } });
+
+        if (!fromLoc || !toLoc) {
+            throw new Error('location not found');
+        }
+
+        if (fromLoc.store_type === toLoc.store_type) {
+            return 'INTERNAL_OUT';
+        }
+
+        if (fromLoc.store_type === 'NON_WCS') {
+            return 'INBOUND';
+        }
+
+        if (toLoc.store_type === 'NON_WCS') {
+            return 'OUTBOUND';
+        }
+
+        throw new Error('cannot resolve transfer scenario');
+    }
+
     async createReceiptJson(
         data: any[],
         reqUsername: string,
         manager?: EntityManager
     ): Promise<ApiResponse<any>> {
+
         const response = new ApiResponse<any>();
         const operation = 'ImportService.createReceiptJson';
 
@@ -447,572 +479,414 @@ export class ImportService {
         const useManager = manager || queryRunner?.manager;
 
         if (!useManager) {
-        return response.setIncomplete(lang.msg('validation.no_entityManager_or_queryRunner_available'));
-        }
-
-        if (!manager && queryRunner) {
-        await queryRunner.connect();
-        await queryRunner.startTransaction();
-        }
-
-        try {
-        if (!Array.isArray(data) || data.length === 0) {
-            throw new Error('Excel data is empty');
-        }
-
-        const ordersRepo = useManager.getRepository(Orders);
-        const receiptRepo = useManager.getRepository(OrdersReceipt);
-        const logRepo = useManager.getRepository(OrdersLog);
-        const stockRepo = useManager.getRepository(StockItems);
-        const locationRepo = useManager.getRepository(Locations);
-        const userRepo = useManager.getRepository(s_user);
-
-        /** เตรียม buffer */
-        const buffer: {
-            order: Partial<Orders>;
-            receipt: Partial<OrdersReceipt>;
-            log: Partial<OrdersLog>;
-            item_id: number;
-            loc_id: number;
-            to_loc_id?: number;   
-            plan_qty: number;
-        }[] = [];
-
-        const DEFAULT_ITEM_ID = 1;
-        const DEFAULT_LOC_ID = 4;
-        const DEFAULT_STORE_TYPE = 'T1';
-
-        const DEFAULT_TRANSFER_ITEM_ID = 26391;
-const DEFAULT_TRANSFER_LOC_ID = 4;
-
-
-        // =========================
-        // Phase 1: Validate + Lookup
-        // =========================
-        for (let i = 0; i < data.length; i++) {
-            const row = data[i];
-            const rowNo = row.excel_row_no ?? i + 1;
-
-        /** ---------- Required ---------- */
-        // const requiredFields = [
-        //     'transtype',
-        //     // 'loc',
-        //     // 'box_loc',
-        //     'stock_item',
-        //     'item_desc',
-        //     'cond',
-        //     'mc_code',
-        //     //'requested_at',
-        //     'unit_cost_handled',
-        //     //'po_num',
-        //     'object_id',
-        // ];
-const baseRequired = [
-  'transtype',
-  'stock_item',
-  'item_desc',
-  'cond',
-  'mc_code',
-  'unit_cost_handled',
-  'object_id',
-];
-
-let requiredFields = [...baseRequired];
-
-if (row.transtype === 'TRANSFER') {
-  requiredFields.push('from_store', 'from_bin', 'to_store', 'to_bin');
-} else {
-   requiredFields.push('to_store', 'to_bin');
-}
-
-        const FIELD_LABEL_MAP: Record<string, string> = {
-            transtype: 'TRANSTYPE',
-             from_store: 'FROM_STORE',
-            from_bin: 'FROM_BIN',
-             to_store: 'TO_STORE',
-            to_bin: 'TO_BINNUM',
-            stock_item: 'ITEMNUM',
-            item_desc: 'DESCRIPTION',
-            cond: 'CONDITIONCODE',
-            mc_code: 'MAINT. CONTRACT',
-            //requested_at: 'TRANSDATE',
-            unit_cost_handled: 'NEWCOST',
-            //po_num: 'PONUM',
-            object_id: 'OBJECT_ID',
-        };
-
-        for (const f of requiredFields) {
-            if (validate.isNullOrEmpty(row[f])) {
-                const label = FIELD_LABEL_MAP[f] ?? f;
-                throw new Error(`Row ${rowNo}: column ${label} is required`);
-            }
-        }
-
-         /** ---------- Location ---------- */
-        // const location = await locationRepo.findOne({
-        //     where: {
-        //     loc: row.loc,
-        //     box_loc: row.box_loc,
-        //     },
-        // });
-
-            
-        // if (!location) {
-        //     throw new Error(
-        //     `Row ${rowNo}: Location not found (${row.loc} / ${row.box_loc})`
-        //     );
-        // }
-
-         //mock up
-        let location = await locationRepo.findOne({
-            where: { loc: row.to_store, box_loc: row.to_bin }
-
-        });
-
-        if (!location) {
-            location = {
-                loc_id: DEFAULT_LOC_ID,
-                loc: row.loc,
-                box_loc: row.box_loc,
-                store_type: DEFAULT_STORE_TYPE,
-            } as Locations;
-        }
-        
-        /** ---------- Stock Item(ITEMNUM) ---------- */
-        // const stockItem = await stockRepo.findOne({
-        //     where: { stock_item: row.stock_item },
-        // });
-
-        // if (!stockItem) {
-        //     throw new Error(
-        //     `Row ${rowNo}: ITEMNUM not found (${row.stock_item})`
-        //     );
-        // }
-
-        //mock up
-        let stockItem = await stockRepo.findOne({
-            where: { stock_item: row.stock_item },
-        });
-
-        if (!stockItem) {
-            stockItem = {
-                item_id: DEFAULT_ITEM_ID,       // เช่น 1 หรือ item TEST
-                stock_item: row.stock_item,
-                item_desc: '[AUTO IMPORT]',
-            } as StockItems;
-        }
-
-        // replace item_desc
-        row.item_desc = stockItem.item_desc;
-        row.item_id = stockItem.item_id;
-
-        /** ---------- Requested Date ---------- */
-        // if (!row.requested_at) {
-        //     throw new Error(`Row ${rowNo}: TRANSDATE is required`);
-        // }
-
-        // let requestedAt: Date;
-
-        // try {
-        //     requestedAt = parseRequestedDate(row.requested_at);
-        // } catch (err: any) {
-        //     throw new Error(`Row ${rowNo}: TRANSDATE ${err.message}`);
-        // }
-
-        //mock up
-        const requestedAt = row.requested_at
-            ? parseRequestedDate(row.requested_at)
-            : new Date();
-
-        /** ---------- Requested User ---------- */
-        const requestedUser = await userRepo.findOne({
-        where: { username: reqUsername },
-        });
-
-        if (!requestedUser) {
-            throw new Error('Requested user not found');
-        }
-
-        /** ---------- TRANSTYPE ---------- */
-        let transtype = row.transtype;
-
-        if (!['RECEIPT', 'CURBALADJ', 'TRANSFER'].includes(transtype)) {
-            throw new Error(`Row ${rowNo}: Invalid TRANSTYPE (${transtype})`);
-        }
-
-        // map CURBALADJ → RECEIPT (business meaning)
-        const normalizedTranstype =
-            transtype === 'CURBALADJ' ? 'RECEIPT' : transtype;
-
-        /** ---------- CONDITION + PLAN_QTY ---------- */
-        let planQty = 0;
-        let qtyField = ''; // 👉 เก็บชื่อ column
-
-        if (transtype === 'RECEIPT') {
-            if (row.cond !== 'NEW') {
-                throw new Error(`Row ${rowNo}: RECEIPT allows only NEW condition`);
-            }
-            planQty = parseNumber(row.new_qty);
-            qtyField = 'NEW_QTY';
-        }
-
-        if (transtype === 'CURBALADJ') {
-            if (!['CAPITAL', 'RECOND', 'RECONDITION'].includes(row.cond)) {
-                throw new Error(
-                    `Row ${rowNo}: CURBALADJ allows only CAPITAL or RECONDITION`
-                );
-            }
-
-            if (row.cond === 'CAPITAL') {
-                planQty = parseNumber(row.cap_qty);
-                qtyField = 'CAP_QTY';
-            } else {
-                planQty = parseNumber(row.recond_qty);
-                qtyField = 'RECOND_QTY';
-            }
-        }
-
-        let fromLocation: Locations | null = null;
-        let toLocation: Locations | null = null;
-
-        if (transtype === 'TRANSFER') {
-
-            fromLocation = await locationRepo.findOne({
-                where: { loc: row.from_store, box_loc: row.from_bin },
-            });
-
-            // if (!fromLocation) {
-            //     throw new Error(`Row ${rowNo}: FROM location not found`);
-            // }
-            if (!fromLocation) {
-                fromLocation = {
-                    loc_id: DEFAULT_TRANSFER_LOC_ID,
-                    store_type: DEFAULT_STORE_TYPE,
-                } as Locations;
-
-                // ⭐ mark ว่าใช้ default
-                row.use_default_transfer = true;
-            }
-
-
-
-            toLocation = await locationRepo.findOne({
-                where: { loc: row.to_store, box_loc: row.to_bin },
-            });
-
-            // if (!toLocation) {
-            //     throw new Error(`Row ${rowNo}: TO location not found`);
-            // }
-            if (!toLocation) {
-                toLocation = {
-                    loc_id: DEFAULT_TRANSFER_LOC_ID,
-                    store_type: DEFAULT_STORE_TYPE,
-                } as Locations;
-
-                // ⭐ mark ว่าใช้ default
-                row.use_default_transfer = true;
-            }
-
-
-        }
-// ---------- CONDITION + PLAN_QTY (TRANSFER) ----------
-if (transtype === 'TRANSFER') {
-
-    if (!['NEW', 'CAPITAL', 'RECONDITION', 'RECOND'].includes(row.cond)) {
-        throw new Error(
-            `Row ${rowNo}: TRANSFER CONDITION must be NEW, CAPITAL or RECONDITION`
-        );
-    }
-
-    switch (row.cond) {
-
-        case 'NEW':
-            planQty = parseNumber(row.new_qty);
-            qtyField = 'NEW_QTY';
-            break;
-
-        case 'CAPITAL':
-            planQty = parseNumber(row.cap_qty);
-            qtyField = 'CAP_QTY';
-            break;
-
-        case 'RECOND':
-        case 'RECONDITION':
-            planQty = parseNumber(row.recond_qty);
-            qtyField = 'RECOND_QTY';
-            break;
-    }
-
-    if (!Number.isFinite(planQty) || planQty <= 0) {
-        throw new Error(
-            `Row ${rowNo}: ${qtyField} must be greater than 0`
-        );
-    }
-}
-
-
-        if (!Number.isFinite(planQty) || planQty <= 0) {
-            throw new Error(
-                `Row ${rowNo}: ${qtyField} must be greater than 0`
+            return response.setIncomplete(
+                lang.msg('validation.no_entityManager_or_queryRunner_available')
             );
         }
 
-        /*normalize unit_cost_handled */
-        // const rawCost = row.unit_cost_handled;
-
-        // const unitCostHandled = rawCost
-        //     ? Number(String(rawCost).replace(/,/g, ''))
-        //     : 0;
-
-        // if (!Number.isFinite(unitCostHandled)) {
-        //     throw new Error(
-        //         `Row ${rowNo}: invalid unit_cost_handled (${rawCost})`
-        //     );
-        // }
-
-        buffer.push({
-            order: {
-                mc_code: row.mc_code,
-                cond: row.cond,
-                plan_qty: planQty,
-                 execution_mode: ExecutionMode.MANUAL,
-
-                requested_at: requestedAt,
-                requested_by: reqUsername,
-                created_by_user_id: requestedUser.user_id,
-loc_id: transtype === 'TRANSFER'
-            ? fromLocation!.loc_id
-            : location.loc_id,
-                store_type:
-    transtype === 'TRANSFER'
-        ? fromLocation!.store_type
-        : location.store_type,
-
-                item_id:
-    transtype === 'TRANSFER' && row.use_default_transfer
-        ? DEFAULT_TRANSFER_ITEM_ID
-        : stockItem.item_id,
-
-
-                status: StatusOrders.WAITING,
-                type: normalizedTranstype,
-                
-                import_by: reqUsername,
-                 transfer_scenario:
-            transtype === 'TRANSFER' ? 'INTERNAL_OUT' : undefined,
-            },
-            receipt: {
-                po_num: row.po_num,
-                object_id: row.object_id,
-                unit_cost_handled: row.unit_cost_handled,
-            },
-            log: {
-    type: normalizedTranstype,
-    item_id:
-    transtype === 'TRANSFER' && row.use_default_transfer
-        ? DEFAULT_TRANSFER_ITEM_ID
-        : stockItem.item_id,
-
-    stock_item: stockItem.stock_item,
-    item_desc: stockItem.item_desc,
-
-    loc_id:
-        transtype === 'TRANSFER'
-            ? fromLocation!.loc_id
-            : location.loc_id,
-
-    loc:
-        transtype === 'TRANSFER'
-            ? fromLocation!.loc
-            : location.loc,
-
-    box_loc:
-        transtype === 'TRANSFER'
-            ? fromLocation!.box_loc
-            : location.box_loc,
-
-    cond: row.cond,
-    plan_qty: planQty,
-    status: StatusOrders.WAITING,
-    actor: reqUsername,
-    source: TaskSource.SYSTEM,
-    subsystem: TaskSubsystem.CORE,
-},
-
-                item_id:
-    transtype === 'TRANSFER' && row.use_default_transfer
-        ? DEFAULT_TRANSFER_ITEM_ID
-        : stockItem.item_id,
-
-                loc_id:
-    transtype === 'TRANSFER'
-        ? fromLocation!.loc_id
-        : location.loc_id,
-
-         to_loc_id: transtype === 'TRANSFER'
-        ? toLocation!.loc_id
-        : undefined,
-
-                plan_qty: planQty,
-        });
-        }
-
-        // =========================
-        // Phase 3: Save
-        // =========================
-        const savedOrders: Orders[] = [];
-
-        for (const row of buffer) {
-
-    if (row.order.type === 'TRANSFER') {
-
-        /*
-         ==========================
-         1️⃣ INTERNAL_OUT
-         ==========================
-        */
-        const orderOut = await ordersRepo.save(row.order);
-
-        await logRepo.save({
-    ...row.log,
-    order_id: orderOut.order_id,
-});
-        /*
-         ==========================
-         2️⃣ CLONE → INTERNAL_IN
-         ==========================
-        */
-const { order_id, ...cloneOrder } = row.order as Orders;
-
-const orderIn = await ordersRepo.save({
-    ...cloneOrder,
-    loc_id: row.to_loc_id!,   // override ให้เป็น to_loc
-    transfer_scenario: 'INTERNAL_IN',
-});
-
-
-        /*
-         ==========================
-         3️⃣ หา sum_inv_id
-         ==========================
-        */
-//        const where: FindOptionsWhere<InventorySum> = {
-//     item_id: row.item_id,
-//     loc_id: row.loc_id,
-// };
-
-// if (row.order.mc_code) {
-//     where.mc_code = row.order.mc_code;
-// }
-
-// if (row.order.cond) {
-//     where.cond = row.order.cond;
-// }
-
-// const sumInv = await useManager
-//     .getRepository(InventorySum)
-//     .findOne({ where });
-
-// ⭐ sync กับ default transfer logic
-const lookupItemId =
-    row.order.type === 'TRANSFER' && row.order.item_id === DEFAULT_TRANSFER_ITEM_ID
-        ? DEFAULT_TRANSFER_ITEM_ID
-        : row.item_id;
-
-const lookupLocId =
-    row.order.type === 'TRANSFER' && row.order.loc_id === DEFAULT_TRANSFER_LOC_ID
-        ? DEFAULT_TRANSFER_LOC_ID
-        : row.loc_id;
-
-const where: FindOptionsWhere<InventorySum> = {
-    item_id: lookupItemId,
-    loc_id: lookupLocId,
-};
-
-if (row.order.mc_code) {
-    where.mc_code = row.order.mc_code;
-}
-
-if (row.order.cond) {
-    where.cond = row.order.cond;
-}
-
-const sumInv = await useManager
-    .getRepository(InventorySum)
-    .findOne({ where });
-
-        const sumInvId = sumInv ? sumInv.sum_inv_id : 114;
-
-        /*
-         ==========================
-         4️⃣ Save OrdersTransfer
-         ==========================
-        */
-       
-
-        await useManager.getRepository(OrdersTransfer).save({
-            order_id: orderOut.order_id,
-            related_loc_id: row.to_loc_id,
-            related_order_id: orderIn.order_id,
-            transfer_status: 'WAITING',
-            sum_inv_id: sumInvId,
-            unit_cost_handled: row.receipt.unit_cost_handled,
-            object_id: row.receipt.object_id,
-        });
-
-        // 🔹 INTERNAL_IN record
-await useManager.getRepository(OrdersTransfer).save({
-    order_id: orderIn.order_id,
-     related_loc_id: row.to_loc_id,
-    unit_cost_handled: row.receipt.unit_cost_handled,
-    object_id: row.receipt.object_id,
-});
-
-
-        savedOrders.push(orderOut);
-        savedOrders.push(orderIn);
-       
-    } else {
-
-        // ===== receipt flow เดิม =====
-        const savedOrder = await ordersRepo.save(row.order);
-
-        await receiptRepo.save({
-            ...row.receipt,
-            order_id: savedOrder.order_id,
-        });
-
-        await logRepo.save({
-            ...row.log,
-            order_id: savedOrder.order_id,
-        });
-
-        savedOrders.push(savedOrder);
-    }
-}
-
-
         if (!manager && queryRunner) {
-            await queryRunner.commitTransaction();
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
         }
 
-        return response.setComplete(
-            lang.msgSuccessAction('created', 'orders'),
-            savedOrders
-        );
+        try {
+
+            if (!Array.isArray(data) || data.length === 0) {
+                throw new Error('Excel data is empty');
+            }
+
+            const ordersRepo = useManager.getRepository(Orders);
+            const receiptRepo = useManager.getRepository(OrdersReceipt);
+            const logRepo = useManager.getRepository(OrdersLog);
+            const stockRepo = useManager.getRepository(StockItems);
+            const locationRepo = useManager.getRepository(Locations);
+            const userRepo = useManager.getRepository(s_user);
+            const sumRepo = useManager.getRepository(InventorySum);
+            const transferRepo = useManager.getRepository(OrdersTransfer);
+
+            /** ==============================
+             *  🔥 PRELOAD SECTION
+             *  ============================== */
+
+            const requestedUser = await userRepo.findOne({
+                where: { username: reqUsername },
+            });
+
+            if (!requestedUser) {
+                throw new Error('Requested user not found');
+            }
+
+            // -------- Collect Unique Keys --------
+            const stockItemCodes = new Set<string>();
+            const locationKeys = new Set<string>();
+
+            for (const row of data) {
+                stockItemCodes.add(row.stock_item);
+
+                if (row.transtype === 'TRANSFER') {
+                    locationKeys.add(`${row.from_store}|${row.from_bin}`);
+                    locationKeys.add(`${row.to_store}|${row.to_bin}`);
+                } else {
+                    locationKeys.add(`${row.to_store}|${row.to_bin}`);
+                }
+            }
+
+            // -------- Preload Stock Items --------
+            const stockItems = await stockRepo.find({
+                where: {
+                    stock_item: In([...stockItemCodes]),
+                },
+            });
+
+            const stockMap = new Map(
+                stockItems.map(s => [s.stock_item, s])
+            );
+
+            // -------- Preload Locations (ONLY USED KEYS) --------
+            const locationConditions: { loc: string; box_loc: string }[] = [];
+
+            for (const key of locationKeys) {
+                const [loc, box_loc] = key.split('|');
+                locationConditions.push({ loc, box_loc });
+            }
+
+            let locations: Locations[] = [];
+
+            if (locationConditions.length > 0) {
+                const qb = locationRepo.createQueryBuilder('l');
+
+                locationConditions.forEach((cond, index) => {
+                    if (index === 0) {
+                        qb.where(
+                            '(l.loc = :loc0 AND l.box_loc = :box0)',
+                            {
+                                loc0: cond.loc,
+                                box0: cond.box_loc,
+                            }
+                        );
+                    } else {
+                        qb.orWhere(
+                            `(l.loc = :loc${index} AND l.box_loc = :box${index})`,
+                            {
+                                [`loc${index}`]: cond.loc,
+                                [`box${index}`]: cond.box_loc,
+                            }
+                        );
+                    }
+                });
+
+                locations = await qb.getMany();
+            }
+
+            const locationMap = new Map<string, Locations>();
+            for (const loc of locations) {
+                locationMap.set(`${loc.loc}|${loc.box_loc}`, loc);
+            }
+
+
+            // -------- Transfer Scenario Cache --------
+            const transferScenarioCache = new Map<string, string>();
+
+            /** ==============================
+             *  Phase 1: Validate + Buffer
+             *  ============================== */
+
+            const buffer: any[] = [];
+
+            for (let i = 0; i < data.length; i++) {
+
+                const row = data[i];
+                const rowNo = row.excel_row_no ?? i + 1;
+
+                /** Required validation (เหมือนเดิม) */
+                const baseRequired = [
+                    'transtype',
+                    'stock_item',
+                    'item_desc',
+                    'cond',
+                    'mc_code',
+                    'unit_cost_handled',
+                    'object_id',
+                ];
+
+                let requiredFields = [...baseRequired];
+
+                if (row.transtype === 'TRANSFER') {
+                    requiredFields.push('from_store', 'from_bin', 'to_store', 'to_bin');
+                } else {
+                    requiredFields.push('to_store', 'to_bin');
+                }
+
+                for (const f of requiredFields) {
+                    if (validate.isNullOrEmpty(row[f])) {
+                        throw new Error(`Row ${rowNo}: column ${f} is required`);
+                    }
+                }
+
+                if (!['RECEIPT', 'CURBALADJ', 'TRANSFER'].includes(row.transtype)) {
+                    throw new Error(`Row ${rowNo}: Invalid TRANSTYPE`);
+                }
+
+                const normalizedTranstype =
+                    row.transtype === 'CURBALADJ'
+                        ? 'RECEIPT'
+                        : row.transtype;
+
+                /** -------- STOCK ITEM -------- */
+                const stockItem = stockMap.get(row.stock_item);
+                if (!stockItem) {
+                    throw new Error(
+                        `Row ${rowNo}: ITEMNUM not found (${row.stock_item})`
+                    );
+                }
+
+                /** -------- LOCATION -------- */
+                const fromKey = `${row.from_store}|${row.from_bin}`;
+                const toKey = `${row.to_store}|${row.to_bin}`;
+
+                let fromLocation: Locations | undefined;
+                let toLocation: Locations | undefined;
+
+                if (row.transtype === 'TRANSFER') {
+
+                    fromLocation = locationMap.get(fromKey);
+                    if (!fromLocation) {
+                        throw new Error(`Row ${rowNo}: FROM location not found`);
+                    }
+
+                    toLocation = locationMap.get(toKey);
+                    if (!toLocation) {
+                        throw new Error(`Row ${rowNo}: TO location not found`);
+                    }
+
+                } else {
+
+                    toLocation = locationMap.get(toKey);
+                    if (!toLocation) {
+                        throw new Error(`Row ${rowNo}: TO location not found`);
+                    }
+                }
+
+                /** -------- PLAN_QTY -------- */
+                const planQty = parseNumber(
+                    row.new_qty || row.cap_qty || row.recond_qty
+                );
+
+                if (!Number.isFinite(planQty) || planQty <= 0) {
+                    throw new Error(`Row ${rowNo}: quantity must be > 0`);
+                }
+
+                /** -------- Transfer Scenario (cached) -------- */
+                let transferScenario;
+
+                if (row.transtype === 'TRANSFER') {
+
+                    const cacheKey = `${fromLocation!.loc_id}-${toLocation!.loc_id}`;
+
+                    if (!transferScenarioCache.has(cacheKey)) {
+                        const scenario = await this.resolveTransferScenario(
+                            useManager,
+                            fromLocation!.loc_id,
+                            toLocation!.loc_id
+                        );
+
+                        if (!scenario) {
+                            throw new Error(
+                                `Row ${rowNo}: cannot resolve transfer scenario`
+                            );
+                        }
+
+                        transferScenarioCache.set(cacheKey, scenario);
+                    }
+
+                    transferScenario =
+                        transferScenarioCache.get(cacheKey);
+                }
+
+                buffer.push({
+                    rowNo,
+                    order: {
+                        mc_code: row.mc_code,
+                        cond: row.cond,
+                        plan_qty: planQty,
+                        execution_mode: ExecutionMode.MANUAL,
+                        requested_at: new Date(),
+                        requested_by: reqUsername,
+                        created_by_user_id: requestedUser.user_id,
+                        loc_id:
+                            row.transtype === 'TRANSFER'
+                                ? fromLocation!.loc_id
+                                : toLocation!.loc_id,
+                        store_type:
+                            row.transtype === 'TRANSFER'
+                                ? fromLocation!.store_type
+                                : toLocation!.store_type,
+                        item_id: stockItem.item_id,
+                        status: StatusOrders.WAITING,
+                        type: normalizedTranstype,
+                        import_by: reqUsername,
+                        is_import: true,
+                        transfer_scenario: transferScenario,
+                    },
+                    receipt: {
+                        po_num: row.po_num,
+                        object_id: row.object_id,
+                        unit_cost_handled: row.unit_cost_handled,
+                    },
+                    log: {
+                        type: normalizedTranstype,
+                        item_id: stockItem.item_id,
+                        stock_item: stockItem.stock_item,
+                        item_desc: stockItem.item_desc,
+                        loc_id:
+                            row.transtype === 'TRANSFER'
+                                ? fromLocation!.loc_id
+                                : toLocation!.loc_id,
+                        cond: row.cond,
+                        plan_qty: planQty,
+                        status: StatusOrders.WAITING,
+                        actor: reqUsername,
+                        source: TaskSource.SYSTEM,
+                        message: "Created by importing receipt or transfer data",
+                    },
+                    item_id: stockItem.item_id,
+                    loc_id:
+                        row.transtype === 'TRANSFER'
+                            ? fromLocation!.loc_id
+                            : toLocation!.loc_id,
+                    to_loc_id:
+                        row.transtype === 'TRANSFER'
+                            ? toLocation!.loc_id
+                            : undefined,
+                    plan_qty: planQty,
+                });
+
+            }
+
+            /** ==============================
+             *  Phase 3: Save (เหมือนเดิม)
+             *  ============================== */
+
+            // =========================
+            // Phase 3: Save
+            // =========================
+            const savedOrders: Orders[] = [];
+
+            for (const row of buffer) {
+                if (row.order.type === 'TRANSFER') {
+
+                    const orderOut = await ordersRepo.save(row.order);
+
+                    await logRepo.save({
+                        ...row.log,
+                        order_id: orderOut.order_id,
+                    });
+
+                    // 🔥 CLONE เฉพาะ INTERNAL_OUT เท่านั้น
+                    let orderIn: Orders | null = null;
+
+                    if (row.order.transfer_scenario === 'INTERNAL_OUT') {
+
+                        const { order_id, ...cloneOrder } = row.order as Orders;
+
+                        orderIn = await ordersRepo.save({
+                            ...cloneOrder,
+                            loc_id: row.to_loc_id!,
+                            transfer_scenario: 'INTERNAL_IN',
+                        });
+                    }
+
+                    let sumInv: InventorySum | null = null;
+
+                    if (
+                        row.order.transfer_scenario === 'INTERNAL_OUT' ||
+                        row.order.transfer_scenario === 'OUTBOUND'
+                    ) {
+                        sumInv = await sumRepo.findOne({
+                            where: {
+                                item_id: row.item_id,
+                                loc_id: row.loc_id,
+                                mc_code: row.order.mc_code,
+                                cond: row.order.cond,
+                            },
+                        });
+
+                        if (!sumInv) {
+                            throw new Error(
+                                `Row ${row.rowNo}: InventorySum not found`
+                            );
+                        }
+                    }
+
+                    await transferRepo.save({
+                        order_id: orderOut.order_id,
+                        related_loc_id: row.to_loc_id,
+                        related_order_id: orderIn?.order_id,
+                        transfer_status: 'WAITING',
+                        sum_inv_id: sumInv?.sum_inv_id,
+                        unit_cost_handled: row.receipt.unit_cost_handled,
+                        object_id: row.receipt.object_id,
+                    });
+
+                    // 🔥 create reverse transfer record only if internal
+                    if (orderIn) {
+                        await transferRepo.save({
+                            order_id: orderIn.order_id,
+                            related_loc_id: row.loc_id,
+                            unit_cost_handled: row.receipt.unit_cost_handled,
+                            object_id: row.receipt.object_id,
+                        });
+                    }
+
+                    savedOrders.push(orderOut);
+                    if (orderIn) savedOrders.push(orderIn);
+
+                } else {
+
+                    const savedOrder = await ordersRepo.save(
+                        row.order
+                    );
+
+                    await receiptRepo.save({
+                        ...row.receipt,
+                        order_id: savedOrder.order_id,
+                    });
+
+                    await logRepo.save({
+                        ...row.log,
+                        order_id: savedOrder.order_id,
+                    });
+
+                    savedOrders.push(savedOrder);
+                }
+            }
+
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete(
+                lang.msgSuccessAction('created', 'orders'),
+                savedOrders
+            );
 
         } catch (error: any) {
+
             if (!manager && queryRunner) {
                 await queryRunner.rollbackTransaction();
             }
+
             console.error(`❌ ${operation}`, error);
+
             return response.setIncomplete(error.message);
+
         } finally {
             if (!manager && queryRunner) {
                 await queryRunner.release();
             }
         }
     }
+
 
     async createReturnJson(
         data: any[],
@@ -1262,7 +1136,6 @@ if (actual_qty !== null && planQty > actual_qty) {
 }
 
 
-
         buffer.push({
             order: {
                 mc_code: row.mc_code,
@@ -1298,7 +1171,7 @@ if (actual_qty !== null && planQty > actual_qty) {
                 status: StatusOrders.WAITING,
                 actor: reqUsername,
                 source: TaskSource.SYSTEM,
-                subsystem: TaskSubsystem.CORE,
+                message: "Created by importing return data",
             },
                 item_id: stockItem.item_id,
                 loc_id: location.loc_id,

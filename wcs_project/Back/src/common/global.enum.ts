@@ -105,6 +105,7 @@ export enum StatusWaiting {
 }
 
 export enum StatusOrders {
+    PLANNED = 'PLANNED',
     WAITING = 'WAITING',
     PENDING = 'PENDING', 
     QUEUE = 'QUEUE',

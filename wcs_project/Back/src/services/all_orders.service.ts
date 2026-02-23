@@ -91,7 +91,8 @@ export class AllOrdersService {
                         excludedStatuses: [
                             StatusOrders.WAITING,
                             StatusOrders.FINISHED,
-                            StatusOrders.COMPLETED
+                            StatusOrders.COMPLETED,
+                            StatusOrders.PLANNED
                         ],
                     });
                 }
@@ -227,7 +228,8 @@ export class AllOrdersService {
                         excludedStatuses: [
                             StatusOrders.WAITING,
                             StatusOrders.FINISHED,
-                            StatusOrders.COMPLETED
+                            StatusOrders.COMPLETED,
+                            StatusOrders.PLANNED
                         ],
                     });
                 }
@@ -373,7 +375,8 @@ export class AllOrdersService {
                         excludedStatuses: [
                             StatusOrders.WAITING,
                             StatusOrders.FINISHED,
-                            StatusOrders.COMPLETED
+                            StatusOrders.COMPLETED,
+                            StatusOrders.PLANNED
                         ],
                     });
                 }
@@ -497,43 +500,12 @@ export class AllOrdersService {
                     END AS status
                     `,
 
-                    /* from_loc + from_box_loc*/
-                    `
-                    CASE
-                        WHEN order.transfer_scenario IN ('OUTBOUND', 'INTERNAL_OUT')
-                            THEN COALESCE(orderLoc.loc, '-')
-                        ELSE '-'
-                    END AS from_loc
-                    `,
-                    `
-                    CASE
-                        WHEN order.transfer_scenario IN ('OUTBOUND', 'INTERNAL_OUT')
-                            THEN COALESCE(orderLoc.box_loc, '-')
-                        ELSE '-'
-                    END AS from_box_loc
-                    `,
+                    //location
+                    'COALESCE(orderLoc.loc, "-") AS from_loc',
+                    'COALESCE(orderLoc.box_loc, "-") AS from_box_loc',
 
-
-
-                    /* to_loc + to_box_loc*/
-                    `
-                    CASE
-                        WHEN order.transfer_scenario = 'INBOUND'
-                            THEN COALESCE(orderLoc.loc, '-')
-                        WHEN order.transfer_scenario = 'INTERNAL_OUT'
-                            THEN COALESCE(relatedLoc.loc, '-')
-                        ELSE '-'
-                    END AS to_loc
-                    `,
-                    `
-                    CASE
-                        WHEN order.transfer_scenario = 'INBOUND'
-                            THEN COALESCE(orderLoc.box_loc, '-')
-                        WHEN order.transfer_scenario = 'INTERNAL_OUT'
-                            THEN COALESCE(relatedLoc.box_loc, '-')
-                        ELSE '-'
-                    END AS to_box_loc
-                    `,
+                    'COALESCE(relatedLoc.loc, "-") AS to_loc',
+                    'COALESCE(relatedLoc.box_loc, "-") AS to_box_loc',
 
                 ])
 
@@ -546,49 +518,37 @@ export class AllOrdersService {
                 .cache(false);
 
             // 🔥 true = status Waiting / false = all status except FINISHED/COMPLETED / undefined = all status
-            // if (options?.isExecution === true) {
-            //         // เฉพาะ WAITING
-            //         query.andWhere(`
-            //             (
-            //                 (order.transfer_scenario = 'INTERNAL_OUT'
-            //                     AND transfer.transfer_status = :waitingTransfer)
-            //                 OR
-            //                 (order.transfer_scenario != 'INTERNAL_OUT'
-            //                     AND order.status = :waitingOrder)
-            //             )
-            //         `, {
-            //             waitingTransfer: StatusOrders.WAITING,
-            //             waitingOrder: StatusOrders.WAITING,
-            //         });
-           if (options?.isExecution === true) {
-    query.andWhere(`
-        (
-            CASE
-                WHEN order.transfer_scenario = 'INTERNAL_OUT'
-                    THEN transfer.transfer_status
-                ELSE order.status
-            END
-        ) = :waitingStatus
-    `, {
-        waitingStatus: StatusOrders.WAITING,
-    });
-} else if (options?.isExecution === false) {
-    query.andWhere(`
-        (
-            CASE
-                WHEN order.transfer_scenario = 'INTERNAL_OUT'
-                    THEN transfer.transfer_status
-                ELSE order.status
-            END
-        ) NOT IN (:...excludedStatuses)
-    `, {
-        excludedStatuses: [
-            StatusOrders.WAITING,
-            StatusOrders.FINISHED,
-            StatusOrders.COMPLETED,
-        ],
-    });
-}
+            if (options?.isExecution === true) {
+                query.andWhere(`
+                    (
+                        (order.transfer_scenario = 'INTERNAL_OUT'
+                            AND transfer.transfer_status = :waitingStatus)
+                        OR
+                        (order.transfer_scenario != 'INTERNAL_OUT'
+                            AND order.status = :waitingStatus)
+                    )
+                `, {
+                    waitingStatus: StatusOrders.WAITING,
+                });
+
+            } else if (options?.isExecution === false) {
+                query.andWhere(`
+                    (
+                        (order.transfer_scenario = 'INTERNAL_OUT'
+                            AND transfer.transfer_status NOT IN (:...excludedStatuses))
+                        OR
+                        (order.transfer_scenario != 'INTERNAL_OUT'
+                            AND order.status NOT IN (:...excludedStatuses))
+                    )
+                `, {
+                    excludedStatuses: [
+                        StatusOrders.WAITING,
+                        StatusOrders.FINISHED,
+                        StatusOrders.COMPLETED,
+                        StatusOrders.PLANNED
+                    ],
+                });
+            }
 
             // undefined → ไม่ใส่ where (ได้ทุกสถานะ)
 
@@ -817,59 +777,31 @@ export class AllOrdersService {
                     // ---------- FROM ----------
                     `
                     CASE
-                        -- USAGE → from = order.loc_id
-                        WHEN order.type = 'USAGE'
+                        WHEN order.type IN ('USAGE','TRANSFER')
                             THEN fromLoc.loc
-
-                        -- TRANSFER OUTBOUND
-                        WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario = 'OUTBOUND'
-                            THEN fromLoc.loc
-
-                        -- TRANSFER INTERNAL_OUT
-                        WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario = 'INTERNAL_OUT'
-                            THEN fromLoc.loc
-
                         ELSE NULL
                     END AS from_loc
+
                     `,
                     `
                     CASE
-                        WHEN order.type = 'USAGE'
+                        WHEN order.type IN ('USAGE','TRANSFER')
                             THEN fromLoc.box_loc
-
-                        WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario = 'OUTBOUND'
-                            THEN fromLoc.box_loc
-
-                        WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario = 'INTERNAL_OUT'
-                            THEN fromLoc.box_loc
-
                         ELSE NULL
                     END AS from_box_loc
+
                     `,
 
                     // ---------- TO ----------
                     `
                     CASE
-                        -- RECEIPT
                         WHEN order.type = 'RECEIPT'
                             THEN fromLoc.loc
 
-                        -- RETURN
                         WHEN order.type = 'RETURN'
                             THEN fromLoc.loc
 
-                        -- TRANSFER INBOUND → ใช้ order.loc_id
                         WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario = 'INBOUND'
-                            THEN fromLoc.loc
-
-                        -- TRANSFER INTERNAL_OUT → ใช้ related_loc_id
-                        WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario = 'INTERNAL_OUT'
                             THEN toLoc.loc
 
                         ELSE NULL
@@ -884,18 +816,11 @@ export class AllOrdersService {
                             THEN fromLoc.box_loc
 
                         WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario = 'INBOUND'
-                            THEN fromLoc.box_loc
-
-                        WHEN order.type = 'TRANSFER'
-                            AND order.transfer_scenario = 'INTERNAL_OUT'
                             THEN toLoc.box_loc
 
                         ELSE NULL
                     END AS to_box_loc
                     `,
-
-
                     "DATE_FORMAT(order.requested_at, '%d/%m/%Y') AS requested_at",
                 ])
 
@@ -952,6 +877,24 @@ export class AllOrdersService {
                     waitingOrder: StatusOrders.WAITING,
                 });
             }
+
+            //ไม่เอา PLANNED เลย
+            query.andWhere(`
+                (
+                    (order.type = 'TRANSFER'
+                        AND order.transfer_scenario = 'INTERNAL_OUT'
+                        AND transfer.transfer_status != :plannedStatus)
+                    OR
+                    (
+                        NOT (order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT')
+                        AND order.status != :plannedStatus
+                    )
+                )
+            `, {
+                plannedStatus: StatusOrders.PLANNED,
+            });
+
 
             // ----------------------------
             // exclude INTERNAL_IN (TRANSFER only)

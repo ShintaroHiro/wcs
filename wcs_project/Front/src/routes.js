@@ -271,12 +271,12 @@ export async function generateRoutesFromApi(apiRoutes) {
     }
 
     // ❌ ถ้าไม่ใช่ WCS → ซ่อน inventory menus
-    if (
-      storeType !== "WCS" &&
-      ["inventory","inventory-profile", "inventory-balance","inventory-location","events-page"].includes(route.key)
-    ) {
-      return false;
-    }
+    // if (
+    //   storeType !== "WCS" &&
+    //   ["inventory","inventory-profile", "inventory-balance","inventory-location","events-page"].includes(route.key)
+    // ) {
+    //   return false;
+    // }
 
     return true;
   });

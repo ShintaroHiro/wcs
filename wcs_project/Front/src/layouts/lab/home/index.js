@@ -69,11 +69,13 @@ const HomePage = () => {
     { title: "Transfer", path: "/transfer" },
     { title: "Status", path: "/status" },
     { title: "Check In & Out", path: "/checkout-t1" },
+    { title: "Inventory", path: "/inventory" },
+    {title: "Events", path: "/events"}
     // ✅ แสดงเฉพาะ WCS
-    ...(storeType === "WCS" ? [
-      { title: "Inventory", path: "/inventory" },
-      {title: "Events", path: "/events"}
-    ] : []),
+    // ...(storeType === "WCS" ? [
+    //   { title: "Inventory", path: "/inventory" },
+    //   {title: "Events", path: "/events"}
+    // ] : []),
   ];
 
   // 🧠 Logic เพื่อเลือกเมนูตาม Role
@@ -141,7 +143,7 @@ const HomePage = () => {
                           setOpenReturnHome(true); // 👈 สำคัญ
                         } else if (item.title === "Transfer" && userRole === "STORE") {
                           setOpenTransferHome(true); // 👈 สำคัญ
-                        } else if (item.title === "Inventory" && storeType === "WCS") {
+                        } else if (item.title === "Inventory" && userRole === "STORE") {
                           setOpenInvHome(true); // 👈 สำคัญ
                         } else {
                           navigate(item.path);

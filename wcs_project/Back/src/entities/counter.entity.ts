@@ -9,7 +9,7 @@ export class Counter {
     @Column({ type: 'varchar', length: 32, nullable: true })
     code?: string;
 
-    /** Empty / WAITING_AMR / READY_TO_PICK / ERROR */
+    /** Empty / WAITING_AMR / READY_TO_PICK(ยังไม่ได้ใช้) / ERROR /WAITING_PICK */
     @Column({ type: 'enum', enum: ['EMPTY','WAITING_AMR','READY_TO_PICK','ERROR','WAITING_PICK'] })
     status!: string;
 

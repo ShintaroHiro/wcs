@@ -59,6 +59,19 @@ class EventsAPI {
         }
     }
 
+    static async clearOrderError(event_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/events/clear-order-error/${event_id}`;
+
+            const response = await ApiProvider.postData(endpoint, {}, token);
+            return response;
+        } catch (error) {
+            console.error("Clear in Order Error:", error);
+            throw error;
+        }
+    }
+
     static async getAll() {
         try {
         const token = GlobalVar.getToken();

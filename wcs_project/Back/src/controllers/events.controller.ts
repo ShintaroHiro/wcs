@@ -61,6 +61,57 @@ export const setOrderError = async (req: Request, res: Response) => {
     }
 };
 
+export const clearOrderError = async (req: Request, res: Response) => {
+    const operation = 'EventsController.clearOrderError';
+
+    // 🔹 ดึง username จาก token
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgRequiredUsername()
+        );
+    }
+
+    // 🔹 รับ event_id จาก path
+    const event_id_str = req.params.event_id;
+    const event_id = Number(event_id_str);
+
+    if (isNaN(event_id)) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgInvalidParameter()
+        );
+    }
+
+    try {
+
+        const response = await eventsService.clearOrderError(
+            event_id,
+            reqUsername
+        );
+
+        return ResponseUtils.handleCustomResponse(
+            res,
+            response,
+            HttpStatus.OK
+        );
+
+    } catch (error: any) {
+
+        console.error(`Error during ${operation}:`, error);
+
+        return ResponseUtils.handleErrorUpdate(
+            res,
+            operation,
+            error.message,
+            'execution.clearOrderError',
+            true,
+            reqUsername
+        );
+    }
+};
+
 export const getAll = async (req: Request, res: Response) => {
     const operation = 'EventsController.getAll';
 

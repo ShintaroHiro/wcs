@@ -171,6 +171,166 @@ export class EventsService {
         return response.setComplete("Order set to ERROR", { order_id });
     }
 
+    async clearOrderError(
+        event_id: number,
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+        const operation = 'EventsService.clearOrderError';
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager ?? queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete("No entity manager available");
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        try {
+
+            const ordersRepo = useManager.getRepository(Orders);
+            const wrsRepo = useManager.getRepository(WRS);
+            const counterRepo = useManager.getRepository(Counter);
+            const eventRepo = useManager.getRepository(Events);
+
+            /* 1️⃣ LOCK EVENT */
+            const event = await eventRepo.findOne({
+                where: { id: event_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!event)
+                throw new Error("Event not found");
+
+            if (event.is_cleared)
+                throw new Error("Event already cleared");
+
+            if (!event.related_id)
+                throw new Error("Event does not contain related WRS id");
+
+            const wrs_id = event.related_id;
+
+            /* 2️⃣ LOCK WRS (by wrs_id) */
+            const wrs = await wrsRepo.findOne({
+                where: { wrs_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!wrs)
+                throw new Error("WRS not found");
+
+            if (!wrs.current_order_id)
+                throw new Error("WRS does not contain current order");
+
+            const order_id = wrs.current_order_id;
+
+            /* 3️⃣ LOCK ORDER */
+            const order = await ordersRepo.findOne({
+                where: { order_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!order)
+                throw new Error("Order not found");
+
+            if (order.status !== StatusOrders.ERROR)
+                throw new Error("Order is not in ERROR state");
+
+            /* 4️⃣ UPDATE ORDER → PROCESSING */
+            order.status = StatusOrders.PROCESSING;
+            await ordersRepo.save(order);
+
+            /* 5️⃣ INSERT ORDER LOG */
+            await logService.logTaskEvent(
+                useManager,
+                order,
+                {
+                    actor: reqUsername,
+                    status: StatusOrders.PROCESSING,
+                }
+            );
+
+            /* 6️⃣ CLEAR EVENT */
+            event.is_cleared = true;
+            event.status = "CLEARED";
+            event.cleared_by = reqUsername;
+            event.cleared_at = new Date();
+            await eventRepo.save(event);
+
+            /* 6.1️⃣ CREATE CLEAR LOG EVENT */
+            await eventService.createEvent(
+                useManager,   // 👈 ต้องส่ง manager เดียวกัน
+                {
+                    type: 'EVENT',
+                    category: 'WRS',
+                    event_code: 'AMR_ERROR_CLEARED',
+                    message: `AMR-${wrs.wrs_code} Error Cleared`,
+                    level: 'INFO',
+                    status: 'CLEARED',
+                    related_id: event_id,   // 👈 ผูกกับ event เดิม
+                    created_by: reqUsername
+                }
+            );
+
+            /* 7️⃣ UPDATE WRS → DELIVERING (if previously ERROR) */
+            if (wrs.wrs_status === 'ERROR') {
+                wrs.wrs_status = 'DELIVERING';
+                await wrsRepo.save(wrs);
+            }
+
+            /* 8️⃣ INSERT WRS LOG */
+            await wrsLogService.createLog(useManager, {
+                wrs_id: wrs.wrs_id,
+                order_id: order.order_id,
+                status: 'DELIVERING',
+                operator: ControlSource.MANUAL,
+                event: 'Clear Error',
+                message: `Order ${order.order_id} resumed by ${reqUsername}`
+            });
+
+            /* 9️⃣ UPDATE COUNTER → WAITING_AMR */
+            const counter = await counterRepo.findOne({
+                where: { current_order_id: order_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (counter && counter.status === 'ERROR') {
+                counter.status = 'WAITING_AMR';
+                await counterRepo.save(counter);
+            }
+
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete(
+                "Order error cleared and resumed successfully",
+                { order_id }
+            );
+
+        } catch (error: any) {
+
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+
+            console.error(`Error during ${operation}:`, error);
+            return response.setIncomplete(error.message);
+
+        } finally {
+
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
+        }
+    }
+
 
     async getAll(manager?: EntityManager): Promise<ApiResponse<any | null>> {
         const response = new ApiResponse<any | null>();

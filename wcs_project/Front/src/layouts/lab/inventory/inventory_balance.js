@@ -23,9 +23,6 @@ const InventoryBalance = () => {
     const [itemsList, setItemsList] = useState([]);
     const [filteredItems, setFilteredItems] = useState([]);
 
-    const [locsList, setLocsList] = useState([]);
-    const [filteredLocs, setFilteredLocs] = useState([]);
-
     const [searchItems, setSearchItems] = useState({ 
         stock_item: "",
         item_desc: "",
@@ -44,10 +41,6 @@ const InventoryBalance = () => {
     const [filterCondition, setFilterCondition] = useState("");
     const [filterLocation, setFilterLocation] = useState("");
 
-    const [viewMode, setViewMode] = useState("item"); 
-    // item = default
-    // bin = bin view
-
     //stock
     const fetchDataAll = async () => {
         try {
@@ -65,30 +58,6 @@ const InventoryBalance = () => {
 
     useEffect(() => {
         fetchDataAll();
-    }, []);
-
-    //bin location
-    const fetchLocDataAll = async () => {
-        try {
-            const response = await InventoryAPI.getBoxAll();
-
-            const list = Array.isArray(response?.data) ? response.data : [];
-
-            const mappedList = list.map((locs) => ({
-            ...locs,
-            }));
-
-            setLocsList(mappedList);
-        } catch (error) {
-            console.error("Error fetching data: ", error);
-            setLocsList([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchLocDataAll();
     }, []);
 
      //ฟังก์ชัน พิมพ์เล็ก / ใหญ่ , รองรับ number, null, undefined , trim
@@ -121,25 +90,6 @@ const InventoryBalance = () => {
         setFilteredItems(filtered);
     }, [itemsList, searchItems, filterCondition, filterLocation]);
 
-    //bin
-    useEffect(() => {
-        const filtered = locsList.filter((item) =>
-            includesIgnoreCase(item.stock_item, searchItems.stock_item) &&
-            includesIgnoreCase(item.item_desc, searchItems.item_desc) &&
-            includesIgnoreCase(item.mc_code, searchItems.mc_code) &&
-            includesIgnoreCase(item.sum_inv_qty, searchItems.total_inv_qty) &&
-            includesIgnoreCase(item.unit_cost_sum_inv, searchItems.avg_unit_cost) &&
-            includesIgnoreCase(item.total_cost_sum_inv, searchItems.total_cost_inv) &&
-            includesIgnoreCase(item.loc, searchItems.loc) &&
-            includesIgnoreCase(item.box_loc, searchItems.box_loc) &&
-            (filterCondition === "" || item.cond === filterCondition) &&
-            (filterLocation === "" || item.store_type === filterLocation)
-        );
-
-        setFilteredLocs(filtered);
-    }, [locsList, searchItems, filterCondition, filterLocation]);
-
-
     // by item ที่ต้องเหมือนกันทุกประการ ถึงรวม
     const columns = [
         { field: "stock_item", label: "Stock Item No." },
@@ -154,20 +104,6 @@ const InventoryBalance = () => {
         { field: "item_status", label: "Status" },
         { field: "org_id", label: "ORG ID" },
         { field: "dept", label: "Department" },
-    ];
-
-
-    const columnsLoc = [
-        { field: "store_type", label: "Store Location" },
-        { field: "loc", label: "Location" },
-        { field: "box_loc", label: "Box Location" },
-        { field: "stock_item", label: "Stock Item No." },
-        { field: "item_desc", label: "Stock Item Description" },
-        { field: "mc_code", label: "Maintenance Contract" },
-        { field: "cond", label: "Condition" },
-        { field: "unit_cost_sum_inv", label: "Average Unit Cost"},
-        { field: "total_cost_sum_inv", label: "Total Cost" },
-        { field: "sum_inv_qty", label: "Inventory Quantity" },
     ];
 
     return (
@@ -198,20 +134,7 @@ const InventoryBalance = () => {
         </MDBox>
 
         {/* 🟠 ขวา : ปุ่ม (ซ้าย / ขวา) */}
-        <MDBox display="flex" justifyContent="flex-end" gap={2} mb={3}>
-            {/* ซ้าย : Create */}
-            <MDButton
-                variant="contained"
-                color="info"
-                onClick={() =>
-                    setViewMode((prev) => (prev === "item" ? "bin" : "item"))
-                }
-                >
-                {viewMode === "item"
-                    ? "Change To Box Location View"
-                    : "Change To Stock Item View"}
-            </MDButton>
-
+        <MDBox display="flex" justifyContent="flex-end" mb={3}>
             {/* ขวา : Import */}
             <MDButton variant="contained" color="info">
             Import
@@ -515,9 +438,9 @@ const InventoryBalance = () => {
             <div>Loading...</div>
             ) : (
                 <ReusableDataTable
-                    columns={viewMode === "item" ? columns : columnsLoc}
-                    rows={viewMode === "item" ? filteredItems : filteredLocs}
-                    idField={viewMode === "item" ? "row_key" : "sum_inv_id"}
+                    columns={columns}
+                    rows={filteredItems}
+                    idField="row_key"
                     defaultPageSize={10}
                     pageSizeOptions={[10, 25, 50]}
                 />

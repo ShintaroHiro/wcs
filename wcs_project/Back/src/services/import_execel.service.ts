@@ -636,7 +636,7 @@ export class ImportService {
                 const stockItem = stockMap.get(row.stock_item);
                 if (!stockItem) {
                     throw new Error(
-                        `Row ${rowNo}: ITEMNUM not found (${row.stock_item})`
+                        `Row ${rowNo}: STOCK ITEM not found (${row.stock_item})`
                     );
                 }
 
@@ -802,6 +802,15 @@ export class ImportService {
                         row.order.transfer_scenario === 'INTERNAL_OUT' ||
                         row.order.transfer_scenario === 'OUTBOUND'
                     ) {
+    //                     console.log("==== DEBUG InventorySum WHERE ====");
+    // console.log("rowNo:", row.rowNo);
+    // console.log("item_id:", row.item_id, typeof row.item_id);
+    // console.log("loc_id:", row.loc_id, typeof row.loc_id);
+    // console.log("mc_code:", row.order?.mc_code, typeof row.order?.mc_code);
+    // console.log("cond:", row.order?.cond, typeof row.order?.cond);
+    // console.log("transfer_scenario:", row.order?.transfer_scenario);
+    // console.log("==================================");
+
                         sumInv = await sumRepo.findOne({
                             where: {
                                 item_id: row.item_id,
@@ -810,6 +819,8 @@ export class ImportService {
                                 cond: row.order.cond,
                             },
                         });
+
+                        // console.log("InventorySum result:", sumInv);
 
                         if (!sumInv) {
                             throw new Error(

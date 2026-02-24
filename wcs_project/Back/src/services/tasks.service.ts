@@ -1170,117 +1170,117 @@ export class OrchestratedTaskService {
     }
 
     async handleErrorOrderItemWRS(
-    event_id: number,
-    items: { order_id: number; actual_qty: number }[],
-    reqUsername: string
-): Promise<ApiResponse<any>> {
+        event_id: number,
+        items: { order_id: number; actual_qty: number }[],
+        reqUsername: string
+    ): Promise<ApiResponse<any>> {
 
-    const response = new ApiResponse<any>();
+        const response = new ApiResponse<any>();
 
-    const counterIds: number[] = [];
+        const counterIds: number[] = [];
 
-    try {
+        try {
 
-        /* =========================
-           MAIN TRANSACTION
-        ========================== */
-        await AppDataSource.transaction(async (manager) => {
+            /* =========================
+            MAIN TRANSACTION
+            ========================== */
+            await AppDataSource.transaction(async (manager) => {
 
-            const ordersRepo = manager.getRepository(Orders);
-            const eventRepo = manager.getRepository(Events);
+                const ordersRepo = manager.getRepository(Orders);
+                const eventRepo = manager.getRepository(Events);
 
-            /* 1️⃣ LOCK EVENT ROW */
-            const event = await eventRepo.findOne({
-                where: { id: event_id },
-                lock: { mode: "pessimistic_write" }
-            });
-
-            if (!event)
-                throw new Error("Event not found");
-
-            if (event.is_cleared)
-                throw new Error("Event already cleared");
-
-            /* 2️⃣ LOOP PROCESS ORDERS */
-            for (const item of items) {
-
-                const order = await ordersRepo.findOne({
-                    where: { order_id: item.order_id },
+                /* 1️⃣ LOCK EVENT ROW */
+                const event = await eventRepo.findOne({
+                    where: { id: event_id },
                     lock: { mode: "pessimistic_write" }
                 });
 
-                if (!order)
-                    throw new Error(`Order ${item.order_id} not found`);
+                if (!event)
+                    throw new Error("Event not found");
 
-                // if (order.status !== StatusOrders.ERROR)
-                //     throw new Error(`Order ${item.order_id} not in ERROR`);
+                if (event.is_cleared)
+                    throw new Error("Event already cleared");
 
-                const result = await this.finishOrderCore(
-                    manager,
-                    order,
-                    item.actual_qty,
-                    reqUsername
+                /* 2️⃣ LOOP PROCESS ORDERS */
+                for (const item of items) {
+
+                    const order = await ordersRepo.findOne({
+                        where: { order_id: item.order_id },
+                        lock: { mode: "pessimistic_write" }
+                    });
+
+                    if (!order)
+                        throw new Error(`Order ${item.order_id} not found`);
+
+                    // if (order.status !== StatusOrders.ERROR)
+                    //     throw new Error(`Order ${item.order_id} not in ERROR`);
+
+                    const result = await this.finishOrderCore(
+                        manager,
+                        order,
+                        item.actual_qty,
+                        reqUsername
+                    );
+
+                    if (result.counterId)
+                        counterIds.push(result.counterId);
+                }
+
+                /* 3️⃣ CLEAR EVENT (1 ROW ONLY) */
+                await eventRepo.update(
+                    { id: event_id },
+                    {
+                        is_cleared: true,
+                        cleared_by: reqUsername,
+                        cleared_at: new Date()
+                    }
                 );
 
-                if (result.counterId)
-                    counterIds.push(result.counterId);
-            }
+            }); // 🔥 COMMIT HERE
 
-            /* 3️⃣ CLEAR EVENT (1 ROW ONLY) */
-            await eventRepo.update(
-                { id: event_id },
-                {
-                    is_cleared: true,
-                    cleared_by: reqUsername,
-                    cleared_at: new Date()
-                }
-            );
-
-        }); // 🔥 COMMIT HERE
-
-    } catch (error: any) {
-        return response.setIncomplete(error.message);
-    }
-
-    /* =========================
-       POST COMMIT
-    ========================== */
-    try {
-
-        /* 4️⃣ CREATE 1 CLEAR EVENT */
-        await eventService.createEvent(null,{
-            type: 'EVENT',
-            category: 'WRS',
-            event_code: 'AMR_ERROR_CLEARED',
-            message: `AMR Error Cleared`,
-            level: 'INFO',
-            status: 'CLEARED',
-            related_id: event_id,
-            created_by: reqUsername
-        });
-
-        /* 5️⃣ RESET ALL COUNTERS */
-        for (const counterId of counterIds) {
-            await runtimeService.reset(counterId);
-            broadcast(counterId, {
-                counter_id: counterId,
-                actualQty: 0
-            });
+        } catch (error: any) {
+            return response.setIncomplete(error.message);
         }
 
-        /* 6️⃣ CALL NEXT QUEUE AFTER EVERYTHING */
-        await AppDataSource.transaction(async (manager) => {
-            await this.callNextQueueT1(manager);
+        /* =========================
+        POST COMMIT
+        ========================== */
+        try {
+
+            /* 4️⃣ CREATE 1 CLEAR EVENT */
+            await eventService.createEvent(null,{
+                type: 'EVENT',
+                category: 'WRS',
+                event_code: 'AMR_ERROR_CLEARED',
+                message: `AMR Error Cleared`,
+                level: 'INFO',
+                status: 'CLEARED',
+                related_id: event_id,
+                created_by: reqUsername
+            });
+
+            /* 5️⃣ RESET ALL COUNTERS */
+            for (const counterId of counterIds) {
+                await runtimeService.reset(counterId);
+                broadcast(counterId, {
+                    counter_id: counterId,
+                    actualQty: 0
+                });
+            }
+
+            /* 6️⃣ CALL NEXT QUEUE AFTER EVERYTHING */
+            await AppDataSource.transaction(async (manager) => {
+                await this.callNextQueueT1(manager);
+            });
+
+        } catch (e) {
+            console.error("Post-commit error:", e);
+        }
+
+        return response.setComplete("ERROR orders handled", {
+            event_id
         });
-
-    } catch (e) {
-        console.error("Post-commit error:", e);
     }
-
-    return response.setComplete("ERROR orders handled", {
-        event_id
-    });
-}
 
 
     async callNextQueueT1(manager: EntityManager) {

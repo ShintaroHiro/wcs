@@ -43,6 +43,37 @@ router.post(
     eventsController.setOrderError
 );
 
+/**
+ * @swagger
+ * /api/events/clear-order-error/{event_id}:
+ *   post:
+ *     summary: เปลี่ยนสถานะ Order เป็น CLEAR และอัปเดต WRS, Counter, Event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *       - in: path
+ *         name: event_id
+ *         required: true
+ *         schema:
+ *           type: number
+ *         description: ไอดีของ event ที่ต้องการ CLEAR
+ *     responses:
+ *       200:
+ *         description: Clear order error และ resume workflow
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้อง
+ *       404:
+ *         description: ไม่พบ Order
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.post(
+    '/clear-order-error/:event_id',
+    authenticateToken,
+    eventsController.clearOrderError
+);
 
 /**
  * @swagger

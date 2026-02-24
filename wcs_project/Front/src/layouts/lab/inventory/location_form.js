@@ -1,9 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogTitle, DialogContent, DialogActions, Grid } from "@mui/material";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
+  FormControl,
+} from "@mui/material";
 import PropTypes from "prop-types";
 import MDInput from "components/MDInput";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
+import { StyledMenuItem, StyledSelect } from "common/Global.style";
+import { StoreType } from "common/dataMain";
 
 export default function LocationsFormDialog({
   open,
@@ -57,10 +66,8 @@ export default function LocationsFormDialog({
   const validateAll = () => {
     const next = {};
 
-    if (!form.store_type.trim()) next.store_type = "Source Store Location is required.";
-
+    if (!form.store_type) next.store_type = "Source Store Location is required.";
     if (!form.loc.trim()) next.loc = "Source Location is required.";
-
     if (!form.box_loc.trim()) next.box_loc = "Source Box Location is required.";
 
     setErrors(next);
@@ -85,27 +92,11 @@ export default function LocationsFormDialog({
     }
   };
 
-  const getLabel = (field) => {
-    if (field === "store_type") return "Source Store Location";
-    if (field === "loc") return "Source Location";
-    if (field === "box_loc") return "Source Box Location";
-    return "";
-  };
-
-  const getPlaceholder = (field) => {
-    if (field === "store_type") return "Enter source store location";
-    if (field === "loc") return "Enter source location";
-    if (field === "box_loc") return "Enter source box location";
-    return "";
-  };
-
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      PaperProps={{
-        sx: { borderRadius: 5 },
-      }}
+      PaperProps={{ sx: { borderRadius: 5 } }}
       fullWidth
       maxWidth="xs"
     >
@@ -113,30 +104,84 @@ export default function LocationsFormDialog({
 
       <DialogContent dividers>
         <Grid container spacing={2}>
-          {["store_type", "loc", "box_loc"].map((field) => (
-            <Grid item xs={12} key={field}>
-              <MDTypography variant="body1" mb={0.5}>
-                {getLabel(field)}
+          {/* ===== store_type (Dropdown) ===== */}
+          <Grid item xs={12}>
+            <MDTypography variant="body1" mb={0.5}>
+              Source Store Location
+            </MDTypography>
+
+            <FormControl fullWidth>
+              <StyledSelect
+                value={form.store_type}
+                onChange={handleChange("store_type")}
+                displayEmpty
+                error={!!errors.store_type}
+                sx={{ height: "45px", backgroundColor: "#fff" }}
+              >
+                <StyledMenuItem value="">
+                  Pull Down List
+                </StyledMenuItem>
+
+                {StoreType.map((t) => (
+                  <StyledMenuItem key={t.value} value={t.value}>
+                    {t.text}
+                  </StyledMenuItem>
+                ))}
+              </StyledSelect>
+            </FormControl>
+
+            {errors.store_type && (
+              <MDTypography variant="caption" color="error">
+                {errors.store_type}
               </MDTypography>
+            )}
+          </Grid>
 
-              <MDInput
-                fullWidth
-                value={form[field]}
-                onChange={handleChange(field)}
-                error={!!errors[field]}
-                multiline={field === "box_loc"}
-                rows={field === "box_loc" ? 4 : 1}
-                placeholder={getPlaceholder(field)}
-                sx={{ backgroundColor: "#fff" }}
-              />
+          {/* ===== loc ===== */}
+          <Grid item xs={12}>
+            <MDTypography variant="body1" mb={0.5}>
+              Source Location
+            </MDTypography>
 
-              {errors[field] && (
-                <MDTypography variant="caption" color="error">
-                  {errors[field]}
-                </MDTypography>
-              )}
-            </Grid>
-          ))}
+            <MDInput
+              fullWidth
+              value={form.loc}
+              onChange={handleChange("loc")}
+              error={!!errors.loc}
+              placeholder="Enter source location"
+              sx={{ backgroundColor: "#fff" }}
+            />
+
+            {errors.loc && (
+              <MDTypography variant="caption" color="error">
+                {errors.loc}
+              </MDTypography>
+            )}
+          </Grid>
+
+          {/* ===== box_loc ===== */}
+          <Grid item xs={12}>
+            <MDTypography variant="body1" mb={0.5}>
+              Source Box Location
+            </MDTypography>
+
+            <MDInput
+              fullWidth
+              value={form.box_loc}
+              onChange={handleChange("box_loc")}
+              error={!!errors.box_loc}
+              multiline
+              rows={4}
+              placeholder="Enter source box location"
+              sx={{ backgroundColor: "#fff" }}
+            />
+
+            {errors.box_loc && (
+              <MDTypography variant="caption" color="error">
+                {errors.box_loc}
+              </MDTypography>
+            )}
+          </Grid>
         </Grid>
       </DialogContent>
 

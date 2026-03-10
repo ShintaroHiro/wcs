@@ -96,6 +96,22 @@ export class CounterService {
                 .leftJoin('m_stock_items', 'stock', 'stock.item_id = order.item_id')
 
                 /* =======================
+                * s_events
+                * ======================= */
+                .leftJoin(
+                    's_events',
+                    'sev',
+                    `
+                        sev.order_id = order.order_id
+                        AND sev.type = 'ERROR'
+                        AND sev.category = 'WRS'
+                        AND sev.status = 'ACTIVE'
+                        AND sev.level = 'ERROR'
+                        AND sev.is_cleared = 0
+                    `
+                )
+
+                /* =======================
                 * SELECT
                 * ======================= */
                 .select([
@@ -114,6 +130,9 @@ export class CounterService {
                     /* counter */
                     `COALESCE(counter.counter_id, '-') AS counter_id`,
                     `COALESCE(counter.light_color_hex, '-') AS counter_color`,
+
+                    /* s_events */
+                    `COALESCE(sev.id, NULL) AS event_id`,
 
                     /* USAGE / RETURN */
                     `
@@ -192,22 +211,39 @@ export class CounterService {
                     `
                     COALESCE(
                         CASE
+                            WHEN order.type = 'USAGE'
+                                THEN usage.unit_cost_handled
+
+                            WHEN order.type = 'RETURN'
+                                THEN usage_ret.unit_cost_handled
+
                             WHEN order.type = 'RECEIPT'
                                 THEN receipt.unit_cost_handled
+
                             WHEN order.type = 'TRANSFER'
                                 THEN transfer.unit_cost_handled
+
                             ELSE NULL
                         END,
                         '-'
                     ) AS unit_cost_handled
                     `,
+                    /* total cost */
                     `
                     COALESCE(
                         CASE
+                            WHEN order.type = 'USAGE'
+                                THEN (usage.unit_cost_handled * order.plan_qty)
+
+                            WHEN order.type = 'RETURN'
+                                THEN (usage_ret.unit_cost_handled * order.plan_qty)
+
                             WHEN order.type = 'RECEIPT'
                                 THEN (receipt.unit_cost_handled * order.plan_qty)
+
                             WHEN order.type = 'TRANSFER'
                                 THEN (transfer.unit_cost_handled * order.plan_qty)
+
                             ELSE NULL
                         END,
                         '-'
@@ -360,6 +396,8 @@ export class CounterService {
                 counter_id: item.counter_id ?? '-',
                 counter_color: item.counter_color ?? '-',
 
+                event_id: item.event_id ?? null,
+                
                 plan_qty: Number(item.plan_qty || 0),
                 actual_qty: Number(item.actual_qty || 0),
             }));

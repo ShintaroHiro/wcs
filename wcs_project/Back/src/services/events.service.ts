@@ -105,7 +105,9 @@ export class EventsService {
                 status: "ACTIVE",
                 created_at: new Date(),
                 created_by: "SYSTEM AMR",
-                is_cleared: false
+                is_cleared: false,
+                order_id: order_id,
+                store_type: order.store_type
             });
 
             /* 6️⃣ UPDATE WRS STATUS */
@@ -382,7 +384,6 @@ export class EventsService {
         }
     }
 
-    
     async getByRelatedId(
         related_id: number,
         manager?: EntityManager
@@ -480,6 +481,57 @@ export class EventsService {
             }
 
             throw error;
+        }
+    }
+
+    async getErrorAlert(manager?: EntityManager): Promise<ApiResponse<any>> {
+        const response = new ApiResponse<any>();
+        const operation = 'EventsService.getErrorAlert';
+
+        try {
+            const repository = manager
+                ? manager.getRepository(Events)
+                : this.eventsRepository;
+
+            const rawData = await repository
+                .createQueryBuilder('data')
+                .select([
+                    'data.store_type AS store_type',
+                    'data.message AS message',
+                ])
+                .where('data.type = :type', { type: 'ERROR' })
+                .andWhere('data.level = :level', { level: 'ERROR' })
+                .andWhere('data.status = :status', { status: 'ACTIVE' })
+                .andWhere('data.is_cleared = :is_cleared', { is_cleared: 0 })
+                .getRawMany();
+
+            const sum_error = rawData.length;
+
+            const messages = rawData.map(row =>
+                `${row.store_type} Store: ${row.message}`
+            );
+
+            const result = {
+                is_error: sum_error > 0,
+                sum_error: sum_error,
+                messages: messages
+            };
+
+            return response.setComplete(
+                lang.msgFound('events error data'),
+                result
+            );
+
+        } catch (error: any) {
+            console.error('Error in getErrorAlert:', error);
+
+            if (error instanceof QueryFailedError) {
+                return response.setIncomplete(
+                    lang.msgErrorFunction(operation, error.message)
+                );
+            }
+
+            throw new Error(lang.msgErrorFunction(operation, error.message));
         }
     }
 }

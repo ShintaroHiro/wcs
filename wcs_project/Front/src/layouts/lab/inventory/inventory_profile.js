@@ -35,6 +35,12 @@ const InventoryProfile = () => {
     const [searchItems, setSearchItems] = useState({
         stock_item: "",
         item_desc: "",
+        order_unit: "",
+        com_group: "",
+        catg_code: "",
+        cond_en: "",
+        item_status: "",
+        item_system: ""
     });
 
     const [formOpen, setFormOpen] = useState(false);
@@ -89,7 +95,7 @@ const InventoryProfile = () => {
                 includesIgnoreCase(item.mc_code, searchItems.mc_code) &&
                 includesIgnoreCase(item.order_unit, searchItems.order_unit) &&
                 includesIgnoreCase(item.com_group, searchItems.com_group) &&
-                includesIgnoreCase(item.system, searchItems.system) &&
+                includesIgnoreCase(item.item_system, searchItems.item_system) &&
                 includesIgnoreCase(item.cond_en, searchItems.cond_en) &&
                 includesIgnoreCase(item.item_status, searchItems.item_status) &&
                 includesIgnoreCase(item.catg_code, searchItems.catg_code)
@@ -114,6 +120,12 @@ const InventoryProfile = () => {
             item_desc: data.item_desc ?? "",
             item_img: data.item_img ?? "",
             item_img_url: data.item_img_url ?? "",
+            order_unit: data.order_unit,
+            com_group: data.com_group,
+            catg_code: data.catg_code,
+            cond_en: data.cond_en,
+            item_status: data.item_status,
+            item_system: data.item_system
             });
             setFormOpen(true); // เปิดฟอร์มหลังได้ข้อมูล
         } else {
@@ -662,8 +674,8 @@ const InventoryProfile = () => {
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchItems.system}
-                        onChange={(e) => setSearchItems({ ...searchItems, system: e.target.value })}
+                        value={searchItems.item_system}
+                        onChange={(e) => setSearchItems({ ...searchItems, item_system: e.target.value })}
                         displayEmpty
                         InputProps={{
                         endAdornment: (

@@ -475,6 +475,12 @@ export class StockItemService {
                 'items.item_desc AS item_desc',
                 'items.item_img AS item_img',
                 'items.item_img_url AS item_img_url',
+                'items.order_unit AS order_unit',
+                'items.com_group AS com_group',
+                'items.catg_code AS catg_code',
+                'items.cond_en AS cond_en',
+                'items.item_status AS item_status',
+                'items.system AS item_system',
                 "DATE_FORMAT(items.requested_at, '%d/%m/%Y') AS requested_at",
             ])
             .where('items.is_active = :isActive', { isActive: true })

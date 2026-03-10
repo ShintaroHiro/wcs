@@ -7,6 +7,10 @@ export class Events {
     @PrimaryGeneratedColumn()
     id: number;
 
+    /** ประเภทคลัง: T1 (WRS) หรือ T1M (MRS) หรือ AGMB*/
+    @Column({ type: 'varchar', length: 50, nullable: true })
+    store_type: string | null;
+
     //ERROR / EVENT
     @Column({ type: 'varchar', length: 50, nullable: true })
     type: string;
@@ -41,6 +45,10 @@ export class Events {
         comment: 'true = cleared(ไม่มี error แล้ว)'
         })
     is_cleared: boolean;
+
+    /** order_id ใช้เฉพาะตอนเกิด error */
+    @Column({ type: 'int', unsigned: true, nullable: true })
+    order_id: number;
 
     @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     created_at: Date;

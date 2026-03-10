@@ -21,6 +21,12 @@ export default function ItemsFormDialog({
         item_desc: "",
         item_img: "",
         item_img_url: "",
+        order_unit: "",
+        com_group: "",
+        cond_en: "",
+        item_status: "",
+        catg_code: "",
+        item_system: "",
     });
 
     const [errors, setErrors] = useState({});
@@ -35,6 +41,12 @@ export default function ItemsFormDialog({
             item_desc: initialData.item_desc ?? "",
             item_img: initialData.item_img ?? "",
             item_img_url: initialData.item_img_url ?? "",
+            order_unit: initialData.order_unit ?? "",
+            com_group: initialData.com_group ?? "",
+            cond_en: initialData.cond_en ?? "",
+            item_status: initialData.item_status ?? "",
+            catg_code: initialData.catg_code ?? "",
+            item_system: initialData.item_system ?? "",
             });
         } else {
             setForm({
@@ -42,6 +54,12 @@ export default function ItemsFormDialog({
             item_desc: "",
             item_img: "",
             item_img_url: "",
+            order_unit: "",
+            com_group: "",
+            cond_en: "",
+            item_status: "",
+            catg_code: "",
+            item_system: "",
             });
         }
         }
@@ -81,6 +99,12 @@ export default function ItemsFormDialog({
         const formData = new FormData();
         formData.append("stock_item", form.stock_item);
         formData.append("item_desc", form.item_desc);
+        formData.append("order_unit", form.order_unit);
+        formData.append("com_group", form.com_group);
+        formData.append("cond_en", form.cond_en);
+        formData.append("item_status", form.item_status);
+        formData.append("catg_code", form.catg_code);
+        formData.append("system", form.item_system);
 
         // ถ้ามีรูป → append
         if (form.item_img instanceof File) {
@@ -91,6 +115,55 @@ export default function ItemsFormDialog({
         if (ok) onClose?.();
         } finally {
         setSubmitting(false);
+        }
+    };
+
+    const leftFields = [
+        "stock_item",
+        "item_desc",
+        "order_unit",
+        "com_group",
+        "catg_code"
+        ];
+
+    const rightFields = [
+        "cond_en",
+        "item_status",
+        "item_system"
+    ];
+
+    const fieldConfig = {
+        stock_item: {
+            label: "Stock Item Number",
+            placeholder: "Enter Stock Item Number"
+        },
+        item_desc: {
+            label: "Stock Item Description",
+            placeholder: "Enter Stock Item Description"
+        },
+        order_unit: {
+            label: "Order Unit",
+            placeholder: "Enter Order Unit"
+        },
+        com_group: {
+            label: "Commodity Group",
+            placeholder: "Enter Commodity Group"
+        },
+        catg_code: {
+            label: "Category Code",
+            placeholder: "Enter Category Code"
+        },
+        cond_en: {
+            label: "Condition (EN)",
+            placeholder: "Enter Condition Enabled"
+        },
+        item_status: {
+            label: "Item Status",
+            placeholder: "Enter Status"
+        },
+        item_system: {
+            label: "System",
+            placeholder: "Enter System"
         }
     };
 
@@ -108,61 +181,79 @@ export default function ItemsFormDialog({
         <DialogContent dividers>
             <Grid container spacing={2}>
             {/* Left side: stock_item, item_desc */}
-            <Grid item xs={12} lg={6}>
-                <Grid container spacing={2}>
-                {["stock_item", "item_desc"].map((field) => (
-                    <Grid item xs={12} key={field}>
-                    <MDTypography variant="body01" mb={0.5} display="block">
-                        {field === "stock_item"
-                        ? "Stock Item Number"
-                        : "Stock Item Description"}
-                    </MDTypography>
-                    <MDInput
-                        fullWidth
-                        value={form[field]}
-                        onChange={handleChange(field)}
-                        error={!!errors[field]}
-                        multiline={field === "item_desc"}
-                        rows={field === "item_desc" ? 4 : 1}
-                        placeholder={
-                            field === "stock_item"
-                            ? "Enter Stock Item Number"
-                            : "Enter stock item Description"
-                        }
-                        sx={{
-                            backgroundColor: "#fff",
-                        }}
-                    />
+            {/* LEFT SIDE */}
+<Grid item xs={12} lg={6}>
+  <Grid container spacing={2}>
+    {leftFields.map((field) => (
+      <Grid item xs={12} key={field}>
+        <MDTypography variant="body01" mb={0.5} display="block">
+  {fieldConfig[field]?.label}
+</MDTypography>
 
-                    {errors[field] && (
-                        <MDTypography variant="caption" color="error">
-                        {errors[field]}
-                        </MDTypography>
-                    )}
-                    </Grid>
-                ))}
-                </Grid>
-            </Grid>
+<MDInput
+  fullWidth
+  value={form[field]}
+  onChange={handleChange(field)}
+  error={!!errors[field]}
+  multiline={field === "item_desc"}
+  rows={field === "item_desc" ? 6 : 1}
+  placeholder={fieldConfig[field]?.placeholder}
+  sx={{ backgroundColor: "#fff" }}
+/>
 
-            {/* Right side: UploadPic */}
-            <Grid item xs={12} lg={6} container justifyContent="center" alignItems="center">
-                <UploadPic
-                name="item_img"
-                onImageChange={handleImageChange}
-                apiImage={
-                    form.item_img instanceof File
-                    ? URL.createObjectURL(form.item_img)
-                    : form.item_img_url
-                    ? BaseClass.buildFileUrl(form.item_img_url)
-                    : null
-                }
-                resetImage={false}
-                disabled={false} // ปรับตาม status ถ้ามี
-                label="click to upload photo"
-                />
-            </Grid>
-            </Grid>
-        </DialogContent>
+        {errors[field] && (
+          <MDTypography variant="caption" color="error">
+            {errors[field]}
+          </MDTypography>
+        )}
+      </Grid>
+    ))}
+  </Grid>
+</Grid>
+
+            {/* RIGHT SIDE */}
+<Grid item xs={12} lg={6}>
+  <Grid container spacing={2}>
+
+    {/* IMAGE */}
+    <Grid item xs={12} display="flex" justifyContent="center">
+      <UploadPic
+        name="item_img"
+        onImageChange={handleImageChange}
+        apiImage={
+          form.item_img instanceof File
+            ? URL.createObjectURL(form.item_img)
+            : form.item_img_url
+            ? BaseClass.buildFileUrl(form.item_img_url)
+            : null
+        }
+        resetImage={false}
+        disabled={false}
+        label="click to upload photo"
+      />
+    </Grid>
+
+    {/* RIGHT FIELDS */}
+    {rightFields.map((field) => (
+      <Grid item xs={12} key={field}>
+        <MDTypography variant="body01" mb={0.5} display="block">
+  {fieldConfig[field]?.label}
+</MDTypography>
+
+<MDInput
+  fullWidth
+  value={form[field]}
+  onChange={handleChange(field)}
+  placeholder={fieldConfig[field]?.placeholder}
+  sx={{ backgroundColor: "#fff" }}
+/>
+      </Grid>
+    ))}
+  </Grid>
+</Grid>
+
+</Grid>
+</DialogContent>
 
         <DialogActions sx={{ justifyContent: "right", gap: 2}}>
             <MDButton variant="contained"

@@ -28,6 +28,7 @@ import {
 import ExecutionModeBadge from "../components/executionModeBadge";
 import ButtonComponent from "../components/ButtonComponent";
 import Swal from "sweetalert2";
+import dayjs from "dayjs";
 
 //store
 const TransferExecutionPage = () => {
@@ -128,6 +129,7 @@ const TransferExecutionPage = () => {
             //mc_code: mcCodes,
             store_type: storeType === "WCS" ? undefined : storeType, 
         });
+        
         const list = Array.isArray(response?.data) ? response.data : [];
         setExecutionList(list);
         } catch (err) {
@@ -349,131 +351,237 @@ const TransferExecutionPage = () => {
     // --------------------------------------------------
     // ALL Go TO PROCESSING
     // --------------------------------------------------
+    // const handleConfirm = async () => {
+    //     if (selectedExecutionIds.length === 0) return;
+
+    //     try {
+
+    //         const selectedOrders = executionList.filter(o =>
+    //             selectedExecutionIds.includes(o.order_id)
+    //         );
+
+    //         const manualOrders = selectedOrders.filter(
+    //             o => (o.execution_mode ?? "AUTO") === "MANUAL"
+    //         );
+
+    //         const autoOrders = selectedOrders.filter(
+    //             o => (o.execution_mode ?? "AUTO") === "AUTO"
+    //         );
+
+    //         // 🔥 เปลี่ยนเป็น PROCESSING ก่อน
+    //         const internalOrders = selectedOrders.filter(o =>
+    //             o.transfer_scenario === "INTERNAL_OUT" ||
+    //             o.transfer_scenario === "INTERNAL_IN"
+    //         );
+
+    //         if (internalOrders.length > 0) {
+    //             await ExecutionAPI.transferChangeStatus({
+    //                 items: internalOrders.map(o => ({ order_id: o.order_id })),
+    //                 transfer_status: "PROCESSING"
+    //             });
+    //         }
+
+
+    //         // 🔹 MANUAL
+    //         if (manualOrders.length > 0) {
+
+    //             const orderIds = [];
+    //             const mainOrderIds = manualOrders.map(o => o.order_id); // 🔥 เอาเฉพาะตัวหลัก
+
+    //             manualOrders.forEach(o => {
+
+    //                 orderIds.push(o.order_id);
+
+    //                 if (
+    //                     o.transfer_scenario === "INTERNAL_OUT" &&
+    //                     o.related_order_id
+    //                 ) {
+    //                     orderIds.push(o.related_order_id);
+    //                 }
+
+    //             });
+
+    //             const uniqueIds = [...new Set(orderIds)];
+
+    //             // 1️⃣ submit transfer (รวม related)
+    //             await WaitingAPI.submitTransfer({
+    //                 order_ids: uniqueIds,
+    //             });
+
+    //             // 2️⃣ 🔥 update COMPLETED เฉพาะ order หลัก
+    //             await ExecutionAPI.transferChangeStatus({
+    //                 items: mainOrderIds.map(id => ({ order_id: id })),
+    //                 transfer_status: "COMPLETED"
+    //             });
+    //         }
+
+    //         // 🔹 AUTO
+    //         if (autoOrders.length > 0) {
+
+    //             const items = [];
+
+    //             autoOrders.forEach(o => {
+
+    //                 // ใส่ order หลักเสมอ
+    //                 items.push({ order_id: o.order_id });
+
+    //                 // 🔥 ถ้าเป็น INTERNAL_OUT ให้ใส่ related_order_id ด้วย
+    //                 if (
+    //                     o.transfer_scenario === "INTERNAL_OUT" &&
+    //                     o.related_order_id
+    //                 ) {
+    //                     items.push({ order_id: o.related_order_id });
+    //                 }
+
+    //             });
+
+    //             await ExecutionAPI.createTask({
+    //                 items,
+    //             });
+    //         }
+
+    //         await Promise.all([
+    //             fetchDataWaitingAll(),
+    //             fetchDataExecuteAll(),
+    //         ]);
+
+    //         setSelectedExecutionIds([]);
+
+    //         setAlert({
+    //             show: true,
+    //             type: "success",
+    //             title: "Success",
+    //             message: "Confirm to Execution",
+    //             onConfirm: () => navigate("/status"),
+    //         });
+
+    //     } catch (err) {
+    //         console.error(err);
+    //         setAlert({
+    //             show: true,
+    //             type: "error",
+    //             title: "Error",
+    //             message: err.response?.data?.message || "Something went wrong",
+    //         });
+    //     }
+    // };
+
+    //V2
     const handleConfirm = async () => {
-        if (selectedExecutionIds.length === 0) return;
+    if (selectedExecutionIds.length === 0) return;
 
-        try {
+    try {
 
-            const selectedOrders = executionList.filter(o =>
-                selectedExecutionIds.includes(o.order_id)
-            );
+        const selectedOrders = executionList.filter(o =>
+            selectedExecutionIds.includes(o.order_id)
+        );
 
-            const manualOrders = selectedOrders.filter(
-                o => (o.execution_mode ?? "AUTO") === "MANUAL"
-            );
+        const manualOrders = selectedOrders.filter(
+            o => (o.execution_mode ?? "AUTO") === "MANUAL"
+        );
 
-            const autoOrders = selectedOrders.filter(
-                o => (o.execution_mode ?? "AUTO") === "AUTO"
-            );
+        const autoOrders = selectedOrders.filter(
+            o => (o.execution_mode ?? "AUTO") === "AUTO"
+        );
 
-            // 🔥 เปลี่ยนเป็น PROCESSING ก่อน
-            const internalOrders = selectedOrders.filter(o =>
-                o.transfer_scenario === "INTERNAL_OUT" ||
-                o.transfer_scenario === "INTERNAL_IN"
-            );
+        // // 🔥 เปลี่ยน INTERNAL เป็น PROCESSING ก่อน
+        // const internalOrders = selectedOrders.filter(o =>
+        //     o.transfer_scenario === "INTERNAL_OUT" ||
+        //     o.transfer_scenario === "INTERNAL_IN"
+        // );
 
-            if (internalOrders.length > 0) {
-                await ExecutionAPI.transferChangeStatus({
-                    items: internalOrders.map(o => ({ order_id: o.order_id })),
-                    transfer_status: "PROCESSING"
-                });
-            }
+        // if (internalOrders.length > 0) {
+        //     await ExecutionAPI.transferChangeStatus({
+        //         items: internalOrders.map(o => ({ order_id: o.order_id })),
+        //         transfer_status: "PROCESSING"
+        //     });
+        // }
 
+        // =========================
+        // 🔹 MANUAL → handleManualOrder
+        // =========================
+        if (manualOrders.length > 0) {
 
-            // 🔹 MANUAL
-if (manualOrders.length > 0) {
+            const items = [];
 
-    const orderIds = [];
-    const mainOrderIds = manualOrders.map(o => o.order_id); // 🔥 เอาเฉพาะตัวหลัก
+            manualOrders.forEach(o => {
 
-    manualOrders.forEach(o => {
-
-        orderIds.push(o.order_id);
-
-        if (
-            o.transfer_scenario === "INTERNAL_OUT" &&
-            o.related_order_id
-        ) {
-            orderIds.push(o.related_order_id);
-        }
-
-    });
-
-    const uniqueIds = [...new Set(orderIds)];
-
-    // 1️⃣ submit transfer (รวม related)
-    await WaitingAPI.submitTransfer({
-        order_ids: uniqueIds,
-    });
-
-    // 2️⃣ 🔥 update COMPLETED เฉพาะ order หลัก
-    await ExecutionAPI.transferChangeStatus({
-        items: mainOrderIds.map(id => ({ order_id: id })),
-        transfer_status: "COMPLETED"
-    });
-}
-
-
-            // 🔹 AUTO
-            // if (autoOrders.length > 0) {
-            //     await ExecutionAPI.createTask({
-            //         items: autoOrders.map(o => ({
-            //             order_id: o.order_id,
-            //         })),
-            //     });
-            // }
-
-            // 🔹 AUTO
-            if (autoOrders.length > 0) {
-
-                const items = [];
-
-                autoOrders.forEach(o => {
-
-                    // ใส่ order หลักเสมอ
-                    items.push({ order_id: o.order_id });
-
-                    // 🔥 ถ้าเป็น INTERNAL_OUT ให้ใส่ related_order_id ด้วย
-                    if (
-                        o.transfer_scenario === "INTERNAL_OUT" &&
-                        o.related_order_id
-                    ) {
-                        items.push({ order_id: o.related_order_id });
-                    }
-
+                // order หลัก
+                items.push({
+                    order_id: o.order_id,
+                    actual_qty: Number(o.plan_qty || 0)
                 });
 
-                await ExecutionAPI.createTask({
-                    items,
-                });
-            }
+                // 🔥 INTERNAL_OUT ต้องยิง related_order ด้วย
+                if (
+                    o.transfer_scenario === "INTERNAL_OUT" &&
+                    o.related_order_id
+                ) {
+                    items.push({
+                        order_id: o.related_order_id,
+                        actual_qty: Number(o.plan_qty || 0)
+                    });
+                }
 
-            await Promise.all([
-                fetchDataWaitingAll(),
-                fetchDataExecuteAll(),
-            ]);
-
-            setSelectedExecutionIds([]);
-
-            setAlert({
-                show: true,
-                type: "success",
-                title: "Success",
-                message: "Confirm to Execution",
-                onConfirm: () => navigate("/status"),
             });
 
-        } catch (err) {
-            console.error(err);
-            setAlert({
-                show: true,
-                type: "error",
-                title: "Error",
-                message: err.response?.data?.message || "Something went wrong",
+            const res = await ExecutionAPI.handleManualOrder(items);
+
+            if (!res?.isCompleted) {
+                throw new Error(res?.message || "Failed to handle manual orders");
+            }
+        }
+
+        // =========================
+        // 🔹 AUTO → createTask
+        // =========================
+        if (autoOrders.length > 0) {
+
+            const items = [];
+
+            autoOrders.forEach(o => {
+
+                items.push({ order_id: o.order_id });
+
+                if (
+                    o.transfer_scenario === "INTERNAL_OUT" &&
+                    o.related_order_id
+                ) {
+                    items.push({ order_id: o.related_order_id });
+                }
+
+            });
+
+            await ExecutionAPI.createTask({
+                items,
             });
         }
-    };
 
+        await Promise.all([
+            fetchDataWaitingAll(),
+            fetchDataExecuteAll(),
+        ]);
+
+        setSelectedExecutionIds([]);
+
+        setAlert({
+            show: true,
+            type: "success",
+            title: "Success",
+            message: "Confirm to Execution",
+            onConfirm: () => navigate("/status"),
+        });
+
+    } catch (err) {
+        console.error(err);
+        setAlert({
+            show: true,
+            type: "error",
+            title: "Error",
+            message: err.response?.data?.message || err.message || "Something went wrong",
+        });
+    }
+};
 
     // --------------------------------------------------
     // CLEAR ALL PENDING -> BACK TO WAITING
@@ -752,6 +860,14 @@ if (manualOrders.length > 0) {
         }
     };
 
+    const isOverdue = (date) => {
+        if (!date) return false;
+
+        const today = dayjs();
+        const req = dayjs(date, "DD/MM/YYYY");
+
+        return today.diff(req, "day") >= 10;
+    };
     
     // --------------------------------------------------
     // TABLE COLUMNS
@@ -1195,6 +1311,11 @@ if (manualOrders.length > 0) {
                     rows={filteredWaiting}
                     //disableHorizontalScroll
                     idField="order_id"
+                    getRowStyle={(row) =>
+                        isOverdue(row.requested_at)
+                        ? { backgroundColor: "#f1c8a5" }
+                        : {}
+                    }
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
                     onSelectedRowsChange={setSelectedWaitingIds} // ⭐ callback

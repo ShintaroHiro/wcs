@@ -30,7 +30,7 @@ export class InventorySum {
     @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Item condition (NEW / CAPITAL)' })
     cond: string | null;
 
-    /** ราคาต่อหน่วยแบบเฉลี่ย */
+    /** ราคาต่อหน่วยแบบเฉลี่ย average*/
     @Column({
         type: 'decimal',
         precision: 15, // รวมจำนวนหลักทั้งหมด เช่น 999,999,999,999.99

@@ -319,6 +319,49 @@ const create = async (req: Request, res: Response) => {
         }
     };
 
+    const handleManualOrder = async (req: Request, res: Response) => {
+        const operation = 'TasksController.handleManualOrder';
+
+        const reqUsername = RequestUtils.getUsernameToken(req, res);
+        if (!reqUsername) {
+            return ResponseUtils.handleBadRequest(res, lang.msgRequiredUsername());
+        }
+
+        // 🔹 รับ body เป็น array [{ order_id, actual_qty }]
+        const items: { order_id: number; actual_qty: number }[] = req.body;
+        if (!Array.isArray(items) || !items.length) {
+            return ResponseUtils.handleBadRequest(res, lang.msgInvalidParameter());
+        }
+
+        // 🔹 Validate แต่ละ item
+        for (const item of items) {
+            if (
+                typeof item.order_id !== "number" ||
+                isNaN(item.order_id) ||
+                typeof item.actual_qty !== "number" ||
+                isNaN(item.actual_qty) ||
+                item.actual_qty < 0
+            ) {
+                return ResponseUtils.handleBadRequest(res, lang.msgInvalidParameter());
+            }
+        }
+
+        try {
+            const response = await orchestrator.handleManualOrder(items, reqUsername);
+            return ResponseUtils.handleResponse(res, response);
+        } catch (error: any) {
+            console.error(`Error during ${operation}:`, error);
+            return ResponseUtils.handleErrorCreate(
+                res,
+                operation,
+                error.message,
+                'handle manual order items',
+                true,
+                reqUsername
+            );
+        }
+    };
+
 
     const getAll = async (req: Request, res: Response) => {
         const operation = 'TasksController.getAll';
@@ -338,5 +381,5 @@ const create = async (req: Request, res: Response) => {
         }
     };
 
-    return { create, changeToWaitingBatch , changeToPendingBatch ,transferChangeToBatch, handleOrderItemMrs , handleOrderItemWRS, handleErrorOrderItemWRS, getAll};
+    return { create, changeToWaitingBatch , changeToPendingBatch ,transferChangeToBatch, handleOrderItemMrs , handleOrderItemWRS, handleErrorOrderItemWRS, handleManualOrder, getAll};
 }

@@ -14,6 +14,7 @@ const StorageKeys = {
   LANGUAGE: "language",
   MC_CODES: "mcCodes", 
   STORE_TYPE: "storeType",
+  SUM_ERROR: "sumError",
 
   // เพิ่มคีย์อื่นๆ ตามที่ต้องการ
 };
@@ -159,6 +160,22 @@ class GlobalVar {
     LocalStorageHelper.removeItem(StorageKeys.STORE_TYPE);
   }
 
+   // ===== SumError =====
+  static setSumError(sumError) {
+    LocalStorageHelper.setItem(
+      StorageKeys.SUM_ERROR,
+      Number(sumError) || 0
+    );
+  }
+
+  static getSumError() {
+    return Number(LocalStorageHelper.getItem(StorageKeys.SUM_ERROR)) || 0;
+  }
+
+  static removeSumError() {
+    LocalStorageHelper.removeItem(StorageKeys.SUM_ERROR);
+  }
+
   // ฟังก์ชันในการตั้งค่าข้อมูลตามคีย์
   static setDataByKey(key, data) {
     LocalStorageHelper.setItem(key, data);
@@ -187,6 +204,7 @@ class GlobalVar {
     LocalStorageHelper.removeItem(StorageKeys.ROLE);
     LocalStorageHelper.removeItem(StorageKeys.MC_CODES);
     LocalStorageHelper.removeItem(StorageKeys.STORE_TYPE);
+    LocalStorageHelper.removeItem(StorageKeys.SUM_ERROR);
   }
 }
 

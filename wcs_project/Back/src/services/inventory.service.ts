@@ -199,296 +199,296 @@ async receipt(manager: EntityManager, order: Orders) {
 //---------------------------------------
 // 2) USAGE → ตัด stock แบบ FIFO (ไม่มีราคาใน order)
 //---------------------------------------
-async usage(
-    manager: EntityManager,
-    order: Orders
-    ) {
-    const invRepo = manager.getRepository(Inventory);
-    const sumRepo = manager.getRepository(InventorySum);
-    const usageRepo = manager.getRepository(OrdersUsage);
-    const usageInvRepo = manager.getRepository(UsageInventory);
-    const trxRepo = manager.getRepository(InventoryTrx);
-
-    // --------------------------------------------------
-    // 1) load usage
-    // --------------------------------------------------
-    const usage = await usageRepo.findOne({
-        where: { order_id: order.order_id },
-    });
-
-    // if (!usage || !usage.sum_inv_id) {
-    //     throw new Error('OrdersUsage or sum_inv_id not found');
-    // }
-
-    if (!usage) {
-        throw new Error('OrdersUsage not found');
-    }
-
-    if (!order.actual_qty || order.actual_qty <= 0) {
-        throw new Error('actual_qty must be > 0');
-    }
-
-    // // --------------------------------------------------
-    // // 2) lock inventory_sum
-    // // --------------------------------------------------
-    // const sumInv = await sumRepo.findOne({
-    //     where: { sum_inv_id: usage.sum_inv_id },
-    //     lock: { mode: 'pessimistic_write' },
-    // });
-
-    // if (!sumInv) {
-    //     throw new Error(`InventorySum not found ${usage.sum_inv_id}`);
-    // }
-
-    // if (sumInv.sum_inv_qty < order.actual_qty) {
-    //     throw new Error(
-    //     `Not enough stock (available=${sumInv.sum_inv_qty})`
-    //     );
-    // }
-
-    // --------------------------------------------------
-    // 3) load inventory FIFO (lock)
-    // --------------------------------------------------
-    // const inventories = await getInventoryFIFO(manager, sumInv);
-
-    // const requiredQty = order.actual_qty;
-    // let remainingQty = requiredQty;
-    // let totalCostUsed = 0;
-
-    // --------------------------------------------------
-    // 4) FIFO deduction
-    // --------------------------------------------------
-    // for (const inv of inventories) {
-    //     if (remainingQty <= 0) break;
-    //     if (inv.inv_qty <= 0) continue;
-
-    //     const deductQty = Math.min(inv.inv_qty, remainingQty);
-
-    //     inv.inv_qty -= deductQty;
-    //     inv.total_cost_inv = Number(
-    //     (inv.inv_qty * inv.unit_cost_inv).toFixed(2)
-    //     );
-
-    //     if (inv.inv_qty === 0) {
-    //     inv.is_active = false;
-    //     }
-
-    //     inv.updated_at = new Date();
-    //     await invRepo.save(inv);
-
-    //     // mapping usage -> inventory
-    //     await usageInvRepo.save({
-    //     usage_id: usage.usage_id,
-    //     inv_id: inv.inv_id,
-    //     usage_qty: deductQty,
-    //     });
-
-    //     // trx log
-    //     await trxRepo.save({
-    //     inv_id: inv.inv_id,
-    //     order_id: order.order_id,
-    //     order_type: TypeInfm.USAGE,
-    //     item_id: inv.item_id,
-    //     loc_id: inv.loc_id,
-    //     qty: -deductQty,
-    //     unit_cost: inv.unit_cost_inv,
-    //     total_cost: Number(
-    //         (-deductQty * inv.unit_cost_inv).toFixed(2)
-    //     ),
-    //     });
-
-    //     remainingQty -= deductQty;
-    //     totalCostUsed += deductQty * inv.unit_cost_inv;
-    // }
-
-    // if (remainingQty > 0) {
-    //     throw new Error('FIFO inventory not enough (unexpected)');
-    // }
-
-    // --------------------------------------------------
-    // 5) update inventory_sum
-    // --------------------------------------------------
-    // sumInv.sum_inv_qty -= requiredQty;
-    // sumInv.total_cost_sum_inv = Number(
-    //     (sumInv.total_cost_sum_inv - totalCostUsed).toFixed(2)
-    // );
-
-    // if (sumInv.sum_inv_qty < 0) {
-    //     throw new Error('InventorySum qty < 0 (usage)');
-    // }
-
-    // sumInv.unit_cost_sum_inv =
-    //     sumInv.sum_inv_qty > 0
-    //     ? Number(
-    //         (sumInv.total_cost_sum_inv / sumInv.sum_inv_qty).toFixed(2)
-    //         )
-    //     : 0;
-
-    // sumInv.updated_at = new Date();
-    // await sumRepo.save(sumInv);
-
-    return true;
-}
-
-//ver. สมบูรณ์ ยังไม่เทส
 // async usage(
 //     manager: EntityManager,
 //     order: Orders
-// ) {
+//     ) {
 //     const invRepo = manager.getRepository(Inventory);
 //     const sumRepo = manager.getRepository(InventorySum);
 //     const usageRepo = manager.getRepository(OrdersUsage);
 //     const usageInvRepo = manager.getRepository(UsageInventory);
 //     const trxRepo = manager.getRepository(InventoryTrx);
-//     const itemRepo = manager.getRepository(StockItems);
-//     const locRepo = manager.getRepository(Locations);
-
-//     if (!order.actual_qty || order.actual_qty <= 0) {
-//         throw new Error("actual_qty must be > 0");
-//     }
 
 //     // --------------------------------------------------
 //     // 1) load usage
 //     // --------------------------------------------------
 //     const usage = await usageRepo.findOne({
 //         where: { order_id: order.order_id },
-//         lock: { mode: "pessimistic_write" }
 //     });
 
-//     if (!usage || !usage.sum_inv_id) {
-//         throw new Error("OrdersUsage or sum_inv_id not found");
+//     // if (!usage || !usage.sum_inv_id) {
+//     //     throw new Error('OrdersUsage or sum_inv_id not found');
+//     // }
+
+//     if (!usage) {
+//         throw new Error('OrdersUsage not found');
 //     }
 
-//     // โหลด master สำหรับ trx log
-//     const item = await itemRepo.findOne({
-//         where: { item_id: order.item_id },
-//         select: ["stock_item"],
-//     });
-
-//     const loc = await locRepo.findOne({
-//         where: { loc_id: order.loc_id },
-//         select: ["loc", "box_loc"],
-//     });
-
-//     // --------------------------------------------------
-//     // 2) lock inventory_sum
-//     // --------------------------------------------------
-//     const sumInv = await sumRepo.findOne({
-//         where: { sum_inv_id: usage.sum_inv_id },
-//         lock: { mode: "pessimistic_write" },
-//     });
-
-//     if (!sumInv) {
-//         throw new Error("InventorySum not found");
+//     if (!order.actual_qty || order.actual_qty <= 0) {
+//         throw new Error('actual_qty must be > 0');
 //     }
 
-//     if (sumInv.sum_inv_qty < order.actual_qty) {
-//         throw new Error(
-//             `Stock not enough (available=${sumInv.sum_inv_qty})`
-//         );
-//     }
+//     // // --------------------------------------------------
+//     // // 2) lock inventory_sum
+//     // // --------------------------------------------------
+//     // const sumInv = await sumRepo.findOne({
+//     //     where: { sum_inv_id: usage.sum_inv_id },
+//     //     lock: { mode: 'pessimistic_write' },
+//     // });
+
+//     // if (!sumInv) {
+//     //     throw new Error(`InventorySum not found ${usage.sum_inv_id}`);
+//     // }
+
+//     // if (sumInv.sum_inv_qty < order.actual_qty) {
+//     //     throw new Error(
+//     //     `Not enough stock (available=${sumInv.sum_inv_qty})`
+//     //     );
+//     // }
 
 //     // --------------------------------------------------
-//     // 3) load FIFO layers
+//     // 3) load inventory FIFO (lock)
 //     // --------------------------------------------------
-//     const inventories = await invRepo.find({
-//         where: {
-//             sum_inv_id: usage.sum_inv_id,
-//             is_active: true,
-//         },
-//         order: { inv_id: "ASC" },
-//         lock: { mode: "pessimistic_write" },
-//     });
+//     // const inventories = await getInventoryFIFO(manager, sumInv);
 
-//     let remainingQty = order.actual_qty;
-//     let totalCostUsed = 0;
+//     // const requiredQty = order.actual_qty;
+//     // let remainingQty = requiredQty;
+//     // let totalCostUsed = 0;
 
 //     // --------------------------------------------------
 //     // 4) FIFO deduction
 //     // --------------------------------------------------
-//     for (const inv of inventories) {
-//         if (remainingQty <= 0) break;
-//         if (inv.inv_qty <= 0) continue;
+//     // for (const inv of inventories) {
+//     //     if (remainingQty <= 0) break;
+//     //     if (inv.inv_qty <= 0) continue;
 
-//         const deductQty = Math.min(inv.inv_qty, remainingQty);
+//     //     const deductQty = Math.min(inv.inv_qty, remainingQty);
 
-//         inv.inv_qty -= deductQty;
-//         inv.total_cost_inv = Number(
-//             (inv.inv_qty * inv.unit_cost_inv).toFixed(2)
-//         );
+//     //     inv.inv_qty -= deductQty;
+//     //     inv.total_cost_inv = Number(
+//     //     (inv.inv_qty * inv.unit_cost_inv).toFixed(2)
+//     //     );
 
-//         if (inv.inv_qty === 0) {
-//             inv.is_active = false;
-//         }
+//     //     if (inv.inv_qty === 0) {
+//     //     inv.is_active = false;
+//     //     }
 
-//         inv.updated_at = new Date();
-//         await invRepo.save(inv);
+//     //     inv.updated_at = new Date();
+//     //     await invRepo.save(inv);
 
-//         // mapping usage -> inventory
-//         await usageInvRepo.save({
-//             usage_id: usage.usage_id,
-//             inv_id: inv.inv_id,
-//             usage_qty: deductQty,
-//         });
+//     //     // mapping usage -> inventory
+//     //     await usageInvRepo.save({
+//     //     usage_id: usage.usage_id,
+//     //     inv_id: inv.inv_id,
+//     //     usage_qty: deductQty,
+//     //     });
 
-//         // trx log
-//         const trx = Object.assign(new InventoryTrx(), {
-//             inv_id: inv.inv_id,
-//             order_id: order.order_id,
-//             order_type: TypeInfm.USAGE,
+//     //     // trx log
+//     //     await trxRepo.save({
+//     //     inv_id: inv.inv_id,
+//     //     order_id: order.order_id,
+//     //     order_type: TypeInfm.USAGE,
+//     //     item_id: inv.item_id,
+//     //     loc_id: inv.loc_id,
+//     //     qty: -deductQty,
+//     //     unit_cost: inv.unit_cost_inv,
+//     //     total_cost: Number(
+//     //         (-deductQty * inv.unit_cost_inv).toFixed(2)
+//     //     ),
+//     //     });
 
-//             item_id: inv.item_id,
-//             stock_item: item?.stock_item ?? null,
+//     //     remainingQty -= deductQty;
+//     //     totalCostUsed += deductQty * inv.unit_cost_inv;
+//     // }
 
-//             loc_id: inv.loc_id,
-//             loc: loc?.loc ?? null,
-//             box_loc: loc?.box_loc ?? null,
-
-//             qty: -deductQty,
-//             unit_cost: inv.unit_cost_inv,
-//             total_cost: Number(
-//                 (-deductQty * inv.unit_cost_inv).toFixed(2)
-//             ),
-//         });
-
-//         await trxRepo.save(trx);
-
-//         remainingQty -= deductQty;
-//         totalCostUsed += deductQty * inv.unit_cost_inv;
-//     }
-
-//     if (remainingQty > 0) {
-//         throw new Error("FIFO inventory not enough (unexpected)");
-//     }
+//     // if (remainingQty > 0) {
+//     //     throw new Error('FIFO inventory not enough (unexpected)');
+//     // }
 
 //     // --------------------------------------------------
 //     // 5) update inventory_sum
 //     // --------------------------------------------------
-//     sumInv.sum_inv_qty -= order.actual_qty;
+//     // sumInv.sum_inv_qty -= requiredQty;
+//     // sumInv.total_cost_sum_inv = Number(
+//     //     (sumInv.total_cost_sum_inv - totalCostUsed).toFixed(2)
+//     // );
 
-//     sumInv.total_cost_sum_inv = Number(
-//         (sumInv.total_cost_sum_inv - totalCostUsed).toFixed(2)
-//     );
+//     // if (sumInv.sum_inv_qty < 0) {
+//     //     throw new Error('InventorySum qty < 0 (usage)');
+//     // }
 
-//     if (sumInv.sum_inv_qty < 0) {
-//         throw new Error("InventorySum qty < 0 (usage)");
-//     }
+//     // sumInv.unit_cost_sum_inv =
+//     //     sumInv.sum_inv_qty > 0
+//     //     ? Number(
+//     //         (sumInv.total_cost_sum_inv / sumInv.sum_inv_qty).toFixed(2)
+//     //         )
+//     //     : 0;
 
-//     sumInv.unit_cost_sum_inv =
-//         sumInv.sum_inv_qty > 0
-//             ? Number(
-//                   (
-//                       sumInv.total_cost_sum_inv /
-//                       sumInv.sum_inv_qty
-//                   ).toFixed(2)
-//               )
-//             : 0;
-
-//     sumInv.updated_at = new Date();
-//     await sumRepo.save(sumInv);
+//     // sumInv.updated_at = new Date();
+//     // await sumRepo.save(sumInv);
 
 //     return true;
 // }
+
+//ver. สมบูรณ์ ยังไม่เทส
+async usage(
+    manager: EntityManager,
+    order: Orders
+) {
+    const invRepo = manager.getRepository(Inventory);
+    const sumRepo = manager.getRepository(InventorySum);
+    const usageRepo = manager.getRepository(OrdersUsage);
+    const usageInvRepo = manager.getRepository(UsageInventory);
+    const trxRepo = manager.getRepository(InventoryTrx);
+    const itemRepo = manager.getRepository(StockItems);
+    const locRepo = manager.getRepository(Locations);
+
+    if (!order.actual_qty || order.actual_qty <= 0) {
+        throw new Error("actual_qty must be > 0");
+    }
+
+    // --------------------------------------------------
+    // 1) load usage
+    // --------------------------------------------------
+    const usage = await usageRepo.findOne({
+        where: { order_id: order.order_id },
+        lock: { mode: "pessimistic_write" }
+    });
+
+    if (!usage || !usage.sum_inv_id) {
+        throw new Error("OrdersUsage or sum_inv_id not found");
+    }
+
+    // โหลด master สำหรับ trx log
+    const item = await itemRepo.findOne({
+        where: { item_id: order.item_id },
+        select: ["stock_item"],
+    });
+
+    const loc = await locRepo.findOne({
+        where: { loc_id: order.loc_id },
+        select: ["loc", "box_loc"],
+    });
+
+    // --------------------------------------------------
+    // 2) lock inventory_sum
+    // --------------------------------------------------
+    const sumInv = await sumRepo.findOne({
+        where: { sum_inv_id: usage.sum_inv_id },
+        lock: { mode: "pessimistic_write" },
+    });
+
+    if (!sumInv) {
+        throw new Error("InventorySum not found");
+    }
+
+    if (sumInv.sum_inv_qty < order.actual_qty) {
+        throw new Error(
+            `Stock not enough (available=${sumInv.sum_inv_qty})`
+        );
+    }
+
+    // --------------------------------------------------
+    // 3) load FIFO layers
+    // --------------------------------------------------
+    const inventories = await invRepo.find({
+        where: {
+            sum_inv_id: usage.sum_inv_id,
+            is_active: true,
+        },
+        order: { inv_id: "ASC" },
+        lock: { mode: "pessimistic_write" },
+    });
+
+    let remainingQty = order.actual_qty;
+    let totalCostUsed = 0;
+
+    // --------------------------------------------------
+    // 4) FIFO deduction
+    // --------------------------------------------------
+    for (const inv of inventories) {
+        if (remainingQty <= 0) break;
+        if (inv.inv_qty <= 0) continue;
+
+        const deductQty = Math.min(inv.inv_qty, remainingQty);
+
+        inv.inv_qty -= deductQty;
+        inv.total_cost_inv = Number(
+            (inv.inv_qty * inv.unit_cost_inv).toFixed(2)
+        );
+
+        if (inv.inv_qty === 0) {
+            inv.is_active = false;
+        }
+
+        inv.updated_at = new Date();
+        await invRepo.save(inv);
+
+        // mapping usage -> inventory
+        await usageInvRepo.save({
+            usage_id: usage.usage_id,
+            inv_id: inv.inv_id,
+            usage_qty: deductQty,
+        });
+
+        // trx log
+        const trx = Object.assign(new InventoryTrx(), {
+            inv_id: inv.inv_id,
+            order_id: order.order_id,
+            order_type: TypeInfm.USAGE,
+
+            item_id: inv.item_id,
+            stock_item: item?.stock_item ?? null,
+
+            loc_id: inv.loc_id,
+            loc: loc?.loc ?? null,
+            box_loc: loc?.box_loc ?? null,
+
+            qty: -deductQty,
+            unit_cost: inv.unit_cost_inv,
+            total_cost: Number(
+                (-deductQty * inv.unit_cost_inv).toFixed(2)
+            ),
+        });
+
+        await trxRepo.save(trx);
+
+        remainingQty -= deductQty;
+        totalCostUsed += deductQty * inv.unit_cost_inv;
+    }
+
+    if (remainingQty > 0) {
+        throw new Error("FIFO inventory not enough (unexpected)");
+    }
+
+    // --------------------------------------------------
+    // 5) update inventory_sum
+    // --------------------------------------------------
+    sumInv.sum_inv_qty -= order.actual_qty;
+
+    sumInv.total_cost_sum_inv = Number(
+        (sumInv.total_cost_sum_inv - totalCostUsed).toFixed(2)
+    );
+
+    if (sumInv.sum_inv_qty < 0) {
+        throw new Error("InventorySum qty < 0 (usage)");
+    }
+
+    sumInv.unit_cost_sum_inv =
+        sumInv.sum_inv_qty > 0
+            ? Number(
+                  (
+                      sumInv.total_cost_sum_inv /
+                      sumInv.sum_inv_qty
+                  ).toFixed(2)
+              )
+            : 0;
+
+    sumInv.updated_at = new Date();
+    await sumRepo.save(sumInv);
+
+    return true;
+}
 
 
 
@@ -934,10 +934,27 @@ private async transferIn(
     const locRepo = manager.getRepository(Locations);
     const transferRepo = manager.getRepository(OrdersTransfer);
 
-    const transfer = await transferRepo.findOne({
+    let transfer: OrdersTransfer | null = null;
+
+if (order.transfer_scenario === TransferScenario.INTERNAL_IN) {
+
+    transfer = await transferRepo.findOne({
         where: { related_order_id: order.order_id },
         lock: { mode: 'pessimistic_read' }
     });
+
+} else if (order.transfer_scenario === TransferScenario.INBOUND) {
+
+    transfer = await transferRepo.findOne({
+        where: { order_id: order.order_id },
+        lock: { mode: 'pessimistic_read' }
+    });
+
+}
+
+if (!transfer) {
+    throw new Error("OrdersTransfer not found");
+}
 
     if (!transfer) {
         throw new Error("OrdersTransfer not found");

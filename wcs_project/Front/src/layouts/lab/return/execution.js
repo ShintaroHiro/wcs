@@ -32,6 +32,7 @@ import {
 } from "common/utils/statusUtils";
 import ButtonComponent from "../components/ButtonComponent";
 import Swal from "sweetalert2";
+import ExecutionModeBadge from "../components/executionModeBadge";
 
 //store
 const ReturnExecutionPage = () => {
@@ -292,16 +293,111 @@ const ReturnExecutionPage = () => {
     // --------------------------------------------------
     // ALL Go TO PROCESSING END RETURN
     // --------------------------------------------------
-    const handleConfirm = async () => {
+    // const handleConfirm = async () => {
+    //     if (selectedExecutionIds.length === 0) return;
+
+    //     try {
+    //         const payload = {
+    //             order_ids: selectedExecutionIds
+    //         };
+
+    //         const res = await WaitingAPI.submitReturn(payload);
+
+    //         await Promise.all([
+    //             fetchDataWaitingAll(),
+    //             fetchDataExecuteAll(),
+    //         ]);
+
+    //         setSelectedExecutionIds([]);
+
+    //         if (res?.isCompleted) {
+    //             setAlert({
+    //                 show: true,
+    //                 type: "success",
+    //                 title: "Success",
+    //                 message: res.message || "Confirm success",
+    //                 onConfirm: () => {
+    //                     navigate("/status");
+    //                 },
+    //             });
+    //             return;
+    //         }
+
+    //         setAlert({
+    //             show: true,
+    //             type: "success",
+    //             title: "Success",
+    //             message: "Confirm to Execution",
+    //         });
+    //     } catch (err) {
+    //         console.error(err);
+    //         setAlert({
+    //             show: true,
+    //             type: "error",
+    //             title: "Error",
+    //             message: err.response?.data?.message || "Something went wrong",
+    //         });
+    //     }
+    // };
+
+const handleConfirm = async () => {
         if (selectedExecutionIds.length === 0) return;
 
         try {
-            const payload = {
-                order_ids: selectedExecutionIds
-            };
 
-            const res = await WaitingAPI.submitReturn(payload);
+            // 🔹 หา order ที่ถูกเลือก
+            const selectedOrders = executionList.filter(o =>
+                selectedExecutionIds.includes(o.order_id)
+            );
 
+            // 🔹 แยก MANUAL / AUTO
+            const manualOrders = selectedOrders.filter(
+                o => (o.execution_mode ?? "AUTO") === "MANUAL"
+            );
+
+            const autoOrders = selectedOrders.filter(
+                o => (o.execution_mode ?? "AUTO") === "AUTO"
+            );
+
+            // =========================
+            // 🔹 MANUAL → submitReturn
+            // =========================
+            if (manualOrders.length > 0) {
+
+                const manualOrderIds = manualOrders.map(o => o.order_id);
+
+                await WaitingAPI.submitReturn({
+                    order_ids: manualOrderIds,
+                });
+            }
+            // =========================
+            // 🔹 MANUAL → handleManualOrder ยังไม่ได้เพิ่ม ตัดinventory
+            // =========================
+            // for (const o of manualOrders) {
+            //     const actual_qty = Number(o.plan_qty || 0); // ใช้ plan_qty แทน actual_qty
+
+            //     const res = await ExecutionAPI.handleManualOrder(o.order_id, actual_qty);
+
+            //     if (!res?.isCompleted) {
+            //         throw new Error(res?.message || "Failed to handle manual order");
+            //     }
+            // }
+
+            // =========================
+            // 🔹 AUTO → createTask
+            // =========================
+            if (autoOrders.length > 0) {
+
+                const items = autoOrders.map(o => ({
+                    order_id: o.order_id
+                }));
+
+                await ExecutionAPI.createTask({
+                    items,
+                });
+            }
+
+            // 🔄 Refresh data
             await Promise.all([
                 fetchDataWaitingAll(),
                 fetchDataExecuteAll(),
@@ -309,25 +405,16 @@ const ReturnExecutionPage = () => {
 
             setSelectedExecutionIds([]);
 
-            if (res?.isCompleted) {
-                setAlert({
-                    show: true,
-                    type: "success",
-                    title: "Success",
-                    message: res.message || "Confirm success",
-                    onConfirm: () => {
-                        navigate("/status");
-                    },
-                });
-                return;
-            }
-
             setAlert({
                 show: true,
                 type: "success",
                 title: "Success",
                 message: "Confirm to Execution",
+                onConfirm: () => {
+                    navigate("/status");
+                },
             });
+
         } catch (err) {
             console.error(err);
             setAlert({
@@ -338,8 +425,6 @@ const ReturnExecutionPage = () => {
             });
         }
     };
-
-
 
     // --------------------------------------------------
     // CLEAR ALL PENDING -> BACK TO WAITING
@@ -542,6 +627,43 @@ const ReturnExecutionPage = () => {
         }
     };
 
+    const handleToggleExecutionMode = async (orderId, nextMode) => {
+        const order = executionList.find(o => o.order_id === orderId);
+        if (!order) return;
+
+        if (order.status !== "PENDING") return;
+
+        try {
+            await OrdersAPI.updateExecutionModeMany({
+                orders: [
+                    {
+                        order_id: orderId,
+                        execution_mode: nextMode,
+                    },
+                ],
+            });
+
+            setExecutionList(prev =>
+                prev.map(o =>
+                    o.order_id === orderId
+                        ? { ...o, execution_mode: nextMode }
+                        : o
+                )
+            );
+
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const isOverdue = (date) => {
+        if (!date) return false;
+
+        const today = dayjs();
+        const req = dayjs(date, "DD/MM/YYYY");
+
+        return today.diff(req, "day") >= 10;
+    };
 
     // --------------------------------------------------
     // TABLE COLUMNS
@@ -574,6 +696,19 @@ const ReturnExecutionPage = () => {
                 normalize={normalizeStatus}
                 styles={STATUS_STYLE}
             />
+            ),
+        },
+        {
+            field: "execution_mode",
+            label: "Auto / Manual",
+            renderCell: (_, row) => (
+                <ExecutionModeBadge
+                mode={row.execution_mode}
+                status={row.status}
+                onToggle={(nextMode) =>
+                    handleToggleExecutionMode(row.order_id, nextMode)
+                }
+                />
             ),
         },
         { field: "mc_code", label: "Maintenance Contract" },
@@ -1026,6 +1161,11 @@ const ReturnExecutionPage = () => {
                     rows={filteredWaiting}
                     //disableHorizontalScroll
                     idField="order_id"
+                    getRowStyle={(row) =>
+                        isOverdue(row.requested_at)
+                        ? { backgroundColor: "#f1c8a5" }
+                        : {}
+                    }
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
                     onSelectedRowsChange={setSelectedWaitingIds} // ⭐ callback

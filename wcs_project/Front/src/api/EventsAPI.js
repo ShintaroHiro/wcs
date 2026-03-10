@@ -72,6 +72,19 @@ class EventsAPI {
         }
     }
 
+    static async forceManualOrderError(order_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/events/force-manual-order-error/${order_id}`;
+
+            const response = await ApiProvider.postData(endpoint, {}, token);
+            return response;
+        } catch (error) {
+            console.error("Clear in Order Error By Force Manual:", error);
+            throw error;
+        }
+    }
+
     static async getAll() {
         try {
         const token = GlobalVar.getToken();
@@ -100,6 +113,21 @@ class EventsAPI {
         } catch (error) {
             console.error("Error in Events Data:", error);
             throw error;
+        }
+    }
+
+    static async getErrorAlert() {
+        try {
+        const token = GlobalVar.getToken();
+        const endpoint = "/api/events/get-error-alert";
+        const response = await ApiProvider.getData(endpoint, {}, token);
+            console.log("API Response:", response);
+        return response; // ส่งค่ากลับไป
+
+        } catch (error) {
+        console.error("Error get Error Events Data:", error.message || error);
+        throw new Error(`Error: ${error.message}`);
+
         }
     }
 

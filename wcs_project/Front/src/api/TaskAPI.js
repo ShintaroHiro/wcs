@@ -113,6 +113,23 @@ class ExecutionAPI {
     }
   }
 
+  static async handleManualOrder(items) {
+    try {
+        if (!Array.isArray(items) || items.length === 0) {
+            throw new Error("No orders provided");
+        }
+
+        const token = GlobalVar.getToken();
+        const endpoint = "/api/execution/handle-manual-order-item-t1";
+
+        // ส่ง body เป็น array ของ {order_id, actual_qty}
+        const response = await ApiProvider.postData(endpoint, items, token);
+        return response;
+    } catch (error) {
+        console.error("Error in Task:", error);
+        throw error;
+    }
+  }
 
   static async changeToWaiting(payload) {
     try {

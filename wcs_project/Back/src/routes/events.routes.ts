@@ -65,7 +65,7 @@ router.post(
  *       400:
  *         description: ข้อมูลที่ส่งมาไม่ถูกต้อง
  *       404:
- *         description: ไม่พบ Order
+ *         description: ไม่พบ Event
  *       500:
  *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
  */
@@ -130,5 +130,29 @@ router.get(
     authenticateToken,
     eventsController.getByRelatedId
 );
+
+/**
+ * @swagger
+ * /api/events/get-error-alert:
+ *   get:
+ *     summary: ดึงข้อมูลรายการ events ที่ error
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     responses:
+ *       200:
+ *         description: พบข้อมูลรายการ events ที่ error
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้องหรือไม่ครบถ้วน
+ *       404:
+ *         description: ไม่พบข้อมูลรายการ events error ที่ร้องขอ
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.get('/get-error-alert'
+    , authenticateToken
+    , eventsController.getErrorAlert);
 
 export default router;

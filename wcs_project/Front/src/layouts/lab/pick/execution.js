@@ -540,6 +540,14 @@ const PickExecutionPage = () => {
         }
     };
 
+    const isOverdue = (date) => {
+        if (!date) return false;
+
+        const today = dayjs();
+        const req = dayjs(date, "DD/MM/YYYY");
+
+        return today.diff(req, "day") >= 10;
+    };
 
     // --------------------------------------------------
     // TABLE COLUMNS
@@ -1025,6 +1033,11 @@ const PickExecutionPage = () => {
                     rows={filteredWaiting}
                     //disableHorizontalScroll
                     idField="order_id"
+                    getRowStyle={(row) =>
+                        isOverdue(row.requested_at)
+                        ? { backgroundColor: "#f1c8a5" }
+                        : {}
+                    }
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
                     onSelectedRowsChange={setSelectedWaitingIds} // ⭐ callback

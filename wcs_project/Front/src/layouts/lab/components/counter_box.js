@@ -1,11 +1,12 @@
 import React from "react";
 import MDBox from "components/MDBox";
+import MDButton from "components/MDButton";
 import MDTypography from "components/MDTypography";
 
 const DEFAULT_TEXT_COLOR = "#000";
 const DEFAULT_BG_COLOR = "#FFF";
 
-const CounterBox = ({ counter, onClick }) => {
+const CounterBox = ({ counter, onClick, onQtyChange }) => {
   const status = counter.status || "IDLE";
   const isWaiting = status === "WAITING_PICK";
   const isIdle = status === "IDLE";
@@ -22,6 +23,26 @@ const CounterBox = ({ counter, onClick }) => {
   const quantityColor = counter.isActive
     ? counterTextColor
     : "#FFF";
+
+  // +
+  const handleIncrease = (e) => {
+    e.stopPropagation();
+
+    if (counter.actual >= counter.plan) return;
+
+    const newQty = counter.actual + 1;
+    onQtyChange(counter.id, newQty);
+  };
+
+  // -
+  const handleDecrease = (e) => {
+    e.stopPropagation();
+
+    if (counter.actual <= 0) return;
+
+    const newQty = counter.actual - 1;
+    onQtyChange(counter.id, newQty);
+  };
 
   return (
     <MDBox textAlign="center" sx={{ cursor: "pointer" }} onClick={onClick}>
@@ -77,14 +98,127 @@ const CounterBox = ({ counter, onClick }) => {
       </MDBox>
 
       {/* Quantity */}
-      {!isWaiting && !isError && (
+      {/* {!isWaiting && !isError && (
         <MDTypography
           variant="h5"
           sx={{ color: quantityColor, mt: 4.5 }}
         >
           {counter.actual}/{counter.plan}
         </MDTypography>
-      )}
+      )} */}
+{!isWaiting && !isError && (
+  <MDBox
+    mt={4.5}
+    display="flex"
+    justifyContent="center"
+    alignItems="center"
+    gap={1.5}
+  >
+    {/* - Button */}
+    {counter.plan > 0 && (
+      <MDButton
+        size="small"
+        variant="outlined"
+        disabled={counter.actual === 0}
+        onClick={handleDecrease}
+        sx={{
+          minWidth: 35,
+          width: 35,
+          height: 35,
+          px: 0,
+          borderRadius: "6px",
+          fontSize: "1.5rem",
+          fontWeight: 700,
+          lineHeight: 1,
+
+          // 🔴 กดได้ = แดง
+          color: counter.actual === 0 ? "#bdbdbd" : "#d32f2f",
+          borderColor:
+            counter.actual === 0 ? "#e0e0e0" : "#d32f2f",
+          backgroundColor:
+            counter.actual === 0 ? "#f3f3f3" : "#fff",
+
+          "&:hover": {
+            backgroundColor:
+              counter.actual === 0
+                ? "#f3f3f3"
+                : "#ffebee",
+          },
+
+          "&.Mui-disabled": {
+            color: "#bdbdbd",
+            backgroundColor: "#f3f3f3",
+            borderColor: "#e0e0e0",
+          },
+        }}
+      >
+        −
+      </MDButton>
+    )}
+
+    {/* Quantity */}
+    <MDTypography
+      variant="h5"
+      sx={{
+        color: quantityColor,
+        minWidth: 70,
+        textAlign: "center",
+        fontWeight: 600,
+      }}
+    >
+      {counter.actual}/{counter.plan}
+    </MDTypography>
+
+    {/* + Button */}
+    {counter.plan > 0 && (
+      <MDButton
+        size="small"
+        variant="outlined"
+        disabled={counter.actual === counter.plan}
+        onClick={handleIncrease}
+        sx={{
+          minWidth: 35,
+          width: 35,
+          height: 35,
+          px: 0,
+          borderRadius: "6px",
+          fontSize: "1.5rem",
+          fontWeight: 700,
+          lineHeight: 1,
+
+          // 🟢 กดได้ = เขียว
+          color:
+            counter.actual === counter.plan
+              ? "#bdbdbd"
+              : "#2e7d32",
+          borderColor:
+            counter.actual === counter.plan
+              ? "#e0e0e0"
+              : "#2e7d32",
+          backgroundColor:
+            counter.actual === counter.plan
+              ? "#f3f3f3"
+              : "#fff",
+
+          "&:hover": {
+            backgroundColor:
+              counter.actual === counter.plan
+                ? "#f3f3f3"
+                : "#e8f5e9",
+          },
+
+          "&.Mui-disabled": {
+            color: "#bdbdbd",
+            backgroundColor: "#f3f3f3",
+            borderColor: "#e0e0e0",
+          },
+        }}
+      >
+        +
+      </MDButton>
+    )}
+  </MDBox>
+)}
 
     </MDBox>
   );

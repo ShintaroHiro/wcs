@@ -406,7 +406,6 @@ const EventsPage = () => {
             const res = await EventsAPI.clearOrderError(
                 row.event_id,
             );
-            console.log("row.event_id",row.event_id);
 
             if (!res?.isCompleted) {
                 throw new Error(res?.message || "Failed to clear");

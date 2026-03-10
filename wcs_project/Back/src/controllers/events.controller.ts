@@ -188,3 +188,20 @@ export const getByRelatedId = async (req: Request, res: Response) => {
         );
     }
 };
+
+export const getErrorAlert = async (req: Request, res: Response) => {
+    const operation = 'EventsController.getErrorAlert';
+
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(res, lang.msgRequiredUsername());
+    }
+
+    try {
+        const response = await eventsService.getErrorAlert();
+        return ResponseUtils.handleResponse(res, response);
+    } catch (error: any) {
+        console.error(`Error during ${operation}:`, error);
+        return ResponseUtils.handleErrorGet(res, operation, error.message, 'item.events', true, reqUsername);
+    }
+};

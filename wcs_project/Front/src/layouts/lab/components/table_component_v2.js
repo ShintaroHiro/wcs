@@ -67,6 +67,10 @@ export default function ReusableDataTable({
   onError,
   errorDisabled = false,
 
+  onForceManual,
+  forceManualDisabled = false,
+
+
   // สำหรับ checkbox
   enableSelection = false, // true = เปิด checkbox
   selectedRows = [], // array of ids ที่เลือกอยู่
@@ -85,6 +89,8 @@ export default function ReusableDataTable({
   quantityDisabled = false,
   minQuantity = 0,
   maxQuantity,
+
+  getRowStyle,
 }) {
   // ---- local state ----
   const [page, setPage] = useState(0);
@@ -412,6 +418,26 @@ export default function ReusableDataTable({
     );
   };
 
+  //forceManual
+  const renderForceManualCell = (row) => {
+    const disabled =
+      typeof forceManualDisabled === "function"
+        ? !!forceManualDisabled(row)
+        : !!forceManualDisabled;
+
+    return (
+      <MDButton
+        variant="contained"
+        size="small"
+        color={disabled ? "secondary" : "primary"}
+        disabled={disabled}
+        onClick={() => !disabled && onForceManual?.(row)}
+      >
+        Force Manual
+      </MDButton>
+    );
+  };
+
   //+/- qty
   const renderQuantityCell = (row) => {
 
@@ -707,6 +733,7 @@ export default function ReusableDataTable({
                           backgroundColor: isSelected ? "rgba(25, 118, 210, 0.18)" : "#f5f5f5",
                         }
                       : {}, // ❌ ไม่มี hover effect ถ้าเลือกไม่ได้
+                      ...(getRowStyle ? getRowStyle(row) : {})
                   }}
                 >
                   {/* Checkbox Each Row */}
@@ -815,6 +842,15 @@ export default function ReusableDataTable({
     );
   }
 
+  // ===== forceManual =====
+  if (col.type === "forceManual") {
+    return (
+      <TableCell key={key} align={col.align || "center"}>
+        {renderForceManualCell(row)}
+      </TableCell>
+    );
+  }
+
   // ===== quantityControl =====
   if (col.type === "quantityControl") {
     return (
@@ -910,7 +946,7 @@ ReusableDataTable.propTypes = {
       valueGetter: PropTypes.func,
       renderCell: PropTypes.func,
       // ✅ ใหม่: ระบุว่าเป็นคอลัมน์ปุ่ม Confirm SKU
-      type: PropTypes.oneOf(["confirmSku","scanSku","clear","setError","quantityControl"]),
+      type: PropTypes.oneOf(["confirmSku","scanSku","clear","setError","forceManual","quantityControl"]),
     })
   ).isRequired,
   rows: PropTypes.array.isRequired,
@@ -952,6 +988,9 @@ ReusableDataTable.propTypes = {
   onError: PropTypes.func,
   errorDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
 
+  onForceManual: PropTypes.func,
+  forceManualDisabled: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
+
   onRowClick: PropTypes.func,
   selectedId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
 
@@ -973,5 +1012,5 @@ ReusableDataTable.propTypes = {
   getLevel: PropTypes.func,
 
   pagination: PropTypes.bool,
-
+  getRowStyle: PropTypes.func,
 };

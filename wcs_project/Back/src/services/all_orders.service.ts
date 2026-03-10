@@ -44,6 +44,7 @@ export class AllOrdersService {
                     'order.mc_code AS mc_code',
                     'order.type AS type',
                     'order.status AS status',
+                    'order.execution_mode AS execution_mode', 
 
                     'usage.usage_id AS usage_id',
                     'usage.work_order AS work_order',
@@ -184,6 +185,7 @@ export class AllOrdersService {
                     'order.mc_code AS mc_code',
                     'order.type AS type',
                     'order.status AS status',
+                    'order.execution_mode AS execution_mode', 
 
                     'receipt.receipt_id AS receipt_id',
                     'receipt.po_num AS po_num',
@@ -330,6 +332,7 @@ export class AllOrdersService {
                     'order.mc_code AS mc_code',
                     'order.type AS type',
                     'order.status AS status',
+                    'order.execution_mode AS execution_mode', 
 
                     'usage.usage_id AS usage_id',
                     'usage.work_order AS work_order',

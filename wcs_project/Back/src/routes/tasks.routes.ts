@@ -325,6 +325,45 @@ router.post(
         c.handleErrorOrderItemWRS
     );
 
+    
+    /**
+     * @swagger
+     * /api/execution/handle-manual-order-item-t1:
+     *   post:
+     *     summary: Ready to handle manual items for T1 store (multiple orders)
+     *     tags: [Execution]
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: array
+     *             items:
+     *               type: object
+     *               properties:
+     *                 order_id:
+     *                   type: number
+     *                   description: ไอดีรายการ order ที่เป็น manual
+     *                 actual_qty:
+     *                   type: number
+     *                   description: จำนวนจริงที่ต้องการบันทึก
+     *     responses:
+     *       200:
+     *         description: เปลี่ยนสถานะรายการ order สำเร็จ
+     *       400:
+     *         description: ข้อมูลที่ส่งมาไม่ถูกต้องหรือไม่ครบถ้วน
+     *       404:
+     *         description: ไม่พบรายการ order
+     *       500:
+     *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+     */
+    router.post(
+        '/handle-manual-order-item-t1',
+        authenticateToken,
+        c.handleManualOrder
+    );
 
     /**
      * @swagger

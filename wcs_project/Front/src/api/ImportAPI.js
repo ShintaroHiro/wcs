@@ -101,8 +101,8 @@ export default class ImportFileAPI {
             "QUANTITY",
             "CONDITION",
             "MAINT. CONTRACT",
-            "REQUIREDDATE",
-            "REQUESTEDBY",
+            "REQUESTED DATE",
+            "REQUESTED BY",
             "USETYPE",
             "WORK ORDER",
             "SPR NO.",
@@ -112,7 +112,8 @@ export default class ImportFileAPI {
             "USAGE STATUS",
         ];
         const headers = rows[0];
-
+// console.log("expectedHeaders",expectedHeaders);
+//             console.log("headers",headers);
         if (!this.validateHeaders(expectedHeaders, headers)) {
             return new ApiResponse({
             isCompleted: false,
@@ -149,8 +150,8 @@ export default class ImportFileAPI {
                 cond: r[col("CONDITION")]?.toString().trim().toUpperCase(),
 
                 mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
-                requested_at: r[col("REQUIREDDATE")]?.toString().trim(),
-                requested_by: r[col("REQUESTEDBY")]?.toString().trim(),
+                requested_at: r[col("REQUESTED DATE")]?.toString().trim(),
+                requested_by: r[col("REQUESTED BY")]?.toString().trim(),
 
                 usage_type: r[col("USETYPE")]?.toString().trim(),
                 work_order: r[col("WORK ORDER")]?.toString().trim(),
@@ -261,8 +262,8 @@ export default class ImportFileAPI {
             ];
 
             const headers = rows[0];
-            console.log("expectedHeaders",expectedHeaders);
-            console.log("headers",headers);
+            // console.log("expectedHeaders",expectedHeaders);
+            // console.log("headers",headers);
             if (!this.validateHeaders(expectedHeaders, headers)) {
             return new ApiResponse({
                 isCompleted: false,

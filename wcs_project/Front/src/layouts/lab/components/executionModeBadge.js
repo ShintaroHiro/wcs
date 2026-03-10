@@ -8,7 +8,9 @@ import {
 
 const ExecutionModeBadge = ({ mode, status, onToggle }) => {
   const normalized = normalizeExecutionMode(mode);
-  const style = EXECUTION_MODE_STYLE[normalized];
+  const style =
+    EXECUTION_MODE_STYLE[normalized] ||
+    EXECUTION_MODE_STYLE["AUTO"]; // fallback
 
   const isPending = status === "PENDING";
 

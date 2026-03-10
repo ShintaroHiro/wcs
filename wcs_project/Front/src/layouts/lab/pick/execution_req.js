@@ -24,6 +24,7 @@ import {
   normalizeStatus,
   STATUS_STYLE,
 } from "common/utils/statusUtils";
+import dayjs from "dayjs";
 
 //requester
 const PickExecutionReqPage = () => {
@@ -332,6 +333,15 @@ const PickExecutionReqPage = () => {
     }
   };
 
+  const isOverdue = (date) => {
+      if (!date) return false;
+
+      const today = dayjs();
+      const req = dayjs(date, "DD/MM/YYYY");
+
+      return today.diff(req, "day") >= 10;
+  };
+
   // --------------------------------------------------
   // TABLE COLUMNS
   // --------------------------------------------------
@@ -614,6 +624,11 @@ const PickExecutionReqPage = () => {
                   rows={filteredWaiting}
                   //disableHorizontalScroll
                   idField="order_id"
+                  getRowStyle={(row) =>
+                        isOverdue(row.requested_at)
+                        ? { backgroundColor: "#f1c8a5" }
+                        : {}
+                    }
                   enableSelection={true}              // ⭐ เปิด checkbox
                   selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
                   onSelectedRowsChange={setSelectedWaitingIds} // ⭐ callback

@@ -14,6 +14,7 @@ export interface UserPayload extends JwtPayload {
   user_id: number;
   username: string;
   role_code: string;
+  store_type: string; 
   exp: number; // token expiration time
   // Add any additional fields that you store in the token
 }

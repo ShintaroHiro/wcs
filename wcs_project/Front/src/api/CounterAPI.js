@@ -86,6 +86,25 @@ class CounterAPI {
         }
     }
 
+    static async getOrderAllBlockByUser(params) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = "/api/counter/get-all-order-block-by-user";
+
+            const response = await ApiProvider.getData(
+                endpoint,
+                params || {}, // 👈 ส่ง query params (ถ้าไม่ส่ง = ทั้งหมด)
+                token
+            );
+
+            return response;
+
+        } catch (error) {
+            console.error("Error search block:", error.message || error);
+            throw new Error(`Error: ${error.message}`);
+        }
+    }
+
     static async getByID(counterId) {
         try {
         const token = GlobalVar.getToken();
@@ -102,6 +121,7 @@ class CounterAPI {
         }
     }
 
+//scan one by one
 static async scanToServer(counterId) {
   try {
     const token = GlobalVar.getToken();
@@ -152,6 +172,52 @@ static async getByCounterIdPublic(counterId) {
   return response;
 }
 
+//scan required=sacn qty
+static async scanBulk(counterId, qty) {
+  try {
+    const token = GlobalVar.getToken();
+    const endpoint = `/api/sse/${counterId}/scan-bulk`;
+
+    const response = await ApiProvider.postData(
+      endpoint,
+      { qty },      // จำนวนที่ต้องการ scan
+      token
+    );
+
+    return response;
+  } catch (error) {
+    console.error("Error scanBulk:", error.message || error);
+    return new ApiResponse({
+      isCompleted: false,
+      isError: true,
+      message: error.message || "Scan bulk failed",
+      data: null,
+      error,
+    });
+  }
+}
+
+static async counterChangeStatus(payload) {
+  try {
+    const token = GlobalVar.getToken();
+    const endpoint = "/api/counter/change-status";
+
+    const response = await ApiProvider.putData(
+      endpoint,
+      payload,
+      token
+    );
+
+    return response;
+
+  } catch (error) {
+    console.error(
+      "Error update status counter:",
+      error.message || error
+    );
+    throw new Error(`Error: ${error.message}`);
+  }
+}
 
 }
 

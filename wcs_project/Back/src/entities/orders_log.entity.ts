@@ -37,6 +37,18 @@ export class OrdersLog {
     @Column({ type: 'varchar', length: 100, nullable: true, default: null, comment: 'box location' })
     box_loc: string | null;
 
+    /** ไอดี location relate for Transfer(Fk) */
+    @Column({ type: 'int', unsigned: true, nullable: true })
+    to_loc_id: number | null;
+
+    /** location relate*/
+    @Column({ type: 'varchar', length: 100, nullable: true, default: null, comment: 'location' })
+    to_loc: string | null;
+
+    /** box location relate*/
+    @Column({ type: 'varchar', length: 100, nullable: true, default: null, comment: 'box location' })
+    to_box_loc: string | null;
+
     /** สภาพสินค้า เช่น NEW หรือ CAPITAL */
     @Column({ type: 'varchar', length: 50, nullable: true, comment: 'Item condition (NEW / CAPITAL)' })
     cond: string | null;
@@ -57,19 +69,13 @@ export class OrdersLog {
     is_confirm: boolean;
 
     @Column({ type: 'varchar', length: 50, nullable: true, default: null })
-    actor: string | null; // admin / SYSTEM / AUTO
+    actor: string | null; // admin 
 
     @Column({ type: 'varchar', length: 50, nullable: true, default: null })
     source?: TaskSource | null; // API / DISPATCHER / GATEWAY
 
-    @Column({ type: 'varchar', length: 20, nullable: true, default: null })
-    subsystem: TaskSubsystem | null; // ซับซิสเต็มที่ทำให้เกิดเหตุการณ์
-
-    @Column({ type: 'varchar', length: 50, nullable: true, default: null })
-    reason_code: TaskReason | null; // BANK_BUSY, PREEMPT, SENSOR_BLOCKED, ...
-
-    @Column({ type: 'json', nullable: true, default: null })
-    meta_json: any;
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    message: string | null;
 
     @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     created_at: Date;

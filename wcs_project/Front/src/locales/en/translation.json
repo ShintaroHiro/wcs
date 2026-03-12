@@ -173,6 +173,7 @@
         "inventory": "Inventory",
         "inventory_profile": "Item Master",
         "inventory_balance": "Inventory Balance",
+        "inventory_location": "Location Master",
         "pick": "Pick",
         "pick_execute_req": "Execute",
         "pick_execute": "Execute",
@@ -180,12 +181,18 @@
         "order_status_req": "Status",
         "order_status": "Status",
         "checkout_t1": "Check In & Out",
+        "checkout_t1m": "Check In & Out",
+        "checkout_agmb": "Check In & Out",
         "put": "Put",
         "put_execute": "Execute",
         "put_create": "Create",
         "return": "Return",
         "return_execute": "Execute",
-        "return_create": "Create"
+        "return_create": "Create",
+        "transfer": "Transfer",
+        "transfer_execute": "Execute",
+        "transfer_create": "Create",
+        "events_page": "Events"
     },
     "role": {
         "role_title_1": "เพิ่มสิทธิ์การใช้งาน",

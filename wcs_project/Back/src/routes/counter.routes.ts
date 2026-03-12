@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken , authenticateWCS} from '../common/auth.token';
-import * as counterController from '../controllers/counter.controller'
+import * as counterController from '../controllers/counter.controller';
+import * as blockController from '../controllers/block.controller';
 const router = Router();
 
 /**
@@ -33,6 +34,30 @@ const router = Router();
 router.get('/get-all-order-by-user',
     authenticateToken,
     counterController.getOrderAllByUser
+);
+/**
+ * @swagger
+ * /api/counter/get-all-order-block-by-user:
+ *   get:
+ *     summary: ดึงข้อมูล block + order ของ user ที่ login เท่านั้น
+ *     tags: [Counter]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     responses:
+ *       200:
+ *         description: พบข้อมูล block ของ user
+ *       400:
+ *         description: ข้อมูลไม่ถูกต้อง
+ *       404:
+ *         description: ไม่พบ block ของ user
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.get('/get-all-order-block-by-user',
+    authenticateToken,
+    blockController.getOrderAllBlockByUser
 );
 
 /**
@@ -118,5 +143,48 @@ router.get('/get-by-id/:counterId'
 router.get('/get-by-id-public/:counterId'
     , authenticateWCS
     , counterController.getByCounterIdPublic);
+
+    /**
+ * @swagger
+ * /api/counter/change-status:
+ *   put:
+ *     summary: เปลี่ยนสถานะ counter ตาม order_id
+ *     tags: [Counter]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - order_id
+ *               - status
+ *             properties:
+ *               order_id:
+ *                 type: integer
+ *                 example: 1001
+ *               status:
+ *                 type: string
+ *                 enum: [EMPTY, WAITING_AMR, READY_TO_PICK, ERROR, WAITING_PICK]
+ *                 example: WAITING_PICK
+ *     responses:
+ *       200:
+ *         description: เปลี่ยนสถานะ counter สำเร็จ
+ *       400:
+ *         description: ข้อมูลไม่ถูกต้อง
+ *       404:
+ *         description: ไม่พบ counter ตาม order_id
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.put(
+    '/change-status',
+    authenticateToken,
+    counterController.counterChangeStatus
+);
 
 export default router;

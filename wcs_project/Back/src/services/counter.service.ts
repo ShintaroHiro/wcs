@@ -10,6 +10,7 @@ import { StockItems } from "../entities/m_stock_items.entity";
 import { OrdersReceipt } from "../entities/order_receipt.entity";
 import { OrdersTransfer } from "../entities/order_transfer.entity";
 import { OrdersReturn } from "../entities/order_return.entity";
+import { CounterRuntime } from "../entities/counter_runtime.entity";
 
 export class CounterService {
 
@@ -19,7 +20,7 @@ export class CounterService {
     ): Promise<ApiResponse<any | null>> {
 
         const response = new ApiResponse<any | null>();
-        const operation = 'OrderService.getOrderAllByUser';
+        const operation = 'CounterService.getOrderAllByUser';
 
         try {
             const orderRepo = manager
@@ -71,10 +72,44 @@ export class CounterService {
                 )
 
                 /* =======================
-                * stock & location
+                * TRANSFER
+                * ======================= */
+                .leftJoin(
+                    'orders_transfer',
+                    'transfer',
+                    `transfer.order_id = order.order_id AND order.type = 'TRANSFER'`
+                )
+
+                /* from = order.loc_id */
+                .leftJoin('m_location', 'fromLoc', 'fromLoc.loc_id = order.loc_id')
+
+                /* to = transfer.related_loc_id */
+                .leftJoin(
+                    'm_location',
+                    'toLoc',
+                    'toLoc.loc_id = transfer.related_loc_id'
+                )
+
+                /* =======================
+                * stock
                 * ======================= */
                 .leftJoin('m_stock_items', 'stock', 'stock.item_id = order.item_id')
-                .leftJoin('m_location', 'loc', 'loc.loc_id = order.loc_id')
+
+                /* =======================
+                * s_events
+                * ======================= */
+                .leftJoin(
+                    's_events',
+                    'sev',
+                    `
+                        sev.order_id = order.order_id
+                        AND sev.type = 'ERROR'
+                        AND sev.category = 'WRS'
+                        AND sev.status = 'ACTIVE'
+                        AND sev.level = 'ERROR'
+                        AND sev.is_cleared = 0
+                    `
+                )
 
                 /* =======================
                 * SELECT
@@ -85,16 +120,19 @@ export class CounterService {
                     'order.type AS type',
                     'order.mc_code AS mc_code',
                     'order.cond AS cond',
-                    'order.status AS status',
                     'order.plan_qty AS plan_qty',
                     'order.actual_qty AS actual_qty',
                     'order.item_id AS item_id',
                     'order.loc_id AS loc_id',
                     'order.requested_at AS requested_at',
+                    'order.transfer_scenario AS transfer_scenario',
 
                     /* counter */
                     `COALESCE(counter.counter_id, '-') AS counter_id`,
                     `COALESCE(counter.light_color_hex, '-') AS counter_color`,
+
+                    /* s_events */
+                    `COALESCE(sev.id, NULL) AS event_id`,
 
                     /* USAGE / RETURN */
                     `
@@ -162,85 +200,170 @@ export class CounterService {
                         CASE
                             WHEN order.type = 'RECEIPT'
                                 THEN receipt.object_id
+                            WHEN order.type = 'TRANSFER'
+                                THEN transfer.object_id
                             ELSE NULL
                         END,
                         '-'
                     ) AS object_id
                     `,
+                    /* unit cost */
                     `
                     COALESCE(
                         CASE
+                            WHEN order.type = 'USAGE'
+                                THEN usage.unit_cost_handled
+
+                            WHEN order.type = 'RETURN'
+                                THEN usage_ret.unit_cost_handled
+
                             WHEN order.type = 'RECEIPT'
                                 THEN receipt.unit_cost_handled
+
+                            WHEN order.type = 'TRANSFER'
+                                THEN transfer.unit_cost_handled
+
                             ELSE NULL
                         END,
                         '-'
                     ) AS unit_cost_handled
                     `,
+                    /* total cost */
                     `
                     COALESCE(
                         CASE
+                            WHEN order.type = 'USAGE'
+                                THEN (usage.unit_cost_handled * order.plan_qty)
+
+                            WHEN order.type = 'RETURN'
+                                THEN (usage_ret.unit_cost_handled * order.plan_qty)
+
                             WHEN order.type = 'RECEIPT'
                                 THEN (receipt.unit_cost_handled * order.plan_qty)
+
+                            WHEN order.type = 'TRANSFER'
+                                THEN (transfer.unit_cost_handled * order.plan_qty)
+
                             ELSE NULL
                         END,
                         '-'
                     ) AS total_cost_handled
                     `,
 
+                    /* transfer */
+                    `
+                    CASE
+                        WHEN order.type = 'TRANSFER'
+                            AND order.transfer_scenario = 'INTERNAL_OUT'
+                            THEN transfer.transfer_status
+                        ELSE order.status
+                    END AS status
+                    `,
+
                     /* stock */
                     `COALESCE(stock.stock_item, '-') AS stock_item`,
                     `COALESCE(stock.item_desc, '-') AS item_desc`,
 
-                    /* location */
+                    /* =======================
+                    * location (UPDATED)
+                    * ======================= */
+
+                    /* ---------- FROM ---------- */
                     `
-                    COALESCE(
-                        CASE
-                            WHEN order.type = 'USAGE'
-                                THEN loc.loc
-                            ELSE NULL
-                        END,
-                        '-'
-                    ) AS from_loc
+                    CASE
+                        WHEN order.type = 'USAGE'
+                            THEN fromLoc.loc
+                        WHEN order.type = 'TRANSFER'
+                            THEN fromLoc.loc
+                        ELSE NULL
+                    END AS from_loc
                     `,
                     `
-                    COALESCE(
-                        CASE
-                            WHEN order.type = 'USAGE'
-                                THEN loc.box_loc
-                            ELSE NULL
-                        END,
-                        '-'
-                    ) AS from_box_loc
+                    CASE
+                        WHEN order.type = 'USAGE'
+                            THEN fromLoc.box_loc
+                        WHEN order.type = 'TRANSFER'
+                            THEN fromLoc.box_loc
+                        ELSE NULL
+                    END AS from_box_loc
+                    `,
+
+                    /* ---------- TO ---------- */
+                    `
+                    CASE
+                        WHEN order.type IN ('RECEIPT','RETURN')
+                            THEN fromLoc.loc
+                            WHEN order.type = 'TRANSFER'
+                                THEN toLoc.loc
+                        ELSE NULL
+                    END AS to_loc
                     `,
                     `
-                    COALESCE(
-                        CASE
-                            WHEN order.type IN ('RECEIPT','RETURN')
-                                THEN loc.loc
-                            ELSE NULL
-                        END,
-                        '-'
-                    ) AS to_loc
+                    CASE
+                        WHEN order.type IN ('RECEIPT','RETURN')
+                            THEN fromLoc.box_loc
+                        WHEN order.type = 'TRANSFER'
+                            THEN toLoc.box_loc
+                        ELSE NULL
+                    END AS to_box_loc
                     `,
-                    `
-                    COALESCE(
-                        CASE
-                            WHEN order.type IN ('RECEIPT','RETURN')
-                                THEN loc.box_loc
-                            ELSE NULL
-                        END,
-                        '-'
-                    ) AS to_box_loc
-                    `,
+                    
                 ])
 
                 /* =======================
                 * WHERE
                 * ======================= */
-                .where('order.status IN (:...statuses)', {
-                    statuses: ['PROCESSING', 'QUEUE'],
-                });
+            .where(
+            `
+            (
+                -- 1) INTERNAL_OUT (ยกเว้น PICK_SUCCESS)
+                (
+                    order.type = 'TRANSFER'
+                    AND order.transfer_scenario = 'INTERNAL_OUT'
+                    AND transfer.transfer_status IN (:...statuses)
+                    AND transfer.transfer_status != 'PICK_SUCCESS'
+                )
+
+                OR
+
+                -- 2) INTERNAL_IN ที่มาจาก INTERNAL_OUT PICK_SUCCESS
+                (
+                    order.type = 'TRANSFER'
+                    AND order.transfer_scenario = 'INTERNAL_IN'
+                    AND order.status IN (:...statuses)
+                    AND EXISTS (
+                        SELECT 1
+                        FROM orders o2
+                        LEFT JOIN orders_transfer t2 ON t2.order_id = o2.order_id
+                        WHERE 
+                            o2.transfer_scenario = 'INTERNAL_OUT'
+                            AND t2.related_order_id = order.order_id
+                            AND t2.transfer_status = 'PICK_SUCCESS'
+                    )
+                )
+
+                OR
+
+                -- 3) Order อื่น ๆ
+                (
+                    (
+                        order.transfer_scenario NOT IN ('INTERNAL_OUT', 'INTERNAL_IN')
+                        OR order.transfer_scenario IS NULL
+                    )
+                    AND order.status IN (:...statuses)
+                )
+
+            )
+            `,
+            {
+                statuses: ['PROCESSING', 'QUEUE', 'ERROR'],
+            }
+            )
+
+            /* filter store T1 only*/
+            .andWhere("order.store_type = :storeType", {
+                storeType: "T1",
+            });
 
             /* filter user */
             if (userId) {
@@ -262,9 +385,32 @@ export class CounterService {
                 return response.setIncomplete(lang.msgNotFound('field.orders'));
             }
 
+            const cleanedData = rawData.map(item => ({
+                ...item,
+
+                from_loc: item.from_loc ?? '-',
+                from_box_loc: item.from_box_loc ?? '-',
+                to_loc: item.to_loc ?? '-',
+                to_box_loc: item.to_box_loc ?? '-',
+
+                work_order: item.work_order ?? '-',
+                spr_no: item.spr_no ?? '-',
+                usage_num: item.usage_num ?? '-',
+                usage_line: item.usage_line ?? '-',
+
+                counter_id: item.counter_id ?? '-',
+                counter_color: item.counter_color ?? '-',
+
+                event_id: item.event_id ?? null,
+                
+                plan_qty: Number(item.plan_qty || 0),
+                actual_qty: Number(item.actual_qty || 0),
+            }));
+
+
             return response.setComplete(
                 lang.msgFound('field.orders'),
-                rawData
+                cleanedData
             );
 
         } catch (error: any) {
@@ -296,6 +442,11 @@ export class CounterService {
             const qb = repository
                 .createQueryBuilder('counter')
                 .leftJoin(
+                    CounterRuntime,
+                    'runtime',
+                    'runtime.counter_id = counter.counter_id'
+                )
+                .leftJoin(
                     Orders,
                     'order',
                     'order.order_id = counter.current_order_id'
@@ -312,8 +463,8 @@ export class CounterService {
                     'counter.status AS status',
                     'counter.light_color_hex AS color',
                     'order.order_id AS order_id',
-                    'order.actual_qty AS actual',
-                    'order.plan_qty AS plan',
+                    'runtime.actual_qty AS actual_qty',
+                    'order.plan_qty AS plan_qty',
                     'order.status AS order_status',
                 ])
                 .orderBy('counter.counter_id', 'ASC')
@@ -324,11 +475,15 @@ export class CounterService {
             }
 
             const cleanedData = rawData.map((item: any) => ({
-                ...item,
-                order_id: item.order_id ?? '-',
-                actual: item.actual ?? 0,
-                plan: item.plan ?? 0,
+                id: Number(item.id),
+                status: item.status,
+                color: item.color,
+
+                order_id: item.order_id ?? null,
+                actual_qty: Number(item.actual_qty || 0),
+                plan_qty: Number(item.plan_qty || 0),
             }));
+
 
             return response.setComplete(lang.msgFound('counter'), cleanedData);
 
@@ -365,6 +520,13 @@ export class CounterService {
                     Orders,
                     'order',
                     'order.order_id = counter.current_order_id'
+                )
+
+                //เอา actual จาก counter runtime
+                .leftJoin(
+                    CounterRuntime,
+                    'runtime',
+                    'runtime.counter_id = counter.counter_id'
                 )
 
                 // ===== USAGE (ตรง) =====
@@ -412,6 +574,7 @@ export class CounterService {
                 .select([
                     // counter
                     'counter.counter_id AS counter_id',
+                    'counter.status AS status',
                     'counter.light_color_hex AS color',
                     'counter.light_mode AS light_mode',
 
@@ -420,7 +583,7 @@ export class CounterService {
                     'order.type AS trx_type',
                     'order.mc_code AS mc_code',
                     'order.plan_qty AS plan_qty',
-                    'order.actual_qty AS actual_qty',
+                    'COALESCE(runtime.actual_qty, 0) AS actual_qty',
                     'order.item_id AS item_id',
 
                     // ⭐ USAGE / RETURN (ใช้ CASE)
@@ -494,6 +657,7 @@ export class CounterService {
                 return {
                     // counter
                     counter_id: row.counter_id,
+                    status: row.status,
                     color: row.color,
                     light_mode: row.light_mode,
 
@@ -544,5 +708,98 @@ export class CounterService {
         }
     }
 
-    
+    async counterChangeStatus(
+        dto: {
+            order_id: number;
+            status: 'EMPTY' | 'WAITING_AMR' | 'READY_TO_PICK' | 'ERROR' | 'WAITING_PICK';
+        },
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+
+        if (!dto?.order_id || !dto?.status) {
+            return response.setIncomplete("order_id and status are required");
+        }
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager || queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete("No entity manager available");
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        try {
+
+            const transferRepo = useManager.getRepository(OrdersTransfer);
+            const counterRepo = useManager.getRepository(Counter);
+
+            // 🔎 หา transfer
+            const transfer = await transferRepo.findOne({
+                where: { order_id: dto.order_id },
+            });
+
+            // ❗ ไม่เจอ → จบเลย
+            if (!transfer?.related_order_id) {
+
+                if (!manager && queryRunner) {
+                    await queryRunner.commitTransaction();
+                }
+
+                return response.setComplete("No action needed",{});
+            }
+
+            // 🔎 หา counter
+            const counter = await counterRepo.findOne({
+                where: { current_order_id: transfer.related_order_id },
+            });
+
+            // ❗ ไม่เจอ → จบเลย
+            if (!counter) {
+
+                if (!manager && queryRunner) {
+                    await queryRunner.commitTransaction();
+                }
+
+                return response.setComplete("No action needed",{});
+            }
+
+            // 🔥 update
+            await counterRepo.update(
+                { counter_id: counter.counter_id },
+                {
+                    status: dto.status,
+                    last_event_at: new Date(),
+                }
+            );
+
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete("Status updated",{});
+
+        } catch (error: any) {
+
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+
+            return response.setIncomplete(error.message);
+
+        } finally {
+
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
+        }
+    }
+
+
 }

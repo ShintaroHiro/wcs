@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticateToken, authenticateWCS } from "../common/auth.token";
-import { connectSSE, resetCounter, scanItem } from "../controllers/sse.controller";
+import { connectSSE, resetCounter, scanItem, scanBulk } from "../controllers/sse.controller";
 
 const router = Router();
 
@@ -29,5 +29,13 @@ router.post(
   resetCounter
 );
 
+/**
+ * bulk scan (scan=required)
+ */
+router.post(
+  "/:counterId/scan-bulk",
+  authenticateToken,
+  scanBulk
+);
 
 export default router;

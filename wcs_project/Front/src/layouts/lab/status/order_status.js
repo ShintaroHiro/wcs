@@ -18,8 +18,15 @@ import SearchIcon from "@mui/icons-material/Search";
 import { StyledMenuItem, StyledSelect } from "common/Global.style";
 import { useNavigate } from "react-router-dom";
 import { GlobalVar } from "common/GlobalVar";
-import { normalizeStatus } from "common/utils/statusUtils";
 import StatusBadge from "../components/statusBadge";
+import {
+  normalizeStatus,
+  STATUS_STYLE,
+} from "common/utils/statusUtils";
+import {
+  normalizeExecutionMode,
+  EXECUTION_MODE_STYLE,
+} from "common/utils/executionModeUtils";
 import { OrderStatus, Condition, TransactionType } from "common/dataMain";
 
 const OrderStatusPage = () => {
@@ -57,10 +64,14 @@ const OrderStatusPage = () => {
   const storeType = GlobalVar.getStoreType();
 
   const handleNext = () => {
-    const checkoutStores = ["T1M", "T1", "AGMB"];
+    const routeMap = {
+      T1: "/checkout-t1",
+      T1M: "/checkout-t1m",
+      AGMB: "/checkout-agmb",
+    };
 
-    if (checkoutStores.includes(storeType)) {
-      navigate("/checkout-t1");
+    if (routeMap[storeType]) {
+      navigate(routeMap[storeType]);
     } else {
       navigate("/home");
     }
@@ -129,6 +140,30 @@ const OrderStatusPage = () => {
 
   // table
   const columns = [
+    {
+      field: "status",
+      label: "Order Status",
+      valueGetter: (row) => row.status,
+      renderCell: (status) => (
+        <StatusBadge
+          value={status}
+          normalize={normalizeStatus}
+          styles={STATUS_STYLE}
+        />
+      ),
+    },
+    {
+      field: "execution_mode",
+      label: "Auto / Manual",
+      valueGetter: (row) => row.execution_mode,
+      renderCell: (mode) => (
+        <StatusBadge
+          value={mode}
+          normalize={normalizeExecutionMode}
+          styles={EXECUTION_MODE_STYLE}
+        />
+      ),
+    },
     { field: "mc_code", label: "Maintenance Contract" },
     {
       field: "type",
@@ -157,12 +192,6 @@ const OrderStatusPage = () => {
     { field: "to_box_loc", label: "To BIN" },
     { field: "plan_qty", label: "Required Quantity" },
     { field: "actual_qty", label: "Scanned Quantity" },
-    {
-        field: "status",
-        label: "Order Status",
-        valueGetter: (row) => row.status, // เอาไว้ filter / sort
-        renderCell: (status) => <StatusBadge status={status} />,
-    }
   ];
 
   return (
@@ -598,7 +627,7 @@ const OrderStatusPage = () => {
                 <ReusableDataTable
                   columns={columns}
                   rows={filteredOrders}
-                  disableHorizontalScroll
+                  //disableHorizontalScroll
                   idField="order_id"
                   defaultPageSize={10}
                   pageSizeOptions={[10, 25, 50]}

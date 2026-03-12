@@ -5,7 +5,7 @@ import * as lang from '../utils/LangHelper'; // Import LangHelper for specific f
 import * as validate from '../utils/ValidationUtils'; // Import ValidationUtils
 
 import { Orders } from '../entities/orders.entity';
-import { ScanStatus, StatusOrders, TypeInfm } from '../common/global.enum';
+import { ExecutionMode, ScanStatus, StatusOrders, TypeInfm } from '../common/global.enum';
 import { OrdersLog } from '../entities/orders_log.entity';
 import { T1MOrdersService } from './order_mrs.service';
 import { OrdersLogService } from '../utils/logTaskEvent';
@@ -102,6 +102,41 @@ export class OrdersService {
         }
     }
 
+    //helper transfer
+    private async resolveTransferScenario(
+        manager: EntityManager,
+        locId: number,
+        relatedLocId: number
+        ): Promise<'OUTBOUND' | 'INBOUND' | 'INTERNAL_OUT'> {
+
+        const locRepo = manager.getRepository(Locations);
+
+        const loc = await locRepo.findOne({ where: { loc_id: locId } });
+        const relatedLoc = await locRepo.findOne({ where: { loc_id: relatedLocId } });
+
+        if (!loc || !relatedLoc) {
+            throw new Error('location not found');
+        }
+
+        // 2.1 store_type เท่ากัน
+        if (loc.store_type === relatedLoc.store_type) {
+            return 'INTERNAL_OUT';
+        }
+
+        // 2.2 loc เป็น NON_WCS
+        if (loc.store_type === 'NON_WCS') {
+            return 'INBOUND';
+        }
+
+        // 2.3 related_loc เป็น NON_WCS
+        if (relatedLoc.store_type === 'NON_WCS') {
+            return 'OUTBOUND';
+        }
+
+        throw new Error('cannot resolve transfer scenario');
+    }
+
+
     async create(
         data: CreateOrderBatchInput,
         reqUsername: string,
@@ -123,85 +158,223 @@ export class OrdersService {
 
         try {
             const repository = useManager.getRepository(Orders);
+            const transferRepo = useManager.getRepository(OrdersTransfer);
 
-            // ✅ validate type แค่ครั้งเดียว
             if (validate.isNullOrEmpty(data.type)) {
             return response.setIncomplete(lang.msgRequired('item.type'));
             }
 
-            const user = await this.userRepository.findOne({ where: { username: reqUsername } });
+            const user = await this.userRepository.findOne({
+            where: { username: reqUsername }
+            });
+
             if (!user) {
             return response.setIncomplete('user not found');
             }
 
             const results: Orders[] = [];
+            const logService = new OrdersLogService();
 
             for (const item of data.items) {
-            // --- validate ราย item ---
-            if (item.item_id == null) { // null หรือ undefined เท่านั้น
+
+            if (item.item_id == null) {
                 throw new Error('stock item required');
             }
+
             if (validate.isNullOrEmpty(item.mc_code)) {
                 throw new Error('Maintenance Contract required');
             }
+
             if (item.loc_id == null) {
                 throw new Error('Location required');
             }
 
-            const existingStockItem = await this.stockItemsRepository.findOne({ where: { item_id: item.item_id }});
+            const existingStockItem = await this.stockItemsRepository.findOne({
+                where: { item_id: item.item_id }
+            });
+
             if (!existingStockItem) {
                 throw new Error('stock item not found');
             }
 
-            const existingLocation = await this.locationRepository.findOne({ where: { loc_id: item.loc_id }});
+            const existingLocation = await this.locationRepository.findOne({
+                where: { loc_id: item.loc_id }
+            });
+
             if (!existingLocation) {
                 throw new Error('location not found');
             }
 
-            const cleanedData: Partial<Orders> = {
+            // =========================
+            // 🔥 TRANSFER LOGIC
+            // =========================
+            if (data.type === TypeInfm.TRANSFER) {
+
+                if (!item.transfer) {
+                    throw new Error('transfer data required');
+                }
+
+                if (!item.transfer.related_loc_id) {
+                    throw new Error('related location required');
+                }
+
+                const relatedLocation = await this.locationRepository.findOne({
+                    where: { loc_id: item.transfer.related_loc_id }
+                    });
+
+                    if (!relatedLocation) {
+                    throw new Error('related location not found');
+                }
+
+                const scenario = await this.resolveTransferScenario(
+                useManager,
+                item.loc_id,
+                item.transfer.related_loc_id
+                );
+
+                const baseData: Partial<Orders> = {
                 ...item,
                 type: data.type,
                 requested_at: new Date(),
                 requested_by: reqUsername,
                 created_by_user_id: user.user_id,
+                execution_mode: ExecutionMode.MANUAL,
+                transfer_scenario: scenario,
                 store_type: existingLocation.store_type
-            };
+                };
 
-            const order = repository.create(cleanedData);
-            const savedOrder = await repository.save(order);
+                const savedOrder = await repository.save(
+                    repository.create(baseData)
+                );
 
-            // --- save sub table ---
-            await this.createSubTableByType(
-                useManager,
-                data.type,
-                item,
-                savedOrder.order_id
-            );
+                const transferPayload: Partial<OrdersTransfer> = {
+                    ...item.transfer,
+                    order_id: savedOrder.order_id
+                };
 
-            // ✅ log ต่อ order
-            const logService = new OrdersLogService();
-            await logService.logTaskEvent(
+                if (scenario === 'INTERNAL_OUT') {
+                    transferPayload.transfer_status = 'WAITING';
+                }
+
+                await transferRepo.save(transferPayload);
+
+                await logService.logTaskEvent(
                 useManager,
                 savedOrder,
                 {
                     actor: reqUsername,
                     status: StatusOrders.WAITING
                 }
-            );
+                );
 
-            results.push(savedOrder);
+                results.push(savedOrder);
+
+                // ---------- CREATE INTERNAL_IN (เฉพาะ INTERNAL_OUT) ----------
+                if (scenario === 'INTERNAL_OUT') {
+
+                // 1️⃣ สร้าง INTERNAL_IN order
+                const internalInOrder = await repository.save(
+                    repository.create({
+                    ...baseData,
+                    transfer_scenario: 'INTERNAL_IN'
+                    })
+                );
+
+                // 2️⃣ สร้าง OrdersTransfer ของ INTERNAL_IN
+                const {
+                    transfer_status,
+                    sum_inv_id,
+                    ...restTransfer
+                } = item.transfer;
+
+                const internalInTransfer: Partial<OrdersTransfer> = {
+                    ...restTransfer,
+                    order_id: internalInOrder.order_id
+                    // ❌ ไม่ใส่ transfer_status
+                    // ❌ ไม่ใส่ sum_inv_id
+                };
+
+                await transferRepo.save(internalInTransfer);
+
+                // 3️⃣ update related_order_id ของ INTERNAL_OUT (ใน OrdersTransfer)
+                await transferRepo.update(
+                    { order_id: savedOrder.order_id },
+                    { related_order_id: internalInOrder.order_id }
+                );
+
+                // 4️⃣ log
+                await logService.logTaskEvent(
+                    useManager,
+                    internalInOrder,
+                    {
+                    actor: reqUsername,
+                    status: StatusOrders.WAITING
+                    }
+                );
+
+                results.push(internalInOrder);
+                }
+
+            }
+            // =========================
+            // 🔹 TYPE อื่นใช้ logic เดิม
+            // =========================
+            else {
+
+                const cleanedData: Partial<Orders> = {
+                ...item,
+                type: data.type,
+                requested_at: new Date(),
+                requested_by: reqUsername,
+                created_by_user_id: user.user_id,
+                store_type: existingLocation.store_type
+                };
+
+                const order = repository.create(cleanedData);
+                const savedOrder = await repository.save(order);
+
+                await this.createSubTableByType(
+                useManager,
+                data.type,
+                item,
+                savedOrder.order_id
+                );
+
+                await logService.logTaskEvent(
+                useManager,
+                savedOrder,
+                {
+                    actor: reqUsername,
+                    status: StatusOrders.WAITING
+                }
+                );
+
+                results.push(savedOrder);
+            }
             }
 
-            if (!manager && queryRunner) await queryRunner.commitTransaction();
+            if (!manager && queryRunner) {
+            await queryRunner.commitTransaction();
+            }
+
             return response.setComplete('created', results);
 
         } catch (e) {
-            if (!manager && queryRunner) await queryRunner.rollbackTransaction();
+
+            if (!manager && queryRunner) {
+            await queryRunner.rollbackTransaction();
+            }
+
             throw e;
+
         } finally {
-            if (!manager && queryRunner) await queryRunner.release();
+
+            if (!manager && queryRunner) {
+            await queryRunner.release();
+            }
         }
     }
+
 
     private async updateSubTableByType(
         manager: EntityManager,
@@ -341,6 +514,81 @@ export class OrdersService {
             if (!manager && queryRunner) await queryRunner.release();
         }
     }
+
+    async updateExecutionModeMany(
+        payload: {
+            orders: {
+                order_id: number;
+                execution_mode: ExecutionMode;
+            }[];
+            reqUsername: string;
+        },
+        manager?: EntityManager
+    ): Promise<ApiResponse<void>> {
+
+        const response = new ApiResponse<void>();
+        const operation = 'OrdersService.updateExecutionModeMany';
+
+        if (!payload?.orders || payload.orders.length === 0) {
+            return response.setIncomplete('orders is required');
+        }
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager ?? queryRunner!.manager;
+
+        try {
+
+            if (!manager) {
+                await queryRunner!.connect();
+                await queryRunner!.startTransaction();
+            }
+
+            const orderRepo = useManager.getRepository(Orders);
+
+            for (const item of payload.orders) {
+
+                if (!item.order_id) {
+                    throw new Error('order_id is required');
+                }
+
+                const order = await orderRepo.findOne({
+                    where: { order_id: item.order_id }
+                });
+
+                if (!order) {
+                    throw new Error(`Order not found: ${item.order_id}`);
+                }
+
+                // update execution_mode
+                order.execution_mode = item.execution_mode;
+                order.updated_by = payload.reqUsername;
+                order.updated_at = new Date();
+
+                await orderRepo.save(order);
+            }
+
+            if (!manager) {
+                await queryRunner!.commitTransaction();
+            }
+
+            return response.setComplete('update execution mode completed');
+
+        } catch (error: any) {
+
+        if (!manager) {
+            await queryRunner!.rollbackTransaction();
+        }
+
+        return response.setIncomplete(operation, error.message);
+
+    } finally {
+
+        if (!manager) {
+            await queryRunner!.release();
+        }
+    }
+}
+
 
     async delete(
         order_ids: number[],
@@ -583,6 +831,113 @@ export class OrdersService {
             }
         }
     }
+
+    async submitTransfer(
+        order_ids: number[],
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+        const operation = 'OrdersService.submitTransfer';
+
+        if (!order_ids || order_ids.length === 0) {
+            return response.setIncomplete('order_ids is required');
+        }
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager || queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete(
+                lang.msg('validation.no_entityManager_or_queryRunner_available')
+            );
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        try {
+            const orderRepo = useManager.getRepository(Orders);
+            const userRepo = useManager.getRepository(s_user);
+
+            /** ---------- หา user ---------- */
+            const user = await userRepo.findOne({
+                where: { username: reqUsername },
+            });
+
+            if (!user) {
+                throw new Error(lang.msgNotFound('user'));
+            }
+
+            const updatedOrders: Orders[] = [];
+
+            /** ---------- loop order ---------- */
+            for (const order_id of order_ids) {
+
+                const order = await orderRepo.findOne({
+                    where: { order_id },
+                });
+
+                if (!order) {
+                    throw new Error(
+                        lang.msgNotFound(`orders.order_id : ${order_id}`)
+                    );
+                }
+
+                if (order.status === StatusOrders.COMPLETED) {
+                    // ข้าม หรือจะ throw ก็ได้ (เลือก policy)
+                    continue;
+                }
+
+                await orderRepo.update(
+                    { order_id },
+                    {
+                        status: StatusOrders.COMPLETED,
+                        actual_qty: order.plan_qty,
+                        actual_status: ScanStatus.COMPLETED,
+                        actual_by: reqUsername,
+                        is_confirm: true,
+                        finished_at: new Date(),
+                        executed_by_user_id: user.user_id,
+                    }
+                );
+
+                const updated = await orderRepo.findOne({
+                    where: { order_id },
+                });
+
+                if (updated) {
+                    updatedOrders.push(updated);
+                }
+            }
+
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete(
+                'submit transfer completed',
+                updatedOrders
+            );
+
+        } catch (error: any) {
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+            console.error(`❌ ${operation}`, error);
+            return response.setIncomplete(error.message);
+        } finally {
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
+        }
+    }
+
+    
+
 
 
     async getAll(manager?: EntityManager): Promise<ApiResponse<any | null>> {

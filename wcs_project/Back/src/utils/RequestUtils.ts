@@ -31,6 +31,18 @@ class RequestUtils {
     console.log('req user_id:', reqUserId);
     return reqUserId;
   }
+
+  static getStoreTypeToken(req: Request, res: Response): string | null {
+    const reqStoreType = req.user?.store_type;
+
+    if (!reqStoreType) {
+      ResponseUtils.handleBadRequestIsRequired(res, 'field.store_type');
+      return null;
+    }
+
+    console.log('req store_type:', reqStoreType);
+    return reqStoreType;
+  }
 }
 
 export default RequestUtils;

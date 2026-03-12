@@ -12,9 +12,7 @@ export class OrdersLogService {
         params?: {
             actor?: string | null;
             source?: TaskSource | string | null;
-            subsystem?: TaskSubsystem | string | null;
-            reason_code?: string | null;
-            meta?: any;
+            message?: string | null;
             status?: StatusOrders | string | null;
         }
     ): Promise<void> {
@@ -37,7 +35,6 @@ export class OrdersLogService {
         const boxLocation = loc?.box_loc ?? null;
 
         const resolvedSource: TaskSource = (params?.source as TaskSource) ?? TaskSource.SYSTEM;
-        const resolvedSubsystem: TaskSubsystem = (params?.subsystem as TaskSubsystem) ?? TaskSubsystem.CORE;
         const resolvedActor: string | null = params?.actor ?? 
             (resolvedSource === TaskSource.API ? null : (resolvedSource as string));
 
@@ -57,9 +54,7 @@ export class OrdersLogService {
             is_confirm: order.is_confirm ?? false,
             actor: resolvedActor,
             source: resolvedSource as any,
-            subsystem: resolvedSubsystem as any,
-            reason_code: params?.reason_code ? (params.reason_code as TaskReason) : null, // ✅ แก้ตรงนี้
-            meta_json: params?.meta ?? null,
+            message: params?.message ?? null,
         });
     }
 }

@@ -18,8 +18,8 @@ export class Inventory {
     loc_id!: number;
 
     /** ไอดี order_receipt id (FK) เพื่อ join เอา mc_code/ condition แล้วไป sum หน้า inventory*/
-    @Column({ type: 'int', unsigned: true })
-    receipt_id!: number;
+    @Column({ type: 'int', unsigned: true, nullable: true })
+    receipt_id?: number;
 
         /** ราคาต่อหน่วย (Unit Cost) */
     @Column({

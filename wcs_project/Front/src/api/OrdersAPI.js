@@ -108,6 +108,26 @@ class OrdersAPI {
         }
     }
 
+    static async OrdersTransferAll(params) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = "/api/orders/get-transfer-all";
+
+            const response = await ApiProvider.getData(
+                endpoint,
+                params || {}, // 👈 ส่ง query params (ถ้าไม่ส่ง = ทั้งหมด)
+                token
+            );
+
+            //console.log("API Response:", response);
+            return response;
+
+        } catch (error) {
+            console.error("Error search orders:", error.message || error);
+            throw new Error(`Error: ${error.message}`);
+        }
+    }
+
     static async OrdersStatusAll(params) {
         try {
             const token = GlobalVar.getToken();
@@ -127,6 +147,21 @@ class OrdersAPI {
             throw new Error(`Error: ${error.message}`);
         }
     }
+
+    static async updateExecutionModeMany(payload) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = "/api/orders/update-execution-mode";
+            
+            const response = await ApiProvider.putData(endpoint, payload, token);
+
+            return response;
+        } catch (error) {
+            console.error("Error in updateExecutionModeMany:", error);
+            throw error;
+        }
+    }
+
 }
 
 export default OrdersAPI;

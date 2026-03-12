@@ -30,7 +30,7 @@ function LabLogin() {
     e.preventDefault();
     setErrorMessage("");
     try {
-      const response = await UserApi.login(username, password);
+      const response = await UserApi.login(username, password, storeType);
       if (response.isCompleted && !response.isError) {
         const data = response.data;
         const token = data.token;
@@ -51,7 +51,7 @@ function LabLogin() {
         } else {
           setErrorMessage("Login Failed: Incomplete Information");
         }
-        //console.log("UserID:", data.user_id);
+        //console.log("storeType:", storeType);
       } else {
         setErrorMessage("Login Failed: Invalid Username or Password");
       }

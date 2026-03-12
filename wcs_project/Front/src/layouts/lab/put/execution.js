@@ -25,10 +25,14 @@ import { StyledMenuItem, StyledSelect } from "common/Global.style";
 import { Condition, OrderStatusNoFinish } from "common/dataMain";
 import SearchIcon from "@mui/icons-material/Search";
 import { GlobalVar } from "common/GlobalVar";
-import { normalizeStatus } from "common/utils/statusUtils";
 import StatusBadge from "../components/statusBadge";
+import {
+  normalizeStatus,
+  STATUS_STYLE,
+} from "common/utils/statusUtils";
 import ButtonComponent from "../components/ButtonComponent";
 import Swal from "sweetalert2";
+import ExecutionModeBadge from "../components/executionModeBadge";
 
 //store
 const PutExecutionPage = () => {
@@ -97,6 +101,8 @@ const PutExecutionPage = () => {
     //const mcCodes = GlobalVar.getMcCodes(); 
     const storeType = GlobalVar.getStoreType();
 
+    const [overdueChecked, setOverdueChecked] = useState(false);
+
     // --------------------------------------------------
     // FETCH API
     // --------------------------------------------------
@@ -140,6 +146,27 @@ const PutExecutionPage = () => {
         fetchDataWaitingAll();
         fetchDataExecuteAll();
     }, []);
+
+    //order ที่มากกว่า 10 วัน
+    useEffect(() => {
+        if (overdueChecked) return;
+        if (!waitingList || waitingList.length === 0) return;
+
+        const overdueOrders = waitingList.filter((row) =>
+            isOverdue(row.requested_at)
+        );
+
+        if (overdueOrders.length > 0) {
+            setAlert({
+                show: true,
+                type: "warning",
+                title: "Unprocessed Orders",
+                message: `${overdueOrders.length} orders remain unprocessed for over 10 days.`,
+            });
+        }
+
+        setOverdueChecked(true);
+    }, [waitingList]);
 
     //ฟังก์ชัน พิมพ์เล็ก / ใหญ่ , รองรับ number, null, undefined , trim
     const includesIgnoreCase = (value, search) => {
@@ -288,46 +315,74 @@ const PutExecutionPage = () => {
         if (selectedExecutionIds.length === 0) return;
 
         try {
-        const payload = {
-            items: selectedExecutionIds.map(id => ({ order_id: id }))
-        };
+            // 🔹 หา order ที่ถูกเลือก
+            const selectedOrders = executionList.filter(o =>
+                selectedExecutionIds.includes(o.order_id)
+            );
 
-        const res = await ExecutionAPI.createTask(payload);
+            // 🔹 แยก MANUAL / AUTO
+            const manualOrders = selectedOrders.filter(
+                o => (o.execution_mode ?? "AUTO") === "MANUAL"
+            );
 
-        await Promise.all([
-            fetchDataWaitingAll(),
-            fetchDataExecuteAll(),
-        ]);
+            const autoOrders = selectedOrders.filter(
+                o => (o.execution_mode ?? "AUTO") === "AUTO"
+            );
 
-        setSelectedExecutionIds([]);
+            // =========================
+            // 🔹 MANUAL → handleManualOrder (ส่งหลาย order พร้อมกัน)
+            // =========================
+            if (manualOrders.length > 0) {
+                // แปลง manualOrders เป็น array ของ { order_id, actual_qty }
+                const items = manualOrders.map(o => ({
+                    order_id: o.order_id,
+                    actual_qty: Number(o.plan_qty || 0) // ใช้ plan_qty แทน actual_qty
+                }));
 
-        if (res?.isCompleted) {
+                const res = await ExecutionAPI.handleManualOrder(items);
+
+                if (!res?.isCompleted) {
+                    throw new Error(res?.message || "Failed to handle manual orders");
+                }
+            }
+
+            // =========================
+            // 🔹 AUTO → createTask
+            // =========================
+            if (autoOrders.length > 0) {
+                const items = autoOrders.map(o => ({
+                    order_id: o.order_id
+                }));
+
+                await ExecutionAPI.createTask({ items });
+            }
+
+            // 🔄 Refresh data
+            await Promise.all([
+                fetchDataWaitingAll(),
+                fetchDataExecuteAll(),
+            ]);
+
+            setSelectedExecutionIds([]);
+
             setAlert({
-            show: true,
-            type: "success",
-            title: "Success",
-            message: res.message || "Confirm success",
-            onConfirm: () => {
-                navigate("/status");
-            },
+                show: true,
+                type: "success",
+                title: "Success",
+                message: "Confirm to Execution",
+                onConfirm: () => {
+                    navigate("/status");
+                },
             });
-            return;
-        }
 
-        setAlert({
-            show: true,
-            type: "success",
-            title: "Success",
-            message: "Confirm to Execution",
-        });
         } catch (err) {
-        console.error(err);
-        setAlert({
-            show: true,
-            type: "error",
-            title: "Error",
-            message: err.response?.data?.message || "Something went wrong",
-        });
+            console.error(err);
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: err.response?.data?.message || err.message || "Something went wrong",
+            });
         }
     };
 
@@ -532,7 +587,53 @@ const PutExecutionPage = () => {
         }
     };
 
-    
+    const handleToggleExecutionMode = async (orderId, nextMode) => {
+        const order = executionList.find(o => o.order_id === orderId);
+        if (!order) return;
+
+        if (order.status !== "PENDING") return;
+
+        try {
+            // 🔹 ยิง API ทันที
+            await OrdersAPI.updateExecutionModeMany({
+                orders: [
+                    {
+                        order_id: orderId,
+                        execution_mode: nextMode,
+                    },
+                ],
+            });
+
+            // 🔹 ถ้าสำเร็จ → update state
+            setExecutionList(prev =>
+                prev.map(o =>
+                    o.order_id === orderId
+                        ? { ...o, execution_mode: nextMode }
+                        : o
+                )
+            );
+
+        } catch (err) {
+            console.error(err);
+
+            setAlert({
+                show: true,
+                type: "error",
+                title: "Error",
+                message: err.response?.data?.message || "Update failed",
+            });
+        }
+    };
+
+    const isOverdue = (date) => {
+        if (!date) return false;
+
+        const today = dayjs();
+        const req = dayjs(date, "DD/MM/YYYY");
+
+        return today.diff(req, "day") >= 10;
+    };
+
     // --------------------------------------------------
     // TABLE COLUMNS
     // --------------------------------------------------
@@ -552,6 +653,31 @@ const PutExecutionPage = () => {
     ];
 
     const columnsExecute = [
+        {
+            field: "status",
+            label: "Order Status",
+            valueGetter: (row) => row.status,
+            renderCell: (status) => (
+            <StatusBadge
+                value={status}
+                normalize={normalizeStatus}
+                styles={STATUS_STYLE}
+            />
+            ),
+        },
+        {
+            field: "execution_mode",
+            label: "Auto / Manual",
+            renderCell: (_, row) => (
+                <ExecutionModeBadge
+                mode={row.execution_mode}
+                status={row.status}
+                onToggle={(nextMode) =>
+                    handleToggleExecutionMode(row.order_id, nextMode)
+                }
+                />
+            ),
+        },
         { field: "mc_code", label: "Maintenance Contract" },
         { field: "po_num", label: "PO No." },
         { field: "object_id", label: "OBJECT ID" },
@@ -564,12 +690,6 @@ const PutExecutionPage = () => {
         { field: "unit_cost_handled", label: "Unit Cost" },
         { field: "total_cost_handled", label: "Total Cost" },
         { field: "plan_qty", label: "Required Quantity" },
-        {
-            field: "status",
-            label: "Order Status",
-            valueGetter: (row) => row.status, // เอาไว้ filter / sort
-            renderCell: (status) => <StatusBadge status={status} />,
-        }
     ];
 
     // --------------------------------------------------
@@ -942,6 +1062,11 @@ const PutExecutionPage = () => {
                     rows={filteredWaiting}
                     //disableHorizontalScroll
                     idField="order_id"
+                    getRowStyle={(row) =>
+                        isOverdue(row.requested_at)
+                        ? { backgroundColor: "#f1c8a5" }
+                        : {}
+                    }
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
                     onSelectedRowsChange={setSelectedWaitingIds} // ⭐ callback

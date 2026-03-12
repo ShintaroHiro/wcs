@@ -143,6 +143,63 @@ export default function createTasksRouter(orchestrator: OrchestratedTaskService)
         c.changeToPendingBatch
     );
 
+/**
+ * @swagger
+ * /api/execution/transfer-change-status:
+ *   post:
+ *     summary: เปลี่ยนสถานะรายการ order transfer แบบ batch
+ *     tags: [Execution]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - items
+ *               - transfer_status
+ *             properties:
+ *               items:
+ *                 type: array
+ *                 description: รายการ order ที่ต้องการเปลี่ยนสถานะ
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - order_id
+ *                   properties:
+ *                     order_id:
+ *                       type: number
+ *                       example: 1001
+ *               transfer_status:
+ *                 type: string
+ *                 description: สถานะใหม่ของ transfer
+ *                 example: CONFIRMED
+ *           example:
+ *             items:
+ *               - order_id: 1001
+ *               - order_id: 1002
+ *               - order_id: 1003
+ *             transfer_status: CONFIRMED
+ *     responses:
+ *       200:
+ *         description: เปลี่ยนสถานะรายการ order สำเร็จ
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้องหรือไม่ครบถ้วน
+ *       404:
+ *         description: ไม่พบรายการ order
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.post(
+    '/transfer-change-status',
+    authenticateToken,
+    c.transferChangeToBatch
+);
+
     /**
      * @swagger
      * /api/execution/handle-order-item/{order_id}/{actual_qty}:
@@ -217,6 +274,95 @@ export default function createTasksRouter(orchestrator: OrchestratedTaskService)
         '/handle-order-item-t1/:order_id/:actual_qty',
         authenticateToken,
         c.handleOrderItemWRS
+    );
+
+    /**
+     * @swagger
+     * /api/execution/handle-error-order-item-t1:
+     *   post:
+     *     summary: Clear error event and process multiple orders
+     *     tags: [Execution]
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - event_id
+     *               - items
+     *             properties:
+     *               event_id:
+     *                 type: number
+     *                 example: 1
+     *               items:
+     *                 type: array
+     *                 items:
+     *                   type: object
+     *                   required:
+     *                     - order_id
+     *                     - actual_qty
+     *                   properties:
+     *                     order_id:
+     *                       type: number
+     *                       example: 101
+     *                     actual_qty:
+     *                       type: number
+     *                       example: 5
+     *     responses:
+     *       200:
+     *         description: Error handled successfully
+     *       400:
+     *         description: Invalid request
+     *       500:
+     *         description: Server error
+     */
+    router.post(
+        '/handle-error-order-item-t1',
+        authenticateToken,
+        c.handleErrorOrderItemWRS
+    );
+
+    
+    /**
+     * @swagger
+     * /api/execution/handle-manual-order-item-t1:
+     *   post:
+     *     summary: Ready to handle manual items for T1 store (multiple orders)
+     *     tags: [Execution]
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: array
+     *             items:
+     *               type: object
+     *               properties:
+     *                 order_id:
+     *                   type: number
+     *                   description: ไอดีรายการ order ที่เป็น manual
+     *                 actual_qty:
+     *                   type: number
+     *                   description: จำนวนจริงที่ต้องการบันทึก
+     *     responses:
+     *       200:
+     *         description: เปลี่ยนสถานะรายการ order สำเร็จ
+     *       400:
+     *         description: ข้อมูลที่ส่งมาไม่ถูกต้องหรือไม่ครบถ้วน
+     *       404:
+     *         description: ไม่พบรายการ order
+     *       500:
+     *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+     */
+    router.post(
+        '/handle-manual-order-item-t1',
+        authenticateToken,
+        c.handleManualOrder
     );
 
     /**

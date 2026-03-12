@@ -25,8 +25,11 @@ import { StyledMenuItem, StyledSelect } from "common/Global.style";
 import { Condition, OrderStatusNoFinish } from "common/dataMain";
 import SearchIcon from "@mui/icons-material/Search";
 import { GlobalVar } from "common/GlobalVar";
-import { normalizeStatus } from "common/utils/statusUtils";
 import StatusBadge from "../components/statusBadge";
+import {
+  normalizeStatus,
+  STATUS_STYLE,
+} from "common/utils/statusUtils";
 import ButtonComponent from "../components/ButtonComponent";
 import Swal from "sweetalert2";
 
@@ -103,6 +106,8 @@ const PickExecutionPage = () => {
     //const mcCodes = GlobalVar.getMcCodes(); 
     const storeType = GlobalVar.getStoreType();
 
+    const [overdueChecked, setOverdueChecked] = useState(false);
+
     // --------------------------------------------------
     // FETCH API
     // --------------------------------------------------
@@ -146,6 +151,27 @@ const PickExecutionPage = () => {
         fetchDataWaitingAll();
         fetchDataExecuteAll();
     }, []);
+
+    //order ที่มากกว่า 10 วัน
+    useEffect(() => {
+        if (overdueChecked) return;
+        if (!waitingList || waitingList.length === 0) return;
+
+        const overdueOrders = waitingList.filter((row) =>
+            isOverdue(row.requested_at)
+        );
+
+        if (overdueOrders.length > 0) {
+            setAlert({
+                show: true,
+                type: "warning",
+                title: "Unprocessed Orders",
+                message: `${overdueOrders.length} orders remain unprocessed for over 10 days.`,
+            });
+        }
+
+        setOverdueChecked(true);
+    }, [waitingList]);
 
     //ฟังก์ชัน พิมพ์เล็ก / ใหญ่ , รองรับ number, null, undefined , trim
     const includesIgnoreCase = (value, search) => {
@@ -537,6 +563,14 @@ const PickExecutionPage = () => {
         }
     };
 
+    const isOverdue = (date) => {
+        if (!date) return false;
+
+        const today = dayjs();
+        const req = dayjs(date, "DD/MM/YYYY");
+
+        return today.diff(req, "day") >= 10;
+    };
 
     // --------------------------------------------------
     // TABLE COLUMNS
@@ -559,6 +593,18 @@ const PickExecutionPage = () => {
     ];
 
     const columnsExecute = [
+        {
+            field: "status",
+            label: "Order Status",
+            valueGetter: (row) => row.status,
+            renderCell: (status) => (
+            <StatusBadge
+                value={status}
+                normalize={normalizeStatus}
+                styles={STATUS_STYLE}
+            />
+            ),
+        },
         { field: "mc_code", label: "Maintenance Contract" },
         { field: "work_order", label: "Work Order" },
         { field: "spr_no", label: "SPR No." },
@@ -573,12 +619,6 @@ const PickExecutionPage = () => {
         { field: "unit_cost_handled", label: "Unit Cost" },
         { field: "total_cost_handled", label: "Total Cost" },
         { field: "plan_qty", label: "Required Quantity" },
-        {
-            field: "status",
-            label: "Order Status",
-            valueGetter: (row) => row.status, // เอาไว้ filter / sort
-            renderCell: (status) => <StatusBadge status={status} />,
-        }
     ];
 
     // --------------------------------------------------
@@ -1016,6 +1056,11 @@ const PickExecutionPage = () => {
                     rows={filteredWaiting}
                     //disableHorizontalScroll
                     idField="order_id"
+                    getRowStyle={(row) =>
+                        isOverdue(row.requested_at)
+                        ? { backgroundColor: "#f1c8a5" }
+                        : {}
+                    }
                     enableSelection={true}              // ⭐ เปิด checkbox
                     selectedRows={selectedWaitingIds}   // ⭐ รายการที่เลือก
                     onSelectedRowsChange={setSelectedWaitingIds} // ⭐ callback

@@ -46,7 +46,7 @@ class InventoryAPI {
         }
     }
 
-        static async getAll() {
+    static async getAll() {
         try {
         const token = GlobalVar.getToken();
         const endpoint = "/api/inventory/get-all";
@@ -56,7 +56,23 @@ class InventoryAPI {
             return response; // ส่งค่ากลับไป
 
         } catch (error) {
-        console.error("Error search Stock Items Data:", error.message || error);
+        console.error("Error search Inventory Data:", error.message || error);
+        throw new Error(`Error: ${error.message}`);
+
+        }
+    }
+
+    static async getBoxAll() {
+        try {
+        const token = GlobalVar.getToken();
+        const endpoint = "/api/inventory/group-by-location";
+        const response = await ApiProvider.getData(endpoint, {}, token);
+        //console.log("API Response:", response);
+            
+            return response; // ส่งค่ากลับไป
+
+        } catch (error) {
+        console.error("Error search Inventory Data:", error.message || error);
         throw new Error(`Error: ${error.message}`);
 
         }

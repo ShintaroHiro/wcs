@@ -80,23 +80,55 @@ class ExecutionAPI {
       }
   }
 
-  static async handleOrderItemT1(order_id, actual_qty, inv_id) {
+  static async handleOrderItemT1(order_id, actual_qty) {
       try {
           const token = GlobalVar.getToken();
           const endpoint = `/api/execution/handle-order-item-t1/${order_id}/${actual_qty}`;
 
-          const body = {};
-          if (inv_id !== undefined && inv_id !== null) {
-              body.inv_id = inv_id;
-          }
-
-          const response = await ApiProvider.postData(endpoint, body, token);
-          console.log("handleOrderItemT1", response);
+          const response = await ApiProvider.postData(endpoint, {}, token);
+          //console.log("handleOrderItemT1", response);
           return response;
       } catch (error) {
           console.error("Error in Task:", error);
           throw error;
       }
+  }
+
+  static async handleErrorOrderItemT1(event_id, items) {
+    try {
+      const token = GlobalVar.getToken();
+      const endpoint = "/api/execution/handle-error-order-item-t1";
+
+      const payload = {
+        event_id,
+        items
+      };
+
+      const response = await ApiProvider.postData(endpoint, payload, token);
+
+      return response;
+    } catch (error) {
+      console.error("Error in handleErrorOrderItemT1:", error);
+      throw error;
+    }
+  }
+
+  static async handleManualOrder(items) {
+    try {
+        if (!Array.isArray(items) || items.length === 0) {
+            throw new Error("No orders provided");
+        }
+
+        const token = GlobalVar.getToken();
+        const endpoint = "/api/execution/handle-manual-order-item-t1";
+
+        // ส่ง body เป็น array ของ {order_id, actual_qty}
+        const response = await ApiProvider.postData(endpoint, items, token);
+        return response;
+    } catch (error) {
+        console.error("Error in Task:", error);
+        throw error;
+    }
   }
 
   static async changeToWaiting(payload) {
@@ -129,6 +161,19 @@ class ExecutionAPI {
     }
   }
 
+  static async transferChangeStatus(payload) {
+    try {
+      const token = GlobalVar.getToken();
+      const endpoint = "/api/execution/transfer-change-status";
+
+      const response = await ApiProvider.postData(endpoint, payload, token);
+      
+      return response;
+    } catch (error) {
+      console.error("Error in status transfer:", error);
+      throw error;
+    }
+  }
 
   static async TaskAll() {
       try {

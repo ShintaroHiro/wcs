@@ -100,19 +100,20 @@ export default class ImportFileAPI {
             "ITEM DESCRIPTION",
             "QUANTITY",
             "CONDITION",
-            "MAINTENANCE CONTRACT",
-            "REQUIREDDATE",
-            "REQUESTEDBY",
+            "MAINT. CONTRACT",
+            "REQUESTED DATE",
+            "REQUESTED BY",
             "USETYPE",
             "WORK ORDER",
             "SPR NO.",
-            "INVUSENUM",
+            "USAGE",
             "USAGE LINE",
             "SPLIT",
-            "INVUSE STATUS",
+            "USAGE STATUS",
         ];
         const headers = rows[0];
-
+// console.log("expectedHeaders",expectedHeaders);
+//             console.log("headers",headers);
         if (!this.validateHeaders(expectedHeaders, headers)) {
             return new ApiResponse({
             isCompleted: false,
@@ -148,17 +149,17 @@ export default class ImportFileAPI {
                 plan_qty: toNumber(r[col("QUANTITY")]),
                 cond: r[col("CONDITION")]?.toString().trim().toUpperCase(),
 
-                mc_code: r[col("MAINTENANCE CONTRACT")]?.toString().trim(),
-                requested_at: r[col("REQUIREDDATE")]?.toString().trim(),
-                requested_by: r[col("REQUESTEDBY")]?.toString().trim(),
+                mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
+                requested_at: r[col("REQUESTED DATE")]?.toString().trim(),
+                requested_by: r[col("REQUESTED BY")]?.toString().trim(),
 
                 usage_type: r[col("USETYPE")]?.toString().trim(),
                 work_order: r[col("WORK ORDER")]?.toString().trim(),
                 spr_no: r[col("SPR NO.")]?.toString().trim(),
-                usage_num: r[col("INVUSENUM")]?.toString().trim(),
+                usage_num: r[col("USAGE")]?.toString().trim(),
                 usage_line: r[col("USAGE LINE")]?.toString().trim(),
                 split: Number(r[col("SPLIT")] ?? 0),
-                invuse_status: r[col("INVUSE STATUS")]?.toString().trim(),
+                invuse_status: r[col("USAGE STATUS")]?.toString().trim(),
                 };
             })
             // 🔥 ค่อยกรอง row ว่างออก "หลังจาก" ใส่ excel_row_no แล้ว
@@ -243,14 +244,16 @@ export default class ImportFileAPI {
 
             const expectedHeaders = [
             "TRANSTYPE",
-            //"PONUM",
+            "PONUM",
             "OBJECT_ID",
-            "AACONTRACT",
-            "ITEMNUM",
+            "MAINT. CONTRACT",
+            "STOCK ITEM",
             "DESCRIPTION",
             "CONDITIONCODE",
+            "FROM_STORE",
+            "FROM_BIN",
             "TO_STORE",
-            "TO_BINNUM",
+            "TO_BIN",
             "NEWCOST",
             "TRANSDATE",
             "NEW_QTY",
@@ -259,6 +262,8 @@ export default class ImportFileAPI {
             ];
 
             const headers = rows[0];
+            // console.log("expectedHeaders",expectedHeaders);
+            // console.log("headers",headers);
             if (!this.validateHeaders(expectedHeaders, headers)) {
             return new ApiResponse({
                 isCompleted: false,
@@ -288,12 +293,19 @@ export default class ImportFileAPI {
                     transtype: r[col("TRANSTYPE")]?.toString().trim().toUpperCase(),
                     po_num: r[col("PONUM")]?.toString().trim(),
                     object_id: r[col("OBJECT_ID")]?.toString().trim(),
-                    stock_item: r[col("ITEMNUM")]?.toString().trim(),
+                    stock_item: r[col("STOCK ITEM")]?.toString().trim(),
                     item_desc: r[col("DESCRIPTION")]?.toString().trim(),
-                    loc: r[col("TO_STORE")]?.toString().trim(),
-                    box_loc: r[col("TO_BINNUM")]?.toString().trim(),
+                    // // RECEIPT ใช้ TO
+                    // loc: r[col("TO_STORE")]?.toString().trim(),
+                    // box_loc: r[col("TO_BIN")]?.toString().trim(),
+
+                    // TRANSFER ใช้ FROM/TO
+                    from_store: r[col("FROM_STORE")]?.toString().trim(),
+                    from_bin: r[col("FROM_BIN")]?.toString().trim(),
+                    to_store: r[col("TO_STORE")]?.toString().trim(),
+                    to_bin: r[col("TO_BIN")]?.toString().trim(),
                     cond: r[col("CONDITIONCODE")]?.toString().trim().toUpperCase(),
-                    mc_code: r[col("AACONTRACT")]?.toString().trim(),
+                    mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
                     unit_cost_handled: toNumber(r[col("NEWCOST")]),
                     requested_at: r[col("TRANSDATE")]?.toString().trim(),
 
@@ -397,7 +409,7 @@ export default class ImportFileAPI {
             "ITEM DESCRIPTION",
             "QUANTITY",
             "CONDITION",
-            "MAINTENANCE CONTRACT",
+            "MAINT. CONTRACT",
             "TRANSDATE",
         ];
         const headers = rows[0];
@@ -437,7 +449,7 @@ export default class ImportFileAPI {
                 plan_qty: toNumber(r[col("QUANTITY")]),
                 cond: r[col("CONDITION")]?.toString().trim().toUpperCase(),
 
-                mc_code: r[col("MAINTENANCE CONTRACT")]?.toString().trim(),
+                mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
                 requested_at: r[col("TRANSDATE")]?.toString().trim(),
 
                 work_order: r[col("WORK ORDER")]?.toString().trim(),
@@ -607,4 +619,147 @@ export default class ImportFileAPI {
         });
         }
     }
+
+//     static async importInventoryFile(file) {
+//         try {
+//         if (!file || !(file instanceof Blob)) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "Please select an Excel file.",
+//             data: null,
+//             });
+//         }
+
+//         const token = GlobalVar.getToken();
+//         if (!token) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "Token not found",
+//             data: null,
+//             });
+//         }
+
+//         const reader = new FileReader();
+
+//         const rows = await new Promise((resolve, reject) => {
+//             reader.onload = (e) => {
+//             const data = new Uint8Array(e.target.result);
+//             const workbook = XLSX.read(data, { type: "array" });
+//             const sheet = workbook.Sheets[workbook.SheetNames[0]];
+//             const json = XLSX.utils.sheet_to_json(sheet, {
+//                 header: 1,
+//                 raw: false,     // ⭐ บอก xlsx ให้แปลงค่า
+//                 cellDates: true // ⭐ แปลง cell date เป็น Date
+//             });
+
+//             resolve(json);
+//             };
+//             reader.onerror = reject;
+//             reader.readAsArrayBuffer(file);
+//         });
+
+//         if (rows.length < 2) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "No Data",
+//             data: null,
+//             });
+//         }
+//         const expectedHeaders = [
+//             "STK NO",
+//             "DESCRIPTION",
+//             "DEPT",
+//             "LOCATION",
+//             "STATUS",
+//             "MAINT. CONTRACT",
+//             "CURBAL",
+//             "AVERAGE UNIT COST",
+//             "TOTAL COST",
+//             "ABCTYPE",
+//             "ORGID",
+//             "CONDITION CODE",
+//             "BINNUM",
+//             "STORE",
+//         ];
+//         const headers = rows[0];
+// // console.log("expectedHeaders",expectedHeaders);
+// //             console.log("headers",headers);
+//         if (!this.validateHeaders(expectedHeaders, headers)) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "Header is incorrect",
+//             data: null,
+//             });
+//         }
+
+//         const headerMap = {};
+//         headers.forEach((h, i) => {
+//             if (h) headerMap[h.trim().toUpperCase()] = i;
+//         });
+
+//         /** helper หา index column */
+//         const col = (name) => headerMap[name.toUpperCase()];
+
+//         const payload = rows
+    
+//         .map((r, index) => {
+//             const excel_row_no = index + 1; // ⭐ row จริงใน Excel (รวม header + row ว่าง + merge)
+
+//             // ข้าม header แต่ยังคง index
+//             if (index === 0) return null;
+
+//             return {
+//                 excel_row_no, // ⭐ ส่งไป BE
+
+//                 loc: r[col("STK NO")]?.toString().trim(),
+//                 box_loc: r[col("DESCRIPTION")]?.toString().trim(),
+//                 stock_item: r[col("DEPT")]?.toString().trim(),
+//                 item_desc: r[col("LOCATION")]?.toString().trim(),
+//                 plan_qty: r[col("STATUS")]?.toString().trim(),
+//                 mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
+//                 requested_at: toNumber(r[col("CURBAL")]),
+//                 requested_by: toNumber(r[col("AVERAGE UNIT COST")]),
+//                 usage_type: toNumber(r[col("TOTAL COST")]),
+//                 work_order: r[col("ABCTYPE")]?.toString().trim(),
+//                 spr_no: r[col("ORGID")]?.toString().trim(),
+//                 usage_num: r[col("CONDITION CODE")]?.toString().trim(),
+//                 usage_line: r[col("BINNUM")]?.toString().trim(),
+//                 split: r[col("STORE")]?.toString().trim(),
+//                 };
+//             })
+//             // 🔥 ค่อยกรอง row ว่างออก "หลังจาก" ใส่ excel_row_no แล้ว
+//             .filter(row =>
+//             row &&
+//             (
+//                 row.loc ||
+//                 row.box_loc ||
+//                 row.stock_item ||
+//                 row.plan_qty > 0
+//             )
+//         );
+
+//         if (!payload.length) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "Invalid file format",
+//             data: null,
+//             });
+//         }
+
+//         return await ApiProvider.postData("/api/import/create-usage-json", payload, token);
+//         } catch (err) {
+//         console.error("❌ importInventoryFile error", err);
+//         return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: err.message,
+//             data: null,
+//         });
+//         }
+//     }
 }

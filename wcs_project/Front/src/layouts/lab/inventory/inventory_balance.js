@@ -12,13 +12,17 @@ import { StoreType, Condition } from "common/dataMain";
 import MDInput from "components/MDInput";
 import MDButton from "components/MDButton";
 import { StyledMenuItem, StyledSelect } from "common/Global.style";
+import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
 
 const InventoryBalance = () => {
     const storeType = GlobalVar.getStoreType();
+    const storeTypeTrans = getStoreTypeTrans(storeType);
+
     const [loading , setLoading] = useState(true);
     
     const [itemsList, setItemsList] = useState([]);
     const [filteredItems, setFilteredItems] = useState([]);
+
     const [searchItems, setSearchItems] = useState({ 
         stock_item: "",
         item_desc: "",
@@ -36,7 +40,8 @@ const InventoryBalance = () => {
 
     const [filterCondition, setFilterCondition] = useState("");
     const [filterLocation, setFilterLocation] = useState("");
-    
+
+    //stock
     const fetchDataAll = async () => {
         try {
         const response = await InventoryAPI.getAll();
@@ -76,14 +81,14 @@ const InventoryBalance = () => {
             includesIgnoreCase(item.total_inv_qty, searchItems.total_inv_qty) &&
             includesIgnoreCase(item.avg_unit_cost, searchItems.avg_unit_cost) &&
             includesIgnoreCase(item.total_cost_inv, searchItems.total_cost_inv) &&
+            includesIgnoreCase(item.loc, searchItems.loc) &&
             includesIgnoreCase(item.box_loc, searchItems.box_loc) &&
             (filterCondition === "" || item.cond === filterCondition) &&
-            (filterLocation === "" || item.loc === filterLocation)
+            (filterLocation === "" || item.store_type === filterLocation)
         );
 
         setFilteredItems(filtered);
     }, [itemsList, searchItems, filterCondition, filterLocation]);
-
 
     // by item ที่ต้องเหมือนกันทุกประการ ถึงรวม
     const columns = [
@@ -94,54 +99,13 @@ const InventoryBalance = () => {
         { field: "avg_unit_cost", label: "Average Unit Cost" },
         { field: "total_cost_inv", label: "Total Cost" },
         { field: "cond", label: "Condition" },
-        { field: "loc", label: "From Location" },
-        { field: "box_loc", label: "From BIN" },
+        { field: "loc", label: "Location" },
+        { field: "box_loc", label: "Box Location" },
         { field: "item_status", label: "Status" },
         { field: "org_id", label: "ORG ID" },
         { field: "dept", label: "Department" },
     ];
 
-    // // location
-    // const columnsBox = [
-    //     { field: "loc", label: "From Location" },
-    //     { field: "box_loc", label: "From BIN" },
-    // ];
-
-    // // sub list ilter by loc
-    // const columnsSub = [
-    //     { field: "stock_item", label: "Stock Item No." },
-    //     { field: "item_desc", label: "Stock Item Description" },
-    //     { field: "mc_code", label: "Maintenance Contract" },
-    //     { field: "cond", label: "Condition" },
-    //     { field: "avg_unit_cost", label: "Average Unit Cost" },
-    //     { field: "total_cost_inv", label: "Total Cost" },
-    //     { field: "total_inv_qty", label: "Inventory Quantity" },
-    // ];
-
-    //แปลงชื่อคลัง
-    let storeTypeTrans = "";
-
-    switch (storeType) {
-        case "T1":
-        storeTypeTrans = "T1 Store";
-        break;
-
-        case "T1M":
-        storeTypeTrans = "T1M Store";
-        break;
-
-        case "AGMB":
-        storeTypeTrans = "AGMB Store";
-        break;
-
-        case "WCS":
-        storeTypeTrans = "WCS";
-        break;
-
-        default:
-        storeTypeTrans = storeType;
-    }
-    
     return (
         <DashboardLayout>
         <DashboardNavbar />
@@ -170,12 +134,7 @@ const InventoryBalance = () => {
         </MDBox>
 
         {/* 🟠 ขวา : ปุ่ม (ซ้าย / ขวา) */}
-        <MDBox display="flex" justifyContent="flex-end" gap={2} mb={3}>
-            {/* ซ้าย : Create */}
-            <MDButton variant="contained" color="info">
-            Change To From BIN View
-            </MDButton>
-
+        <MDBox display="flex" justifyContent="flex-end" mb={3}>
             {/* ขวา : Import */}
             <MDButton variant="contained" color="info">
             Import
@@ -408,9 +367,9 @@ const InventoryBalance = () => {
                 </Grid>
                 </Grid>
                 <Grid container spacing={2} sx={{ mb: 0.5 }}>
-                {/* From Location */}
+                {/* Store Location */}
                 <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">From Location</MDTypography>
+                    <MDTypography variant="caption" fontWeight="bold">Store Location</MDTypography>
                     <FormControl fullWidth>
                     <StyledSelect
                         sx={{ height: "45px" }}
@@ -430,9 +389,31 @@ const InventoryBalance = () => {
                     </FormControl>
                 </Grid>
 
-                {/* From BIN */}
+                {/* Location */}
                 <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">From BIN</MDTypography>
+                    <MDTypography variant="caption" fontWeight="bold">Location</MDTypography>
+                    <MDInput
+                    placeholder="Text Field"
+                    sx={{ height: "45px" }}
+                    value={searchItems.loc}
+                    onChange={(e) =>
+                        setSearchItems({ ...searchItems, loc: e.target.value })
+                    }
+                    displayEmpty
+                    InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                    }}
+                    fullWidth
+                    />
+                </Grid>
+
+                {/* Box Location */}
+                <Grid item xs={12} md={2.4}>
+                    <MDTypography variant="caption" fontWeight="bold">Box Location</MDTypography>
                     <MDInput
                     placeholder="Text Field"
                     sx={{ height: "45px" }}
@@ -457,11 +438,11 @@ const InventoryBalance = () => {
             <div>Loading...</div>
             ) : (
                 <ReusableDataTable
-                columns={columns}
-                rows={filteredItems}
-                idField="row_key"
-                defaultPageSize={10}
-                pageSizeOptions={[10, 25, 50]}
+                    columns={columns}
+                    rows={filteredItems}
+                    idField="row_key"
+                    defaultPageSize={10}
+                    pageSizeOptions={[10, 25, 50]}
                 />
             )}
             </MDBox>

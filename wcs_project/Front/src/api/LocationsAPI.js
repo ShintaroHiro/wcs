@@ -46,6 +46,98 @@ class LocationsAPI {
         }
     }
     
+    static async create(payload) {
+        try {
+        const token = GlobalVar.getToken();
+        const endpoint = "/api/locations/create";
+        const response = await ApiProvider.postData(endpoint, payload, token);
+            
+        return response; // ส่งค่ากลับไป
+
+        } catch (error) {
+        console.error("Error search Location Master Data:", error.message || error);
+        throw new Error(`Error: ${error.message}`);
+
+        }
+    }
+
+    static async update(loc_id,formData) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/locations/update/${loc_id}`;
+            
+            // ทำการเรียก API ด้วย token และ endpoint
+            const response = await ApiProvider.putData(endpoint, formData, token);
+            
+            return response; // ส่งค่ากลับไป
+        } catch (error) {
+            console.error("Error in Location Master Data:", error);
+            throw error;
+        }
+    }
+
+    static async delete(loc_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/locations/delete/${loc_id}`;
+            
+            // ทำการเรียก API ด้วย token และ endpoint
+            const response = await ApiProvider.deleteData(endpoint, {}, token);
+
+            
+            return response; // ส่งค่ากลับไป
+        } catch (error) {
+            console.error("Error in Location Master Data:", error);
+            throw error;
+        }
+    }
+
+    static async deleteAll() {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = "/api/locations/delete-all";
+
+            // เรียก API ลบทั้งหมด
+            const response = await ApiProvider.deleteData(endpoint, {}, token);
+
+            return response;
+        } catch (error) {
+            console.error("Error in Location Master Delete All:", error);
+            throw error;
+        }
+    }
+
+    static async getAll() {
+        try {
+        const token = GlobalVar.getToken();
+        const endpoint = "/api/locations/get-all";
+        const response = await ApiProvider.getData(endpoint, {}, token);
+            
+            return response; // ส่งค่ากลับไป
+
+        } catch (error) {
+        console.error("Error search Location Master Data:", error.message || error);
+        throw new Error(`Error: ${error.message}`);
+
+        }
+    }
+
+    static async getByID(loc_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/locations/get-by-id/${loc_id}`;
+            
+            // ทำการเรียก API ด้วย token และ endpoint
+            const response = await ApiProvider.getData(endpoint, {}, token);
+
+            
+            return response; // ส่งค่ากลับไป
+        } catch (error) {
+            console.error("Error in Location Master Data:", error);
+            throw error;
+        }
+    }
+
     static async searchLocations({ loc = "", box_loc = "" }) {
         try {
             const token = GlobalVar.getToken();

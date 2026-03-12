@@ -5,22 +5,27 @@ import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import CounterAPI from "api/CounterAPI";
+import EventsAPI from "api/EventsAPI";
 import ReusableDataTable from "../components/table_component_v2";
 import CounterBox from "../components/counter_box";
-//import ScanQtyDialog from "../transactions/scan_qty_form";
 import SweetAlertComponent from "../components/sweetAlert";
 import ExecutionAPI from "api/TaskAPI";
 import StatusBadge from "../components/statusBadge";
+import {
+  normalizeStatus,
+  STATUS_STYLE,
+} from "common/utils/statusUtils";
 
 import { GlobalVar } from "common/GlobalVar";
+import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
 
 const CheckOutTPage = () => {
-  const [loading, setLoading] = useState(true);
+  // const [loading, setLoading] = useState(true);
   const [ordersList, setOrdersList] = useState([]);
   const [counters, setCounters] = useState([]);
-  // const [selectedOrder, setSelectedOrder] = useState(null);
-  // const [scanDialogOpen, setScanDialogOpen] = useState(false);
-  // const [actualQty, setActualQty] = useState(0);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [shortageStep, setShortageStep] = useState(1);
 
   const [alert, setAlert] = useState({
     show: false,
@@ -32,6 +37,7 @@ const CheckOutTPage = () => {
 
   const role = GlobalVar.getRole();
   const storeType = GlobalVar.getStoreType();
+  const storeTypeTrans = getStoreTypeTrans(storeType);
 
   const FIXED_COUNTER_IDS = [1, 2, 3, 4, 5, 6];
 
@@ -41,19 +47,20 @@ const CheckOutTPage = () => {
     color: "#000",
     actual: 0,
     plan: 0,
+    isActive: false,
   });
 
   /* ---------------- Fetch Orders ---------------- */
   const fetchDataAll = async () => {
-    setLoading(true);
+    // setLoading(true);
     try {
       const response = await CounterAPI.getAllOrders();
       setOrdersList(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error(error);
       setOrdersList([]);
-    } finally {
-      setLoading(false);
+    // } finally {
+    //   setLoading(false);
     }
   };
 
@@ -68,8 +75,10 @@ const CheckOutTPage = () => {
           (c) => Number(c.id) === counterId || Number(c.counter_id) === counterId
         );
 
-        const isActive =
-          apiCounter && (Number(apiCounter.plan) > 0 || Number(apiCounter.actual) > 0);
+      const actual = Number(apiCounter?.actual_qty || 0);
+      const plan = Number(apiCounter?.plan_qty || 0);
+
+      const isActive = plan > 0 || actual > 0;
 
         return {
           ...createDefaultCounter(counterId),
@@ -81,7 +90,8 @@ const CheckOutTPage = () => {
 
           // normalize status
           status: isActive ? apiCounter.status : "IDLE",
-
+          actual,
+          plan,
           // ⭐ ส่ง flag ไปให้ CounterBox
           isActive,
         };
@@ -108,8 +118,183 @@ const CheckOutTPage = () => {
     [counters]
   );
 
+  // const handleScan = async (row) => {
+  //   try {
+  //     if (!row?.order_id) throw new Error("Order not found");
+
+  //     const counterId = row.counter_id;
+  //     const planQty = Number(row.plan_qty || 0);
+
+  //     if (!counterId || planQty <= 0) {
+  //       throw new Error("Invalid counter or plan qty");
+  //     }
+
+  //     // ⭐ ยิงเต็ม plan_qty เลย
+  //     const res = await CounterAPI.scanBulk(counterId, planQty);
+
+  //     if (!res?.ok) {
+  //       throw new Error(res?.message || "Scan failed");
+  //     }
+
+  //     // setAlert({
+  //     //   show: true,
+  //     //   type: "success",
+  //     //   title: "Scanned",
+  //     //   message: "Scan completed",
+  //     // });
+
+  //     await fetchDataAll();
+  //     await fetchCounters();
+
+  //   } catch (err) {
+  //     console.error("handleScan error:", err);
+  //     setAlert({
+  //       show: true,
+  //       type: "error",
+  //       title: "Error",
+  //       message: err.message || "Scan failed",
+  //     });
+  //   }
+  // };
+
+  const handleScan = async (row) => {
+    try {
+      if (!row?.order_id) throw new Error("Order not found");
+
+      const counterId = row.counter_id;
+      const planQty = Number(row.plan_qty || 0);
+      const unitCost = Number(row.unit_cost_handled || 0);
+
+      const counter = counters.find(
+        (c) => Number(c.id) === Number(counterId)
+      );
+
+      if (!counter) throw new Error("Counter not found");
+
+      const actual = Number(counter.actual || 0);
+
+      let newQty;
+
+      if (unitCost >= 500) {
+        // 🔴 ราคาแพง → เพิ่มทีละ 1
+        newQty = actual + 1;
+      } else {
+        // 🟢 ราคาถูก → ยิงเต็ม plan
+        newQty = planQty;
+      }
+
+      const res = await CounterAPI.scanBulk(counterId, newQty);
+
+      if (!res?.ok) {
+        throw new Error(res?.message || "Scan failed");
+      }
+
+      await fetchDataAll();
+      await fetchCounters();
+
+    } catch (err) {
+      console.error("handleScan error:", err);
+      setAlert({
+        show: true,
+        type: "error",
+        title: "Error",
+        message: err.message || "Scan failed",
+      });
+    }
+  };
+
+  const submitConfirm = async () => {
+    try {
+
+      const counter = counters.find(
+        (c) => Number(c.id) === Number(selectedOrder.counter_id)
+      );
+
+      const actual_qty = Number(counter?.actual || 0);
+
+      const response = await ExecutionAPI.handleOrderItemT1(
+        selectedOrder.order_id,
+        actual_qty
+      );
+
+      if (response.isCompleted) {
+
+        if (
+          selectedOrder.type === "TRANSFER" &&
+          selectedOrder.transfer_scenario === "INTERNAL_OUT"
+        ) {
+
+          await ExecutionAPI.transferChangeStatus({
+            items: [{ order_id: selectedOrder.order_id }],
+            transfer_status: "PICK_SUCCESS",
+          });
+
+          await CounterAPI.counterChangeStatus({
+            order_id: selectedOrder.order_id,
+            status: "WAITING_AMR",
+          });
+
+        }
+
+        if (
+          selectedOrder.type === "TRANSFER" &&
+          selectedOrder.transfer_scenario === "INTERNAL_IN"
+        ) {
+
+          await ExecutionAPI.transferChangeStatus({
+            items: [{ order_id: selectedOrder.order_id }],
+            transfer_status: "COMPLETED",
+          });
+
+        }
+
+        setAlert({
+          show: true,
+          type: "success",
+          title: "Confirmed",
+          message: response.message,
+        });
+
+        await fetchDataAll();
+        await fetchCounters();
+
+      } else {
+        throw new Error(response.message || "Failed");
+      }
+
+    } catch (err) {
+
+      console.error(err);
+
+      setAlert({
+        show: true,
+        type: "error",
+        title: "Error",
+        message: err.message || "Something went wrong",
+      });
+
+    } finally {
+
+      setConfirmDialog(null);
+      setSelectedOrder(null);
+
+    }
+  };
+
   /* ---------------- Table Columns By Requester ---------------- */
   const requesterColumns = [
+    {
+      field: "status",
+      label: "Order Status",
+      valueGetter: (row) => row.status,
+      renderCell: (status) => (
+      <StatusBadge
+          value={status}
+          normalize={normalizeStatus}
+          styles={STATUS_STYLE}
+      />
+      ),
+    },
     { field: "work_order", label: "Work Order" },
     { field: "spr_no", label: "SPR No." },
     { field: "usage_line", label: "Usage Line" },
@@ -123,24 +308,42 @@ const CheckOutTPage = () => {
     { field: "plan_qty", label: "Required Qty" },
     { field: "actual_qty", label: "Actual Qty" },
     {
-      field: "status",
-      label: "Status",
-      valueGetter: (row) => row.status,
-      renderCell: (status) => <StatusBadge status={status} />,
+      field: "scan",
+      label: "Scan",
+      type: "scanSku",
     },
     {
       field: "counter_id",
       label: "Counter",
+      minWidth: 120,
       renderCell: (value, row) => (
-        <span style={{ color: row.counter_color || "#000", fontWeight: 600 }}>
-          Counter {value}
-        </span>
-      ),
+          <span
+            style={{
+              color: row.counter_color || "#000",
+              fontWeight: 600,
+              whiteSpace: "nowrap", // ⭐ กันขึ้นบรรทัดใหม่
+            }}
+          >
+            Counter {value}
+          </span>
+        ),
     },
   ];
 
   /* ---------------- Table Columns By Defualt ---------------- */
   const defaultColumns = [
+    {
+        field: "status",
+        label: "Order Status",
+        valueGetter: (row) => row.status,
+        renderCell: (status) => (
+        <StatusBadge
+            value={status}
+            normalize={normalizeStatus}
+            styles={STATUS_STYLE}
+        />
+        ),
+    },
     { field: "mc_code", label: "Maintenance Contract" },
     { field: "type", label: "Transaction Type" },
     { field: "work_order", label: "Work Order" },
@@ -161,12 +364,6 @@ const CheckOutTPage = () => {
     { field: "plan_qty", label: "Required Quantity" },
     { field: "actual_qty", label: "Scanned Quantity" },
     {
-      field: "status",
-      label: "Order Status",
-      valueGetter: (row) => row.status,
-      renderCell: (status) => <StatusBadge status={status} />,
-    },
-    {
       field: "counter_id",
       label: "Counter",
       minWidth: 120,
@@ -182,7 +379,14 @@ const CheckOutTPage = () => {
           </span>
         ),
     },
+    {
+      field: "scan",
+      label: "Scan",
+      type: "scanSku",
+    },
     { field: "is_confirm", label: "Confirm", type: "confirmSku" },
+    { field: "set_error", label: "Set Error", type: "setError" },
+    { field: "force_manual", label: "Action", type: "forceManual" },
   ];
 
   const columns = React.useMemo(() => {
@@ -191,30 +395,6 @@ const CheckOutTPage = () => {
     }
     return defaultColumns;
   }, [role]);
-
-  //แปลงชื่อคลัง
-  let storeTypeTrans = "";
-
-  switch (storeType) {
-    case "T1":
-      storeTypeTrans = "T1 Store";
-      break;
-
-    case "T1M":
-      storeTypeTrans = "T1M Store";
-      break;
-
-    case "AGMB":
-      storeTypeTrans = "AGMB Store";
-      break;
-
-    case "WCS":
-      storeTypeTrans = "WCS";
-      break;
-
-    default:
-      storeTypeTrans = storeType;
-  }
 
   return (
     <DashboardLayout>
@@ -257,11 +437,38 @@ const CheckOutTPage = () => {
                   <Grid container spacing={2} justifyContent="center">
                     {group.map((counter) => (
                       <Grid item xs={6} key={counter.id}>
-                        <CounterBox
+                        {/* <CounterBox
                           counter={counter}
                           onClick={() => {
                             // เปิด PickCounterPage ใหม่ พร้อม counterId
                             window.open(`/pick-counter/${counter.id}`, "_blank");
+                          }}
+                        /> */}
+                        <CounterBox
+                          counter={counter}
+                          onClick={() => {
+                            window.open(`/pick-counter/${counter.id}`, "_blank");
+                          }}
+                          onQtyChange={async (counterId, newQty) => {
+                            try {
+                              const res = await CounterAPI.scanBulk(counterId, newQty);
+
+                              if (!res?.ok) {
+                                throw new Error(res?.message || "Update failed");
+                              }
+
+                              await fetchCounters();
+                              await fetchDataAll();
+
+                            } catch (err) {
+                              console.error(err);
+                              setAlert({
+                                show: true,
+                                type: "error",
+                                title: "Error",
+                                message: "Failed to update quantity",
+                              });
+                            }
                           }}
                         />
                       </Grid>
@@ -283,9 +490,9 @@ const CheckOutTPage = () => {
         </MDBox>
         <Card>
           <MDBox p={3}>
-            {loading ? (
+            {/* {loading ? (
               <div>Loading...</div>
-            ) : (
+            ) : ( */}
               <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>
                 <ReusableDataTable
                   columns={columns}
@@ -295,98 +502,290 @@ const CheckOutTPage = () => {
                   defaultPageSize={10}
                   pageSizeOptions={[10, 25, 50]}
                   fontSize="0.8rem"
-                  confirmSkuDisabled={(row) => row.status !== "PROCESSING"}
-                  // onConfirmSku={(row) => {
-                  //   setSelectedOrder(row);
-                  //   setActualQty(row.actual_qty || 0);
-                  //   setScanDialogOpen(true);
-                  // }}
-                  onConfirmSku={async (row) => {
-  try {
-    const actual_qty = row.plan_qty; // ⭐ ใช้ plan_qty แทน scanning
 
-    const response = await ExecutionAPI.handleOrderItemT1(
-      row.order_id,
-      actual_qty
-    );
+                  /* ---------------- SCAN ---------------- */
+                  // scanSkuDisabled={(row) =>
+                  //   row?.status !== "PROCESSING" ||
+                  //   scannedOrderIds.has(row.order_id)
+                  // }
+                  scanSkuDisabled={(row) => {
+                    if (row?.status !== "PROCESSING") return true;
 
-    if (response.isCompleted) {
-      setAlert({
-        show: true,
-        type: "success",
-        title: "Confirmed",
-        message: response.message,
-      });
+                    const counter = counters.find(
+                      (c) => Number(c.id) === Number(row.counter_id)
+                    );
 
-      // reload data
-      await fetchDataAll();
-      await fetchCounters();
-    } else {
-      setAlert({
-        show: true,
-        type: "error",
-        title: "Error",
-        message: response.message || "Failed",
-      });
-    }
-  } catch (err) {
-    console.error(err);
-    setAlert({
-      show: true,
-      type: "error",
-      title: "Error",
-      message: "Something went wrong",
-    });
-  }
-}}
+                    if (!counter) return true; // ⭐ กัน undefined
 
+                    const actual = Number(counter?.actual || 0);
+                    const plan = Number(counter?.plan || 0);
+
+                    return actual >= plan;   // 🔥 disable เมื่อเต็ม plan
+                  }}
+                  onScanSku={(row) => handleScan(row)}
+
+                  /* ---------------- CONFIRM ---------------- */
+                  confirmSkuDisabled={(row) => {
+                    if (row?.status !== "PROCESSING") return true;
+
+                    const counter = counters.find(
+                      (c) => Number(c.id) === Number(row.counter_id)
+                    );
+
+                    if (!counter) return true; // ⭐ กัน undefined
+
+                    return Number(counter.actual || 0) <= 0;
+                  }}
+                // onConfirmSku={async (row) => {
+                //   try {
+                //     const counter = counters.find(
+                //       (c) => Number(c.id) === Number(row.counter_id)
+                //     );
+
+                //     const actual_qty = Number(counter?.actual || 0);
+
+                //     if (actual_qty <= 0) {
+                //       throw new Error("Actual quantity must be greater than 0");
+                //     }
+
+                //     const response = await ExecutionAPI.handleOrderItemT1(
+                //       row.order_id,
+                //       actual_qty
+                //     );
+
+                //     if (response.isCompleted) {
+
+                //       // 🔥 ยิง transferChangeStatus เฉพาะกรณีที่กำหนด
+                //       if (
+                //         row.type === "TRANSFER" &&
+                //         row.transfer_scenario === "INTERNAL_OUT"
+                //       ) {
+                //         // 🔥 update transfer status
+                //         await ExecutionAPI.transferChangeStatus({
+                //           items: [{ order_id: row.order_id }],
+                //           transfer_status: "PICK_SUCCESS",
+                //         });
+
+                //         // 🔥 NEW: update counter status
+                //         await CounterAPI.counterChangeStatus({
+                //           order_id: row.order_id,
+                //           status: "WAITING_AMR",
+                //         });
+                //       }
+
+                //       if (
+                //         row.type === "TRANSFER" &&
+                //         row.transfer_scenario === "INTERNAL_IN"
+                //       ) {
+                //         await ExecutionAPI.transferChangeStatus({
+                //           items: [{ order_id: row.order_id }],
+                //           transfer_status: "COMPLETED",
+                //         });
+                //       }
+
+                //       setAlert({
+                //         show: true,
+                //         type: "success",
+                //         title: "Confirmed",
+                //         message: response.message,
+                //       });
+
+                //       await fetchDataAll();
+                //       await fetchCounters();
+
+                //     } else {
+                //       throw new Error(response.message || "Failed");
+                //     }
+
+                //   } catch (err) {
+                //     console.error(err);
+                //     setAlert({
+                //       show: true,
+                //       type: "error",
+                //       title: "Error",
+                //       message: "Something went wrong",
+                //     });
+                //   }
+                // }}
+                onConfirmSku={(row) => {
+
+                  const counter = counters.find(
+                    (c) => Number(c.id) === Number(row.counter_id)
+                  );
+
+                  if (!counter) return;
+
+                  const actualQty = Number(counter.actual || 0);
+                  const planQty = Number(row.plan_qty || 0);
+
+                  setSelectedOrder(row);
+                  setShortageStep(1);
+
+                  if (actualQty === 0) {
+                    setConfirmDialog("empty");
+                    return;
+                  }
+
+                  if (actualQty < planQty) {
+                    setConfirmDialog("shortage");
+                    return;
+                  }
+
+                  if (actualQty === planQty) {
+                    setConfirmDialog("confirmExact");
+                  }
+
+                }}
+
+                /* ---------------- ERROR BUTTON ---------------- */
+                errorDisabled={(row) =>
+                  row?.status !== "PROCESSING"
+                }
+                onError={async (row) => {
+                  try {
+                    const res = await EventsAPI.setOrderError(row.order_id);
+
+                    if (!res?.isCompleted) {
+                      throw new Error(res?.message || "Failed");
+                    }
+
+                    setAlert({
+                      show: true,
+                      type: "success",
+                      title: "Set Error",
+                      message: res.message,
+                    });
+
+                    await fetchDataAll();
+                    await fetchCounters();
+
+                  } catch (err) {
+                    console.error(err);
+                    setAlert({
+                      show: true,
+                      type: "error",
+                      title: "Error",
+                      message: "Failed to set error",
+                    });
+                  }
+                }}
+
+                /* ---------------- FORCE MANUAL ---------------- */
+                forceManualDisabled={(row) =>
+                  row?.status !== "ERROR"
+                }
+
+                onForceManual={async (row) => {
+                  try {
+
+                    const payloadItems = [{
+                      order_id: row.order_id,
+                      // actual_qty: row.actual_qty || 0
+                      actual_qty: Number(row.plan_qty || 0)   // 👈 ใช้ plan_qty แทน
+                    }];
+
+                    const res = await ExecutionAPI.handleErrorOrderItemT1(
+                      row.event_id,   // 👈 ใช้ event_id จาก row
+                      payloadItems
+                    );
+
+                    if (!res?.isCompleted) {
+                      throw new Error(res?.message || "Failed");
+                    }
+
+                    setAlert({
+                      show: true,
+                      type: "success",
+                      title: "Force Manual",
+                      message: res.message || "Force manual completed",
+                    });
+
+                    await fetchDataAll();
+                    await fetchCounters();
+
+                  } catch (err) {
+
+                    console.error(err);
+
+                    setAlert({
+                      show: true,
+                      type: "error",
+                      title: "Error",
+                      message: err.message || "Failed to force manual",
+                    });
+
+                  }
+                }}
                 />
               </MDBox>
-            )}
+            {/* )} */}
           </MDBox>
         </Card>
       </MDBox>
 
-      {/* Scan Qty Dialog */}
-      {/* {selectedOrder && (
-        <ScanQtyDialog
-          open={scanDialogOpen}
-          order={selectedOrder}
-          actualQty={actualQty}
-          onQtyChange={setActualQty}
-          onClose={() => setScanDialogOpen(false)}
-          onSubmit={async (order_id, actual_qty) => {
-            try {
-              const response = await ExecutionAPI.handleOrderItemT1(order_id, actual_qty);
-              console.log("response", response);
-              if (response.isCompleted) {
-                setAlert({
-                  show: true,
-                  type: "success",
-                  title: "Confirmed",
-                  message: response.message,
-                });
-                // โหลด Orders ใหม่
-                await fetchDataAll();
+{/* ================= EXACT MATCH ================= */}
+{confirmDialog === "confirmExact" && (
+  <SweetAlertComponent
+    show={true}
+    type="warning"
+    title="Confirm Order"
+    message="Scanned quantity equals required quantity. Confirm submission?"
+    confirmText="Confirm"
+    cancelText="Cancel"
+    onConfirm={submitConfirm}
+    onCancel={() => setConfirmDialog(null)}
+  />
+)}
 
-                // โหลด Counters ใหม่
-                await fetchCounters();
-              } else {
-                setAlert({
-                  show: true,
-                  type: "error",
-                  title: "Error",
-                  message: response.message || "Failed",
-                });
-              }
-            } catch (err) {
-              console.error(err);
-            } finally {
-              setScanDialogOpen(false);
-            }
-          }}
-        />
-      )} */}
+{/* ================= SHORTAGE STEP 1 ================= */}
+{confirmDialog === "shortage" && shortageStep === 1 && (
+  <SweetAlertComponent
+    show={true}
+    type="warning"
+    title="Shortage"
+    message="Scanned quantity is less than required quantity. Proceed?"
+    confirmText="Proceed"
+    cancelText="Cancel"
+    onConfirm={() => setShortageStep(2)}
+    onCancel={() => {
+      setConfirmDialog(null);
+      setShortageStep(1);
+    }}
+  />
+)}
+
+{/* ================= SHORTAGE STEP 2 ================= */}
+{confirmDialog === "shortage" && shortageStep === 2 && (
+  <SweetAlertComponent
+    show={true}
+    type="warning"
+    title="Shortage Warning"
+    message="This will report required stock item short to the staff."
+    confirmText="Confirm"
+    cancelText="Cancel"
+    onConfirm={() => {
+      setShortageStep(1);
+      submitConfirm();
+    }}
+    onCancel={() => {
+      setConfirmDialog(null);
+      setShortageStep(1);
+    }}
+  />
+)}
+
+{/* ================= EMPTY ================= */}
+{confirmDialog === "empty" && (
+  <SweetAlertComponent
+    show={true}
+    type="error"
+    title="No Quantity"
+    message="Please scan at least 1 item before confirming."
+    confirmText="OK"
+    onConfirm={() => setConfirmDialog(null)}
+    onCancel={() => setConfirmDialog(null)}
+  />
+)}
 
       {/* General Alert */}
       <SweetAlertComponent

@@ -30,6 +30,18 @@ export enum TypeInfm {
     RETURN = 'RETURN'
 }
 
+export enum ExecutionMode {
+    AUTO = 'AUTO',       // execute normal
+    MANUAL = 'MANUAL',   // update inventory only
+}
+
+export enum TransferScenario {
+    INTERNAL_OUT = 'INTERNAL_OUT',
+    INTERNAL_IN = 'INTERNAL_IN',
+    OUTBOUND = 'OUTBOUND',
+    INBOUND = 'INBOUND'
+}
+
 export enum Mode {
     AUTO = 'AUTO',
     MANUAL = 'MANUAL',
@@ -93,6 +105,7 @@ export enum StatusWaiting {
 }
 
 export enum StatusOrders {
+    PLANNED = 'PLANNED',
     WAITING = 'WAITING',
     PENDING = 'PENDING', 
     QUEUE = 'QUEUE',

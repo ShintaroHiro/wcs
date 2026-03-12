@@ -44,4 +44,19 @@ export class OrdersUsage {
     /** FK เชื่อมกับ inventory summary */
     @Column({ type: 'int', nullable: true })
     sum_inv_id?: number;
+
+    /** ราคาต่อหน่วย (Unit Cost) */
+    @Column({
+        type: 'decimal',
+        precision: 15, // รวมจำนวนหลักทั้งหมด เช่น 999,999,999,999.99
+        scale: 2,      // จำนวนหลักทศนิยม (2 = เก็บทศนิยม 2 ตำแหน่ง)
+        default: 0,
+        comment: 'Unit Cost (Materials to be handled)',
+        transformer: {
+            // optional — เพื่อให้เวลาดึงจาก DB กลับมาเป็น number (ไม่ใช่ string)
+            to: (value: number) => value,
+            from: (value: string | null) => (value ? parseFloat(value) : 0),
+        },
+    })
+    unit_cost_handled: number;
 }

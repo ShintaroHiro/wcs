@@ -619,4 +619,147 @@ export default class ImportFileAPI {
         });
         }
     }
+
+//     static async importInventoryFile(file) {
+//         try {
+//         if (!file || !(file instanceof Blob)) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "Please select an Excel file.",
+//             data: null,
+//             });
+//         }
+
+//         const token = GlobalVar.getToken();
+//         if (!token) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "Token not found",
+//             data: null,
+//             });
+//         }
+
+//         const reader = new FileReader();
+
+//         const rows = await new Promise((resolve, reject) => {
+//             reader.onload = (e) => {
+//             const data = new Uint8Array(e.target.result);
+//             const workbook = XLSX.read(data, { type: "array" });
+//             const sheet = workbook.Sheets[workbook.SheetNames[0]];
+//             const json = XLSX.utils.sheet_to_json(sheet, {
+//                 header: 1,
+//                 raw: false,     // ⭐ บอก xlsx ให้แปลงค่า
+//                 cellDates: true // ⭐ แปลง cell date เป็น Date
+//             });
+
+//             resolve(json);
+//             };
+//             reader.onerror = reject;
+//             reader.readAsArrayBuffer(file);
+//         });
+
+//         if (rows.length < 2) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "No Data",
+//             data: null,
+//             });
+//         }
+//         const expectedHeaders = [
+//             "STK NO",
+//             "DESCRIPTION",
+//             "DEPT",
+//             "LOCATION",
+//             "STATUS",
+//             "MAINT. CONTRACT",
+//             "CURBAL",
+//             "AVERAGE UNIT COST",
+//             "TOTAL COST",
+//             "ABCTYPE",
+//             "ORGID",
+//             "CONDITION CODE",
+//             "BINNUM",
+//             "STORE",
+//         ];
+//         const headers = rows[0];
+// // console.log("expectedHeaders",expectedHeaders);
+// //             console.log("headers",headers);
+//         if (!this.validateHeaders(expectedHeaders, headers)) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "Header is incorrect",
+//             data: null,
+//             });
+//         }
+
+//         const headerMap = {};
+//         headers.forEach((h, i) => {
+//             if (h) headerMap[h.trim().toUpperCase()] = i;
+//         });
+
+//         /** helper หา index column */
+//         const col = (name) => headerMap[name.toUpperCase()];
+
+//         const payload = rows
+    
+//         .map((r, index) => {
+//             const excel_row_no = index + 1; // ⭐ row จริงใน Excel (รวม header + row ว่าง + merge)
+
+//             // ข้าม header แต่ยังคง index
+//             if (index === 0) return null;
+
+//             return {
+//                 excel_row_no, // ⭐ ส่งไป BE
+
+//                 loc: r[col("STK NO")]?.toString().trim(),
+//                 box_loc: r[col("DESCRIPTION")]?.toString().trim(),
+//                 stock_item: r[col("DEPT")]?.toString().trim(),
+//                 item_desc: r[col("LOCATION")]?.toString().trim(),
+//                 plan_qty: r[col("STATUS")]?.toString().trim(),
+//                 mc_code: r[col("MAINT. CONTRACT")]?.toString().trim(),
+//                 requested_at: toNumber(r[col("CURBAL")]),
+//                 requested_by: toNumber(r[col("AVERAGE UNIT COST")]),
+//                 usage_type: toNumber(r[col("TOTAL COST")]),
+//                 work_order: r[col("ABCTYPE")]?.toString().trim(),
+//                 spr_no: r[col("ORGID")]?.toString().trim(),
+//                 usage_num: r[col("CONDITION CODE")]?.toString().trim(),
+//                 usage_line: r[col("BINNUM")]?.toString().trim(),
+//                 split: r[col("STORE")]?.toString().trim(),
+//                 };
+//             })
+//             // 🔥 ค่อยกรอง row ว่างออก "หลังจาก" ใส่ excel_row_no แล้ว
+//             .filter(row =>
+//             row &&
+//             (
+//                 row.loc ||
+//                 row.box_loc ||
+//                 row.stock_item ||
+//                 row.plan_qty > 0
+//             )
+//         );
+
+//         if (!payload.length) {
+//             return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: "Invalid file format",
+//             data: null,
+//             });
+//         }
+
+//         return await ApiProvider.postData("/api/import/create-usage-json", payload, token);
+//         } catch (err) {
+//         console.error("❌ importInventoryFile error", err);
+//         return new ApiResponse({
+//             isCompleted: false,
+//             isError: true,
+//             message: err.message,
+//             data: null,
+//         });
+//         }
+//     }
 }

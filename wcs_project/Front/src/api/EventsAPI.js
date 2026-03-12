@@ -72,6 +72,24 @@ class EventsAPI {
         }
     }
 
+    // static async setOrderWarning(order_id, event_code) {
+    //     try {
+    //         const token = GlobalVar.getToken();
+    //         const endpoint = `/api/events/set-order-warning/${order_id}`;
+
+    //         const payload = {
+    //             event_code: event_code
+    //         };
+
+    //         const response = await ApiProvider.postData(endpoint, payload, token);
+    //         return response;
+
+    //     } catch (error) {
+    //         console.error("Error in Order Warning:", error);
+    //         throw error;
+    //     }
+    // }
+
     static async forceManualOrderError(order_id) {
         try {
             const token = GlobalVar.getToken();
@@ -116,18 +134,23 @@ class EventsAPI {
         }
     }
 
-    static async getErrorAlert() {
+    static async getErrorAlert(storeType) {
         try {
-        const token = GlobalVar.getToken();
-        const endpoint = "/api/events/get-error-alert";
-        const response = await ApiProvider.getData(endpoint, {}, token);
-            console.log("API Response:", response);
-        return response; // ส่งค่ากลับไป
+
+            const token = GlobalVar.getToken();
+            const endpoint = "/api/events/get-error-alert";
+
+            const params = storeType ? { storeType } : {};
+
+            const response = await ApiProvider.getData(endpoint, params, token);
+
+            return response;
 
         } catch (error) {
-        console.error("Error get Error Events Data:", error.message || error);
-        throw new Error(`Error: ${error.message}`);
 
+            console.error("Error get Error Events Data:", error.message || error);
+
+            throw new Error(`Error: ${error.message}`);
         }
     }
 

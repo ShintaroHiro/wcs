@@ -1,6 +1,5 @@
 import { GlobalVar } from "../common/GlobalVar";
 import ApiProvider from "./ApiProvider";
-import ApiResponse from "../common/ApiResponse";
 import { DEFAULT_LANGUAGE } from "common/constants";
 
 class ImageAPI {
@@ -13,7 +12,7 @@ class ImageAPI {
         console.log("API endpoint with queryParams:", endpoint);
     
         // เรียก API และตั้ง responseType เป็น 'blob'
-        const blob = await ApiProvider.getData(endpoint, {}, token, DEFAULT_LANGUAGE, 'blob');
+        const blob = await ApiProvider.getData(endpoint, {}, token, DEFAULT_LANGUAGE, "blob");
         
         // สร้าง URL จาก blob ที่ได้รับมา
         const imageUrl = URL.createObjectURL(blob);

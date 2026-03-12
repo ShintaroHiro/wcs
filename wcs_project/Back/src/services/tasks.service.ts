@@ -26,6 +26,7 @@ import { OrdersTransfer } from "../entities/order_transfer.entity";
 import { Events } from "../entities/s_events.entity";
 import { EventService } from "../utils/EventService";
 import { WrsLogService } from "../utils/LogWrsService";
+import { StockItems } from "../entities/m_stock_items.entity";
 
 const runtimeService = new CounterRuntimeService();
 const eventService = new EventService();
@@ -735,6 +736,50 @@ export class OrchestratedTaskService {
         );
     }
 
+    //ฟังก์ชัน ทำ warning
+    private async createOrderWarning(
+        manager: EntityManager,
+        order: Orders,
+        event_code: string,
+        reqUsername: string
+    ) {
+        const eventRepo = manager.getRepository(Events);
+        const stockItemRepo = manager.getRepository(StockItems);
+        const locationRepo = manager.getRepository(Locations);
+
+        /* 🔹 ดึงชื่อสินค้า */
+        const stockItem = await stockItemRepo.findOne({
+            where: { item_id: order.item_id }
+        });
+
+        /* 🔹 ดึงชื่อ location */
+        const location = await locationRepo.findOne({
+            where: { loc_id: order.loc_id }
+        });
+
+        const stockName = stockItem?.stock_item ?? order.item_id;
+        const boxLoc = location?.box_loc ?? order.loc_id;
+
+        const messageMap: Record<string, string> = {
+            SCAN_FEW: `User "${reqUsername}" has completed order ${stockName} at ${boxLoc}: scanned fewer items than required`,
+            SCAN_MANY: `User "${reqUsername}" has completed order ${stockName} at ${boxLoc}: scanned too many items`,
+            INVALID_QTY: `User "${reqUsername}" has completed order ${stockName} at ${boxLoc}: invalid quantity`
+        };
+
+        await eventRepo.save({
+            type: "EVENT",
+            category: "WARNING",
+            event_code: event_code,
+            message: messageMap[event_code] ?? `${stockName} at ${boxLoc}: warning`,
+            related_id: order.order_id,
+            level: "WARNING",
+            status: "ACTIVE",
+            is_cleared: true,
+            store_type: order.store_type,
+            created_by: "SYSTEM"
+        });
+    }
+
     //V02
 
     /*กรณี AUTO ใช้ตอนกด auto หน้า execution*/
@@ -761,6 +806,11 @@ export class OrchestratedTaskService {
 
         const isCompleted = actual_qty === order.plan_qty;
 
+        /* WARNING CHECK */
+        if (actual_qty < order.plan_qty) {
+            await this.createOrderWarning(manager, order, "SCAN_FEW", reqUsername);
+        }
+
         /* UPDATE ORDER */
         order.actual_qty = actual_qty;
         order.actual_by = reqUsername;
@@ -784,7 +834,7 @@ export class OrchestratedTaskService {
         await eventRepo.save({
             type: 'EVENT',
             category: 'ORDERS',
-            event_code: `ORDERS_${order.status}`,
+            event_code: `ORDER_${order.status}`,
             message: `User "${reqUsername}" has ${order.status} order`,
             level: 'INFO',
             status: 'ACTIVE',
@@ -938,6 +988,7 @@ export class OrchestratedTaskService {
 
                 const ordersRepo = manager.getRepository(Orders);
                 const eventRepo = manager.getRepository(Events);
+                const ordersTransferRepo = manager.getRepository(OrdersTransfer);
 
                 /* 1️⃣ LOCK EVENT ROW */
                 const event = await eventRepo.findOne({
@@ -954,27 +1005,84 @@ export class OrchestratedTaskService {
                 /* 2️⃣ LOOP PROCESS ORDERS */
                 for (const item of items) {
 
-                    const order = await ordersRepo.findOne({
-                        where: { order_id: item.order_id },
-                        lock: { mode: "pessimistic_write" }
-                    });
+    const order = await ordersRepo.findOne({
+        where: { order_id: item.order_id },
+        lock: { mode: "pessimistic_write" }
+    });
 
-                    if (!order)
-                        throw new Error(`Order ${item.order_id} not found`);
+    if (!order)
+        throw new Error(`Order ${item.order_id} not found`);
 
-                    // if (order.status !== StatusOrders.ERROR)
-                    //     throw new Error(`Order ${item.order_id} not in ERROR`);
+    const ordersToFinish: Orders[] = [order];
 
-                    const result = await this.finishOrderCore(
-                        manager,
-                        order,
-                        item.actual_qty,
-                        reqUsername
-                    );
+    /* TRANSFER CASE */
+    if (
+        order.type === TypeInfm.TRANSFER &&
+        order.transfer_scenario === "INTERNAL_OUT"
+    ) {
 
-                    if (result.counterId)
-                        counterIds.push(result.counterId);
-                }
+        const transfer = await ordersTransferRepo.findOne({
+            where: { order_id: order.order_id }
+        });
+
+        if (transfer?.related_order_id) {
+
+            const relatedOrder = await ordersRepo.findOne({
+                where: { order_id: transfer.related_order_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (
+                relatedOrder &&
+                relatedOrder.status !== StatusOrders.COMPLETED
+            ) {
+                ordersToFinish.push(relatedOrder);
+            }
+        }
+    }
+
+    /* FINISH ALL */
+    for (const o of ordersToFinish) {
+
+        const result = await this.finishOrderCore(
+            manager,
+            o,
+            item.actual_qty,
+            reqUsername
+        );
+
+        if (result.counterId)
+            counterIds.push(result.counterId);
+
+        /* UPDATE TRANSFER STATUS */
+if (o.type === TypeInfm.TRANSFER) {
+
+    // update ของ order ปัจจุบัน
+    await ordersTransferRepo.update(
+        { order_id: o.order_id },
+        { transfer_status: "COMPLETED" }
+    );
+
+    /* 🔹 ถ้าเป็น INTERNAL_IN ต้อง update parent (INTERNAL_OUT) ด้วย */
+    if (o.transfer_scenario === "INTERNAL_IN") {
+
+        const parentTransfer = await ordersTransferRepo.findOne({
+    where: { related_order_id: o.order_id },
+    lock: { mode: "pessimistic_write" }
+});
+
+        if (parentTransfer) {
+
+            await ordersTransferRepo.update(
+                { order_id: parentTransfer.order_id },
+                { transfer_status: "COMPLETED" }
+            );
+
+        }
+    }
+}
+    }
+}
 
                 /* 3️⃣ CLEAR EVENT (1 ROW ONLY) */
                 await eventRepo.update(
@@ -1114,7 +1222,7 @@ export class OrchestratedTaskService {
         await eventRepo.save({
             type: 'EVENT',
             category: 'ORDERS',
-            event_code: `ORDERS_${order.status}`,
+            event_code: `ORDER_${order.status}`,
             message: `User "${reqUsername}" has ${order.status} order`,
             level: 'INFO',
             status: 'ACTIVE',
@@ -1134,15 +1242,24 @@ export class OrchestratedTaskService {
                 await inventoryService.transfer(manager, order);
 
                 // ⭐ update orders_transfer เมื่อจบ transfer
-                if (order.transfer_scenario !== "INTERNAL_IN") {
-                    const transferRepo = manager.getRepository(OrdersTransfer);
+                // if (order.transfer_scenario !== "INTERNAL_IN") {
+                //     const transferRepo = manager.getRepository(OrdersTransfer);
 
-                    await transferRepo.update(
-                        { order_id: order.order_id },
-                        { transfer_status: "COMPLETED" }
-                    );
-                }
+                //     await transferRepo.update(
+                //         { order_id: order.order_id },
+                //         { transfer_status: "COMPLETED" }
+                //     );
+                // }
 
+    const transferRepo = manager.getRepository(OrdersTransfer);
+
+    await transferRepo.update(
+        [
+            { order_id: order.order_id },
+            { related_order_id: order.order_id }
+        ],
+        { transfer_status: "COMPLETED" }
+    );
                 break;
             case TypeInfm.RETURN:
                 // temporary skip inventory

@@ -181,6 +181,8 @@
         "order_status_req": "Status",
         "order_status": "Status",
         "checkout_t1": "Check In & Out",
+        "checkout_t1m": "Check In & Out",
+        "checkout_agmb": "Check In & Out",
         "put": "Put",
         "put_execute": "Execute",
         "put_create": "Create",

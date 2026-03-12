@@ -609,33 +609,33 @@ const CheckOutTPage = () => {
                 // }}
                 onConfirmSku={(row) => {
 
-  const counter = counters.find(
-    (c) => Number(c.id) === Number(row.counter_id)
-  );
+                  const counter = counters.find(
+                    (c) => Number(c.id) === Number(row.counter_id)
+                  );
 
-  if (!counter) return;
+                  if (!counter) return;
 
-  const actualQty = Number(counter.actual || 0);
-  const planQty = Number(row.plan_qty || 0);
+                  const actualQty = Number(counter.actual || 0);
+                  const planQty = Number(row.plan_qty || 0);
 
-  setSelectedOrder(row);
-  setShortageStep(1);
+                  setSelectedOrder(row);
+                  setShortageStep(1);
 
-  if (actualQty === 0) {
-    setConfirmDialog("empty");
-    return;
-  }
+                  if (actualQty === 0) {
+                    setConfirmDialog("empty");
+                    return;
+                  }
 
-  if (actualQty < planQty) {
-    setConfirmDialog("confirm");
-    return;
-  }
+                  if (actualQty < planQty) {
+                    setConfirmDialog("shortage");
+                    return;
+                  }
 
-  if (actualQty === planQty) {
-    setConfirmDialog("confirmExact");
-  }
+                  if (actualQty === planQty) {
+                    setConfirmDialog("confirmExact");
+                  }
 
-}}
+                }}
 
                 /* ---------------- ERROR BUTTON ---------------- */
                 errorDisabled={(row) =>
@@ -738,7 +738,7 @@ const CheckOutTPage = () => {
 )}
 
 {/* ================= SHORTAGE STEP 1 ================= */}
-{confirmDialog === "confirm" && shortageStep === 1 && (
+{confirmDialog === "shortage" && shortageStep === 1 && (
   <SweetAlertComponent
     show={true}
     type="warning"
@@ -755,7 +755,7 @@ const CheckOutTPage = () => {
 )}
 
 {/* ================= SHORTAGE STEP 2 ================= */}
-{confirmDialog === "confirm" && shortageStep === 2 && (
+{confirmDialog === "shortage" && shortageStep === 2 && (
   <SweetAlertComponent
     show={true}
     type="warning"

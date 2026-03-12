@@ -99,6 +99,8 @@ const TransferExecutionPage = () => {
     //const mcCodes = GlobalVar.getMcCodes(); 
     const storeType = GlobalVar.getStoreType();
 
+    const [overdueChecked, setOverdueChecked] = useState(false);
+
     // --------------------------------------------------
     // FETCH API
     // --------------------------------------------------
@@ -110,7 +112,7 @@ const TransferExecutionPage = () => {
             //mc_code: mcCodes,
             store_type: storeType === "WCS" ? undefined : storeType,
         });
-        console.log("response:", response);
+        //console.log("storeType:", storeType);
         const list = Array.isArray(response?.data) ? response.data : [];
         setWaitingList(list);
         } catch (err) {
@@ -129,7 +131,7 @@ const TransferExecutionPage = () => {
             //mc_code: mcCodes,
             store_type: storeType === "WCS" ? undefined : storeType, 
         });
-        
+        //console.log("storeType:", storeType);
         const list = Array.isArray(response?.data) ? response.data : [];
         setExecutionList(list);
         } catch (err) {
@@ -144,6 +146,27 @@ const TransferExecutionPage = () => {
         fetchDataWaitingAll();
         fetchDataExecuteAll();
     }, []);
+
+    //order ที่มากกว่า 10 วัน
+    useEffect(() => {
+        if (overdueChecked) return;
+        if (!waitingList || waitingList.length === 0) return;
+
+        const overdueOrders = waitingList.filter((row) =>
+            isOverdue(row.requested_at)
+        );
+
+        if (overdueOrders.length > 0) {
+            setAlert({
+                show: true,
+                type: "warning",
+                title: "Unprocessed Orders",
+                message: `${overdueOrders.length} orders remain unprocessed for over 10 days.`,
+            });
+        }
+
+        setOverdueChecked(true);
+    }, [waitingList]);
 
     //ฟังก์ชัน พิมพ์เล็ก / ใหญ่ , รองรับ number, null, undefined , trim
     const includesIgnoreCase = (value, search) => {
@@ -484,18 +507,18 @@ const TransferExecutionPage = () => {
             o => (o.execution_mode ?? "AUTO") === "AUTO"
         );
 
-        // // 🔥 เปลี่ยน INTERNAL เป็น PROCESSING ก่อน
-        // const internalOrders = selectedOrders.filter(o =>
-        //     o.transfer_scenario === "INTERNAL_OUT" ||
-        //     o.transfer_scenario === "INTERNAL_IN"
-        // );
+        // 🔥 เปลี่ยน INTERNAL เป็น PROCESSING ก่อน
+        const internalOrders = selectedOrders.filter(o =>
+            o.transfer_scenario === "INTERNAL_OUT" ||
+            o.transfer_scenario === "INTERNAL_IN"
+        );
 
-        // if (internalOrders.length > 0) {
-        //     await ExecutionAPI.transferChangeStatus({
-        //         items: internalOrders.map(o => ({ order_id: o.order_id })),
-        //         transfer_status: "PROCESSING"
-        //     });
-        // }
+        if (internalOrders.length > 0) {
+            await ExecutionAPI.transferChangeStatus({
+                items: internalOrders.map(o => ({ order_id: o.order_id })),
+                transfer_status: "PROCESSING"
+            });
+        }
 
         // =========================
         // 🔹 MANUAL → handleManualOrder

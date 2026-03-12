@@ -112,6 +112,68 @@ export const clearOrderError = async (req: Request, res: Response) => {
     }
 };
 
+// export const setOrderWarning = async (req: Request, res: Response) => {
+//     const operation = 'EventsController.setOrderWarning';
+
+//     // 🔹 ดึง username จาก token
+//     const reqUsername = RequestUtils.getUsernameToken(req, res);
+//     if (!reqUsername) {
+//         return ResponseUtils.handleBadRequest(
+//             res,
+//             lang.msgRequiredUsername()
+//         );
+//     }
+
+//     // 🔹 รับ order_id จาก path
+//     const order_id_str = req.params.order_id;
+//     const order_id = Number(order_id_str);
+
+//     if (isNaN(order_id)) {
+//         return ResponseUtils.handleBadRequest(
+//             res,
+//             lang.msgInvalidParameter()
+//         );
+//     }
+
+//     // 🔹 รับ event_code จาก body
+//     const { event_code } = req.body;
+
+//     if (!event_code) {
+//         return ResponseUtils.handleBadRequest(
+//             res,
+//             "event_code is required"
+//         );
+//     }
+
+//     try {
+
+//         const response = await eventsService.setOrderWarning(
+//             order_id,
+//             event_code,
+//             reqUsername
+//         );
+
+//         return ResponseUtils.handleCustomResponse(
+//             res,
+//             response,
+//             HttpStatus.OK
+//         );
+
+//     } catch (error: any) {
+
+//         console.error(`Error during ${operation}:`, error);
+
+//         return ResponseUtils.handleErrorUpdate(
+//             res,
+//             operation,
+//             error.message,
+//             'execution.setOrderWarning',
+//             true,
+//             reqUsername
+//         );
+//     }
+// };
+
 export const getAll = async (req: Request, res: Response) => {
     const operation = 'EventsController.getAll';
 
@@ -198,10 +260,26 @@ export const getErrorAlert = async (req: Request, res: Response) => {
     }
 
     try {
-        const response = await eventsService.getErrorAlert();
+
+        const storeType = req.query.storeType as string | undefined;
+
+        // ✅ ต้องส่ง res เข้าไปด้วย
+        const role = RequestUtils.getRoleToken(req, res) ?? undefined;
+        const response = await eventsService.getErrorAlert(storeType, role);
+
         return ResponseUtils.handleResponse(res, response);
+
     } catch (error: any) {
+
         console.error(`Error during ${operation}:`, error);
-        return ResponseUtils.handleErrorGet(res, operation, error.message, 'item.events', true, reqUsername);
+
+        return ResponseUtils.handleErrorGet(
+            res,
+            operation,
+            error.message,
+            'item.events',
+            true,
+            reqUsername
+        );
     }
 };

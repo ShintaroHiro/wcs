@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useContext } from "react";
 import { Grid, Card, Typography, Box } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
@@ -12,10 +12,7 @@ import InventoryHome from "./index_sub_inv";
 
 import { GlobalVar } from "common/GlobalVar";
 import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
-
-import EventsAPI from "api/EventsAPI";
-import { Snackbar, Paper, IconButton } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
+import { NotificationContext } from "context/NotificationContext";
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -26,43 +23,21 @@ const HomePage = () => {
   const [openTransferHome, setOpenTransferHome] = useState(false);
   const [openInvHome, setOpenInvHome] = useState(false);
 
-  const [alertOpen, setAlertOpen] = useState(false);
-  const [alertMessages, setAlertMessages] = useState([]);
-  const [isError, setIsError] = useState(false);
-
   // รายการ Role ที่ไม่ต้องการให้แสดงเมนู
   const hiddenRoles = ["REQUESTER", "STORE"];
   const userRole = GlobalVar.getRole(); // ดึง Role ของผู้ใช้
   const storeType = GlobalVar.getStoreType();
   const storeTypeTrans = getStoreTypeTrans(storeType);
 
-  //ดึงข้อมูล alert error
-  useEffect(() => {
-    const fetchAlert = async () => {
-      try {
-        const res = await EventsAPI.getErrorAlert();
+  const { isError } = useContext(NotificationContext);
 
-        if (res?.data) {
-          const { is_error, messages } = res.data;
-          GlobalVar.setSumError(res.data.sum_error);
+  const checkoutPathMap = {
+    T1: "/checkout-t1",
+    T1M: "/checkout-t1m",
+    AGMB: "/checkout-agmb",
+  };
 
-          setIsError(is_error);
-          setAlertMessages(messages || []);
-          setAlertOpen(is_error); // เปิดตลอดถ้ายังมี error
-        }
-      } catch (error) {
-        console.error("Alert API error:", error);
-      }
-    };
-    fetchAlert(); 
-  }, []);
-
-  //   fetchAlert(); // โหลดครั้งแรก
-
-  //   const interval = setInterval(fetchAlert, 5000); // เช็คทุก 5 วิ
-
-  //   return () => clearInterval(interval);
-  // }, []);
+  const checkoutPath = checkoutPathMap[storeType];
 
   // menu_route
   const menuItems = [
@@ -78,7 +53,10 @@ const HomePage = () => {
     { title: "Pick", path: "/pick/execute" },
     { title: "Status-req", path: "/status-requester" },
     { title: "Status", path: "/status" },
-    { title: "Check In & Out", path: "/checkout-t1" },
+    //แสดงทุกคลัง
+    ...(checkoutPath
+    ? [{ title: "Check In & Out", path: checkoutPath }]
+    : []),
     { title: "Put", path: "/put/execute" },
     { title: "Return", path: "/return/execute" },
     { title: "Transfer", path: "/transfer/execute" },
@@ -93,7 +71,9 @@ const HomePage = () => {
   const Requester = [
     { title: "Pick", path: "/pick/execute-requester" },
     { title: "Status", path: "/status-requester" },
-    { title: "Check In & Out", path: "/checkout-t1" },
+    ...(checkoutPath
+    ? [{ title: "Check In & Out", path: checkoutPath }]
+    : []),
   ];
 
   //menu_route
@@ -103,7 +83,9 @@ const HomePage = () => {
     { title: "Return", path: "/return" },
     { title: "Transfer", path: "/transfer" },
     { title: "Status", path: "/status" },
-    { title: "Check In & Out", path: "/checkout-t1" },
+    ...(checkoutPath
+    ? [{ title: "Check In & Out", path: checkoutPath }]
+    : []),
     { title: "Inventory", path: "/inventory" },
     {title: "Events", path: "/events"}
     // ✅ แสดงเฉพาะ WCS
@@ -233,66 +215,6 @@ const HomePage = () => {
           </>
         )}
       </Box>
-      <Snackbar
-        open={alertOpen}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{
-          mt: 10, // ดันลงมาไม่ให้ชน Navbar
-          width: "100%",
-          display: "flex",
-          justifyContent: "center",
-        }}
-      >
-        <Paper
-          elevation={6}
-          sx={{
-            width: 500,
-            borderRadius: "16px",
-            padding: 2,
-            position: "relative",
-            border: "2px solid red",
-          }}
-        >
-          {/* Title */}
-          <Typography
-            variant="h4"
-            sx={{
-              textAlign: "center",
-              color: "red",
-              fontWeight: "bold",
-              mb: 1,
-            }}
-          >
-            Alert
-          </Typography>
-
-          {/* Close Button */}
-          <IconButton
-            onClick={() => setAlertOpen(false)}
-            sx={{
-              position: "absolute",
-              right: 8,
-              top: 8,
-              // color: "red",
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-
-          {/* Message List */}
-          <Box>
-            {alertMessages.map((msg, index) => (
-              <Typography
-                key={index}
-                align="center"
-                sx={{ color: "red"}}
-              >
-                {msg}
-              </Typography>
-            ))}
-          </Box>
-        </Paper>
-      </Snackbar>
     </DashboardLayout>
   );
 };

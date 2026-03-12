@@ -75,6 +75,49 @@ router.post(
     eventsController.clearOrderError
 );
 
+// /**
+//  * @swagger
+//  * /api/events/set-order-warning/{order_id}:
+//  *   post:
+//  *     summary: สร้าง Warning Event สำหรับ Order
+//  *     tags: [Events]
+//  *     security:
+//  *       - bearerAuth: []
+//  *     parameters:
+//  *       - $ref: '#/components/parameters/lng'
+//  *       - in: path
+//  *         name: order_id
+//  *         required: true
+//  *         schema:
+//  *           type: number
+//  *         description: ไอดีของ order ที่ต้องการสร้าง Warning
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json
+//  *         schema:
+//  *           type: object
+//  *           properties:
+//  *             event_code:
+//  *               type: string
+//  *               example: SCAN_FEW
+//  *               description: รหัสของ Warning Event เช่น SCAN_FEW, SCAN_MANY
+//  *     responses:
+//  *       200:
+//  *         description: สร้าง Warning Event สำเร็จ
+//  *       400:
+//  *         description: ข้อมูลที่ส่งมาไม่ถูกต้อง
+//  *       404:
+//  *         description: ไม่พบ Order
+//  *       500:
+//  *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+//  */
+// router.post(
+//     '/set-order-warning/:order_id',
+//     authenticateToken,
+//     eventsController.setOrderWarning
+// );
+
 /**
  * @swagger
  * /api/events/get-all:
@@ -135,12 +178,19 @@ router.get(
  * @swagger
  * /api/events/get-error-alert:
  *   get:
- *     summary: ดึงข้อมูลรายการ events ที่ error
+ *     summary: ดึงข้อมูลรายการ events ที่ error และ warning
  *     tags: [Events]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - $ref: '#/components/parameters/lng'
+ *       - in: query
+ *         name: storeType
+ *         required: false
+ *         schema:
+ *           type: string
+ *           example: T1
+ *         description: filter events ตาม store type
  *     responses:
  *       200:
  *         description: พบข้อมูลรายการ events ที่ error

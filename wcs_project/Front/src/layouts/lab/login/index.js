@@ -51,7 +51,7 @@ function LabLogin() {
         } else {
           setErrorMessage("Login Failed: Incomplete Information");
         }
-        //console.log("UserID:", data.user_id);
+        //console.log("storeType:", storeType);
       } else {
         setErrorMessage("Login Failed: Invalid Username or Password");
       }

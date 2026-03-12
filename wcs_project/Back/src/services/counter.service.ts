@@ -20,7 +20,7 @@ export class CounterService {
     ): Promise<ApiResponse<any | null>> {
 
         const response = new ApiResponse<any | null>();
-        const operation = 'OrderService.getOrderAllByUser';
+        const operation = 'CounterService.getOrderAllByUser';
 
         try {
             const orderRepo = manager
@@ -358,7 +358,12 @@ export class CounterService {
             {
                 statuses: ['PROCESSING', 'QUEUE', 'ERROR'],
             }
-            );
+            )
+
+            /* filter store T1 only*/
+            .andWhere("order.store_type = :storeType", {
+                storeType: "T1",
+            });
 
             /* filter user */
             if (userId) {

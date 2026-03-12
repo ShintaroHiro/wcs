@@ -64,10 +64,14 @@ const OrderStatusPage = () => {
   const storeType = GlobalVar.getStoreType();
 
   const handleNext = () => {
-    const checkoutStores = ["T1M", "T1", "AGMB"];
+    const routeMap = {
+      T1: "/checkout-t1",
+      T1M: "/checkout-t1m",
+      AGMB: "/checkout-agmb",
+    };
 
-    if (checkoutStores.includes(storeType)) {
-      navigate("/checkout-t1");
+    if (routeMap[storeType]) {
+      navigate(routeMap[storeType]);
     } else {
       navigate("/home");
     }

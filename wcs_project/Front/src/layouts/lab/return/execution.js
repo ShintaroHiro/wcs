@@ -107,6 +107,8 @@ const ReturnExecutionPage = () => {
     //const mcCodes = GlobalVar.getMcCodes(); 
     const storeType = GlobalVar.getStoreType();
 
+    const [overdueChecked, setOverdueChecked] = useState(false);
+
     // --------------------------------------------------
     // FETCH API
     // --------------------------------------------------
@@ -150,6 +152,27 @@ const ReturnExecutionPage = () => {
         fetchDataWaitingAll();
         fetchDataExecuteAll();
     }, []);
+
+    //order ที่มากกว่า 10 วัน
+    useEffect(() => {
+        if (overdueChecked) return;
+        if (!waitingList || waitingList.length === 0) return;
+
+        const overdueOrders = waitingList.filter((row) =>
+            isOverdue(row.requested_at)
+        );
+
+        if (overdueOrders.length > 0) {
+            setAlert({
+                show: true,
+                type: "warning",
+                title: "Unprocessed Orders",
+                message: `${overdueOrders.length} orders remain unprocessed for over 10 days.`,
+            });
+        }
+
+        setOverdueChecked(true);
+    }, [waitingList]);
 
     //ฟังก์ชัน พิมพ์เล็ก / ใหญ่ , รองรับ number, null, undefined , trim
     const includesIgnoreCase = (value, search) => {
@@ -340,7 +363,7 @@ const ReturnExecutionPage = () => {
     //     }
     // };
 
-const handleConfirm = async () => {
+    const handleConfirm = async () => {
         if (selectedExecutionIds.length === 0) return;
 
         try {

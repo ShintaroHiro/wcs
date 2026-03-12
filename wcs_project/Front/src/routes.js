@@ -107,6 +107,8 @@ import PickExecutionPage from "layouts/lab/pick/execution";
 import OrderStatusReqPage from "layouts/lab/status/order_status_req";
 import OrderStatusPage from "layouts/lab/status/order_status";
 import CheckOutTPage from "layouts/lab/checkout/checkout_t";
+import CheckOutT1MPage from "layouts/lab/checkout/checkout_tm";
+import CheckOutAGMBPage from "layouts/lab/checkout/checkout_agmb";
 import PickCounterPage from "layouts/lab/checkout/pick_counter_page";
 import PutExecutionPage from "layouts/lab/put/execution";
 import ReturnExecutionPage from "layouts/lab/return/execution";
@@ -166,6 +168,10 @@ const getComponent = (componentName) => {
         return <OrderStatusReqPage />;
     case "checkout-t1":
       return <CheckOutTPage />;
+    case "checkout-t1m":
+      return <CheckOutT1MPage />; 
+    case "checkout-agmb":
+      return <CheckOutAGMBPage />;
     case "counter-screen":
       return <PickCounterPage />;
     case "put-execute":
@@ -265,8 +271,25 @@ export async function generateRoutesFromApi(apiRoutes) {
   const storeType = GlobalVar.getStoreType();
 
   const filteredRoutes = apiRoutes.filter(route => {
-    // ❌ ซ่อน Checkout เฉพาะ WCS
-    if (storeType === "WCS" && route.key === "checkout-t1") {
+
+    // ===== Checkout filter =====
+    if (route.key === "checkout-t1" && storeType !== "T1") {
+      return false;
+    }
+
+    if (route.key === "checkout-t1m" && storeType !== "T1M") {
+      return false;
+    }
+
+    if (route.key === "checkout-agmb" && storeType !== "AGMB") {
+      return false;
+    }
+
+    // WCS ไม่มี checkout
+    if (
+      storeType === "WCS" &&
+      ["checkout-t1", "checkout-t1m", "checkout-agmb"].includes(route.key)
+    ) {
       return false;
     }
 

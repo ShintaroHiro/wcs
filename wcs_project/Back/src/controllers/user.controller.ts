@@ -49,6 +49,10 @@ export const login = async (req: Request, res: Response) => {
   const operation = 'UserController.login';
   const { username, password , store_type} = req.body;
 
+  if (!store_type) {
+    return ResponseUtils.handleBadRequestIsRequired(res, 'field.store_type');
+  }
+
   try {
     const response = await userService.validate(username, password);
 
@@ -92,6 +96,7 @@ export const login = async (req: Request, res: Response) => {
         user_id: user.user_id,
         username: user.username,
         role_code: user.role_code,
+        store_type: store_type
       },
       JWT_SECRET,
       { expiresIn: `${TOKEN_EXPIRE_MINUTES}m` }
@@ -107,6 +112,7 @@ export const login = async (req: Request, res: Response) => {
       username: user.username,
       role_code: user.role_code,
       mc_codes: mc_codes ?? [],   // ⭐ รองรับหลายค่า / ไม่มีค่า
+      store_type: store_type,
       token,
       token_expire,
     };

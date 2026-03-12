@@ -48,6 +48,7 @@ import { useMaterialUIController, setMiniSidenav } from "context";
 import { GlobalVar } from "common/GlobalVar";
 
 import PickCounterPage from "../src/layouts/lab/checkout/pick_counter_page";
+import GlobalAlertSnackbar from "layouts/lab/components/global_alert_snackbar";
 
 export default function App() {
   const [controller, dispatch] = useMaterialUIController();
@@ -292,6 +293,8 @@ element={<PickCounterPage />}
             }
         /> */}
       </Routes>
+       {/* ⭐ Global Notification */}
+      <GlobalAlertSnackbar />
     </ThemeProvider>
   );
 }

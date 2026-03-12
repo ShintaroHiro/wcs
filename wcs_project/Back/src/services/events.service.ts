@@ -8,10 +8,12 @@ import { WRS } from '../entities/wrs.entity';
 import { OrdersUsage } from '../entities/order_usage.entity';
 import { StockItems } from '../entities/m_stock_items.entity';
 import { Counter } from '../entities/counter.entity';
-import { ControlSource, StatusOrders } from '../common/global.enum';
+import { ControlSource, StatusOrders, TypeInfm } from '../common/global.enum';
 import { OrdersLogService } from '../utils/logTaskEvent';
 import { EventService } from '../utils/EventService';
 import { WrsLogService } from '../utils/LogWrsService';
+import { broadcast } from './sse.service';
+import { OrdersTransfer } from '../entities/order_transfer.entity';
 
 const logService = new OrdersLogService();
 const eventService = new EventService();
@@ -27,6 +29,151 @@ export class EventsService {
         this.ordersRepository = AppDataSource.getRepository(Orders);
         this.wrsRepository = AppDataSource.getRepository(WRS);
     }
+
+    // async setOrderError(
+    //     order_id: number,
+    //     reqUsername: string,
+    //     manager?: EntityManager
+    //     ): Promise<ApiResponse<any>> {
+
+    //     const response = new ApiResponse<any>();
+    //     const operation = 'EventsService.setOrderError';
+
+    //     const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+    //     const useManager = manager ?? queryRunner?.manager;
+
+    //     if (!useManager) {
+    //         return response.setIncomplete("No entity manager available");
+    //     }
+
+    //     if (!manager && queryRunner) {
+    //         await queryRunner.connect();
+    //         await queryRunner.startTransaction();
+    //     }
+
+    //     let counterId: number | null = null;
+
+    //     try {
+    //         const ordersRepo = useManager.getRepository(Orders);
+    //         const wrsRepo = useManager.getRepository(WRS);
+    //         const counterRepo = useManager.getRepository(Counter);
+    //         const eventRepo = useManager.getRepository(Events);
+
+    //         /* 1️⃣ LOCK ORDER */
+    //         const order = await ordersRepo.findOne({
+    //             where: { order_id },
+    //             lock: { mode: "pessimistic_write" }
+    //         });
+
+    //         if (!order)
+    //         throw new Error("Order not found");
+
+    //         if (order.status === StatusOrders.ERROR)
+    //         throw new Error("Order already ERROR");
+
+    //         /* 2️⃣ UPDATE ORDER */
+    //         order.status = StatusOrders.ERROR;
+    //         await ordersRepo.save(order);
+
+    //         /* 3️⃣ INSERT ORDER LOG */
+    //         await logService.logTaskEvent(
+    //             useManager,
+    //             order,
+    //             {
+    //                 actor: reqUsername,
+    //                 status: StatusOrders.ERROR,
+    //             }
+    //         );
+
+    //         /* 4️⃣ FIND WRS BY current_order_id */
+    //         const wrs = await wrsRepo.findOne({
+    //             where: { current_order_id: order_id },
+    //             lock: { mode: "pessimistic_write" }
+    //         });
+
+    //         if (!wrs)
+    //         throw new Error("WRS not found for this order");
+
+    //         const wrsId = wrs.wrs_id;
+
+    //         /* 5️⃣ INSERT EVENT */
+    //         await eventRepo.insert({
+    //             type: "ERROR",
+    //             category: "WRS",
+    //             event_code: "AMR_ERROR",
+    //             message: `AMR-${wrs.wrs_code} Error`,   // ถ้ามี wrs_code
+    //             related_id: wrsId,                     // 👈 สำคัญ
+    //             level: "ERROR",
+    //             status: "ACTIVE",
+    //             created_at: new Date(),
+    //             created_by: "SYSTEM AMR",
+    //             is_cleared: false,
+    //             order_id: order_id,
+    //             store_type: order.store_type
+    //         });
+
+    //         /* 6️⃣ UPDATE WRS STATUS */
+    //         if (wrs.wrs_status !== 'ERROR') {
+    //             wrs.wrs_status = 'ERROR';
+    //             await wrsRepo.save(wrs);
+    //         }
+
+    //         /* 6.1 INSERT WRS LOG */
+    //         await wrsLogService.createLog(useManager, {
+    //             wrs_id: wrs.wrs_id,
+    //             order_id: order.order_id,
+    //             status: 'ERROR',
+    //             operator: ControlSource.MANUAL,
+    //             event: 'Order Error',
+    //             message: `Order ${order.order_id} Error by AMR ${wrs.wrs_code}`
+    //         });
+
+    //         /* 7 UPDATE COUNTER */
+    //         const counter = await counterRepo.findOne({
+    //             where: { current_order_id: order_id },
+    //             lock: { mode: "pessimistic_write" }
+    //         });
+
+    //         if (counter) {
+    //             counter.status = 'ERROR';
+    //             await counterRepo.save(counter);
+    //             counterId = counter.counter_id;
+    //         }
+
+    //         if (!manager && queryRunner) {
+    //             await queryRunner.commitTransaction();
+    //         }
+
+    //     } catch (error: any) {
+
+    //         if (!manager && queryRunner) {
+    //         await queryRunner.rollbackTransaction();
+    //         }
+
+    //         console.error(`Error during ${operation}:`, error);
+
+    //         return response.setIncomplete(error.message);
+
+    //     } finally {
+    //         if (!manager && queryRunner) {
+    //         await queryRunner.release();
+    //         }
+    //     }
+
+    //     // /* POST COMMIT */
+    //     // try {
+    //     //     if (counterId) {
+    //     //     broadcast(counterId, {
+    //     //         counter_id: counterId,
+    //     //         status: "ERROR"
+    //     //     });
+    //     //     }
+    //     // } catch (e) {
+    //     //     console.error("Broadcast error:", e);
+    //     // }
+
+    //     return response.setComplete("Order set to ERROR", { order_id });
+    // }
 
     async setOrderError(
         order_id: number,
@@ -52,94 +199,113 @@ export class EventsService {
         let counterId: number | null = null;
 
         try {
+
             const ordersRepo = useManager.getRepository(Orders);
             const wrsRepo = useManager.getRepository(WRS);
             const counterRepo = useManager.getRepository(Counter);
             const eventRepo = useManager.getRepository(Events);
+            const orderTransferRepo = useManager.getRepository(OrdersTransfer);
 
             /* 1️⃣ LOCK ORDER */
             const order = await ordersRepo.findOne({
-                where: { order_id },
-                lock: { mode: "pessimistic_write" }
+            where: { order_id },
+            lock: { mode: "pessimistic_write" }
             });
 
-            if (!order)
-            throw new Error("Order not found");
+            if (!order) {
+            throw new Error(`Order ${order_id} not found`);
+            }
 
-            if (order.status === StatusOrders.ERROR)
-            throw new Error("Order already ERROR");
+            if (order.status === StatusOrders.ERROR) {
+            throw new Error(`Order ${order_id} already ERROR`);
+            }
 
-            /* 2️⃣ UPDATE ORDER */
+            /* 2️⃣ UPDATE ORDER STATUS */
             order.status = StatusOrders.ERROR;
             await ordersRepo.save(order);
 
+            /* UPDATE TRANSFER STATUS (if transfer order) */
+            if (order.type === TypeInfm.TRANSFER) {
+                const transfer = await orderTransferRepo.findOne({
+                    where: { order_id },
+                    lock: { mode: "pessimistic_write" }
+                });
+
+                if (transfer && transfer.transfer_status !== StatusOrders.ERROR) {
+                    transfer.transfer_status = StatusOrders.ERROR;
+                    await orderTransferRepo.save(transfer);
+                }
+            }
+
             /* 3️⃣ INSERT ORDER LOG */
             await logService.logTaskEvent(
-                useManager,
-                order,
-                {
-                    actor: reqUsername,
-                    status: StatusOrders.ERROR,
-                }
+            useManager,
+            order,
+            {
+                actor: reqUsername,
+                status: StatusOrders.ERROR,
+            }
             );
 
-            /* 4️⃣ FIND WRS BY current_order_id */
+            /* 4️⃣ FIND WRS */
             const wrs = await wrsRepo.findOne({
-                where: { current_order_id: order_id },
-                lock: { mode: "pessimistic_write" }
+            where: { current_order_id: order_id },
+            lock: { mode: "pessimistic_write" }
             });
 
-            if (!wrs)
-            throw new Error("WRS not found for this order");
+            if (!wrs) {
+            throw new Error(`WRS not found for order ${order_id}`);
+            }
 
             const wrsId = wrs.wrs_id;
+            const wrsCode = wrs.wrs_code ?? "UNKNOWN";
 
             /* 5️⃣ INSERT EVENT */
             await eventRepo.insert({
-                type: "ERROR",
-                category: "WRS",
-                event_code: "AMR_ERROR",
-                message: `AMR-${wrs.wrs_code} Error`,   // ถ้ามี wrs_code
-                related_id: wrsId,                     // 👈 สำคัญ
-                level: "ERROR",
-                status: "ACTIVE",
-                created_at: new Date(),
-                created_by: "SYSTEM AMR",
-                is_cleared: false,
-                order_id: order_id,
-                store_type: order.store_type
+            type: "ERROR",
+            category: "WRS",
+            event_code: "AMR_ERROR",
+            message: `AMR-${wrsCode} Error`,
+            related_id: wrsId,
+            level: "ERROR",
+            status: "ACTIVE",
+            created_at: new Date(),
+            created_by: "SYSTEM AMR",
+            is_cleared: false,
+            order_id: order_id,
+            store_type: order.store_type
             });
 
             /* 6️⃣ UPDATE WRS STATUS */
             if (wrs.wrs_status !== 'ERROR') {
-                wrs.wrs_status = 'ERROR';
-                await wrsRepo.save(wrs);
+            wrs.wrs_status = 'ERROR';
+            await wrsRepo.save(wrs);
             }
 
-            /* 6.1 INSERT WRS LOG */
+            /* 7️⃣ INSERT WRS LOG */
             await wrsLogService.createLog(useManager, {
-                wrs_id: wrs.wrs_id,
-                order_id: order.order_id,
-                status: 'ERROR',
-                operator: ControlSource.MANUAL,
-                event: 'Order Error',
-                message: `Order ${order.order_id} Error by AMR ${wrs.wrs_code}`
+            wrs_id: wrsId,
+            order_id: order.order_id,
+            status: 'ERROR',
+            operator: ControlSource.MANUAL,
+            event: 'Order Error',
+            message: `Order ${order.order_id} Error by AMR ${wrsCode}`
             });
 
-            /* 7 UPDATE COUNTER */
+            /* 8️⃣ UPDATE COUNTER */
             const counter = await counterRepo.findOne({
-                where: { current_order_id: order_id },
-                lock: { mode: "pessimistic_write" }
+            where: { current_order_id: order_id },
+            lock: { mode: "pessimistic_write" }
             });
 
-            if (counter) {
-                counter.status = 'ERROR';
-                await counterRepo.save(counter);
-                counterId = counter.counter_id;
+            if (counter && counter.status !== 'ERROR') {
+            counter.status = 'ERROR';
+            await counterRepo.save(counter);
+            counterId = counter.counter_id;
             }
 
             if (!manager && queryRunner) {
-                await queryRunner.commitTransaction();
+            await queryRunner.commitTransaction();
             }
 
         } catch (error: any) {
@@ -153,22 +319,24 @@ export class EventsService {
             return response.setIncomplete(error.message);
 
         } finally {
+
             if (!manager && queryRunner) {
             await queryRunner.release();
             }
+
         }
 
-        // /* POST COMMIT */
-        // try {
-        //     if (counterId) {
-        //     broadcast(counterId, {
-        //         counter_id: counterId,
-        //         status: "ERROR"
-        //     });
-        //     }
-        // } catch (e) {
-        //     console.error("Broadcast error:", e);
-        // }
+        /* POST COMMIT (Realtime Notification) */
+        try {
+            if (counterId) {
+            broadcast(counterId, {
+                counter_id: counterId,
+                status: "ERROR"
+            });
+            }
+        } catch (e) {
+            console.error("Broadcast error:", e);
+        }
 
         return response.setComplete("Order set to ERROR", { order_id });
     }
@@ -200,6 +368,7 @@ export class EventsService {
             const wrsRepo = useManager.getRepository(WRS);
             const counterRepo = useManager.getRepository(Counter);
             const eventRepo = useManager.getRepository(Events);
+            const orderTransferRepo = useManager.getRepository(OrdersTransfer);
 
             /* 1️⃣ LOCK EVENT */
             const event = await eventRepo.findOne({
@@ -247,6 +416,20 @@ export class EventsService {
             /* 4️⃣ UPDATE ORDER → PROCESSING */
             order.status = StatusOrders.PROCESSING;
             await ordersRepo.save(order);
+
+            /* 4.1️⃣ UPDATE TRANSFER STATUS → PROCESSING (if transfer order) */
+            if (order.type === TypeInfm.TRANSFER) {
+
+                const transfer = await orderTransferRepo.findOne({
+                    where: { order_id },
+                    lock: { mode: "pessimistic_write" }
+                });
+
+                if (transfer && transfer.transfer_status === StatusOrders.ERROR) {
+                    transfer.transfer_status = 'PROCESSING';
+                    await orderTransferRepo.save(transfer);
+                }
+            }
 
             /* 5️⃣ INSERT ORDER LOG */
             await logService.logTaskEvent(
@@ -333,6 +516,90 @@ export class EventsService {
         }
     }
 
+    // async setOrderWarning(
+    //     order_id: number,
+    //     event_code: string,
+    //     reqUsername: string,
+    //     manager?: EntityManager
+    // ): Promise<ApiResponse<any>> {
+
+    //     const response = new ApiResponse<any>();
+    //     const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+    //     const useManager = manager ?? queryRunner?.manager;
+
+    //     if (!useManager) {
+    //         return response.setIncomplete("No entity manager available");
+    //     }
+
+    //     if (!manager && queryRunner) {
+    //         await queryRunner.connect();
+    //         await queryRunner.startTransaction();
+    //     }
+
+    //     try {
+
+    //         const ordersRepo = useManager.getRepository(Orders);
+    //         const eventRepo = useManager.getRepository(Events);
+
+    //         /* LOCK ORDER */
+    //         const order = await ordersRepo.findOne({
+    //             where: { order_id },
+    //             lock: { mode: "pessimistic_write" }
+    //         });
+
+    //         if (!order) {
+    //             throw new Error(`Order ${order_id} not found`);
+    //         }
+
+    //         /* MESSAGE MAP */
+    //         const warningMessages: Record<string, string> = {
+    //             SCAN_FEW: `Order ${order_id} scanned few items`,
+    //             SCAN_MANY: `Order ${order_id} scanned too many items`,
+    //             INVALID_QTY: `Order ${order_id} invalid quantity`
+    //         };
+
+    //         const message =
+    //             warningMessages[event_code] ??
+    //             `Order ${order_id} warning: ${event_code}`;
+
+    //         /* INSERT EVENT */
+    //         await eventRepo.insert({
+    //             type: "EVENT",
+    //             category: "WARNING",
+    //             event_code: event_code,
+    //             message: message,
+    //             related_id: order_id,
+    //             level: "WARNING",
+    //             status: "ACTIVE",
+    //             is_cleared: true,
+    //             created_at: new Date(),
+    //             created_by: reqUsername,
+    //             order_id: order_id,
+    //             store_type: order.store_type
+    //         });
+
+    //         if (!manager && queryRunner) {
+    //             await queryRunner.commitTransaction();
+    //         }
+
+    //     } catch (error: any) {
+
+    //         if (!manager && queryRunner) {
+    //             await queryRunner.rollbackTransaction();
+    //         }
+
+    //         return response.setIncomplete(error.message);
+
+    //     } finally {
+
+    //         if (!manager && queryRunner) {
+    //             await queryRunner.release();
+    //         }
+
+    //     }
+
+    //     return response.setComplete("Warning event created", { order_id });
+    // }
 
     async getAll(manager?: EntityManager): Promise<ApiResponse<any | null>> {
         const response = new ApiResponse<any | null>();
@@ -484,26 +751,65 @@ export class EventsService {
         }
     }
 
-    async getErrorAlert(manager?: EntityManager): Promise<ApiResponse<any>> {
+    async getErrorAlert(
+        storeType?: string,
+        role?: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+
         const response = new ApiResponse<any>();
         const operation = 'EventsService.getErrorAlert';
 
         try {
+
+            // ✅ ถ้า role ไม่ใช่ STORE ไม่ต้องแสดง error
+            if (role !== 'STORE') {
+                return response.setComplete('No error for this role', {
+                    is_error: false,
+                    sum_error: 0,
+                    messages: []
+                });
+            }
+
             const repository = manager
                 ? manager.getRepository(Events)
                 : this.eventsRepository;
 
-            const rawData = await repository
+            const query = repository
                 .createQueryBuilder('data')
                 .select([
                     'data.store_type AS store_type',
                     'data.message AS message',
+                    'data.level AS level'
                 ])
-                .where('data.type = :type', { type: 'ERROR' })
-                .andWhere('data.level = :level', { level: 'ERROR' })
-                .andWhere('data.status = :status', { status: 'ACTIVE' })
-                .andWhere('data.is_cleared = :is_cleared', { is_cleared: 0 })
-                .getRawMany();
+                .where(`
+                    (
+                        (data.type = :typeError 
+                            AND data.level = :levelError
+                            AND data.status = :status
+                            AND data.is_cleared = 0
+                        )
+                        OR
+                        (
+                            data.category = :categoryWarning
+                            AND data.level = :levelWarning
+                            AND data.created_at >= NOW() - INTERVAL 15 SECOND
+                        )
+                    )
+                `)
+                .setParameters({
+                    typeError: 'ERROR',
+                    levelError: 'ERROR',
+                    status: 'ACTIVE',
+                    categoryWarning: 'WARNING',
+                    levelWarning: 'WARNING'
+                });
+
+            if (storeType) {
+                query.andWhere('data.store_type = :storeType', { storeType });
+            }
+
+            const rawData = await query.getRawMany();
 
             const sum_error = rawData.length;
 
@@ -513,8 +819,8 @@ export class EventsService {
 
             const result = {
                 is_error: sum_error > 0,
-                sum_error: sum_error,
-                messages: messages
+                sum_error,
+                messages
             };
 
             return response.setComplete(
@@ -523,6 +829,7 @@ export class EventsService {
             );
 
         } catch (error: any) {
+
             console.error('Error in getErrorAlert:', error);
 
             if (error instanceof QueryFailedError) {

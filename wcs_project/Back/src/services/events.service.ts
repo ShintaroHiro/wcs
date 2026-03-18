@@ -841,4 +841,483 @@ export class EventsService {
             throw new Error(lang.msgErrorFunction(operation, error.message));
         }
     }
+
+    //mrs
+    async setOrderErrorTM(
+        order_id: number,
+        reqUsername: string,
+        manager?: EntityManager
+        ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+        const operation = 'EventsService.setOrderErrorTM';
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager ?? queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete("No entity manager available");
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        let counterId: number | null = null;
+
+        try {
+
+            const ordersRepo = useManager.getRepository(Orders);
+            const eventRepo = useManager.getRepository(Events);
+            const orderTransferRepo = useManager.getRepository(OrdersTransfer);
+
+            /* 1️⃣ LOCK ORDER */
+            const order = await ordersRepo.findOne({
+            where: { order_id },
+            lock: { mode: "pessimistic_write" }
+            });
+
+            if (!order) {
+            throw new Error(`Order ${order_id} not found`);
+            }
+
+            if (order.status === StatusOrders.ERROR) {
+            throw new Error(`Order ${order_id} already ERROR`);
+            }
+
+            /* 2️⃣ UPDATE ORDER STATUS */
+            order.status = StatusOrders.ERROR;
+            await ordersRepo.save(order);
+
+            /* UPDATE TRANSFER STATUS (if transfer order) */
+            if (order.type === TypeInfm.TRANSFER) {
+                const transfer = await orderTransferRepo.findOne({
+                    where: { order_id },
+                    lock: { mode: "pessimistic_write" }
+                });
+
+                if (transfer && transfer.transfer_status !== StatusOrders.ERROR) {
+                    transfer.transfer_status = StatusOrders.ERROR;
+                    await orderTransferRepo.save(transfer);
+                }
+            }
+
+            /* 3️⃣ INSERT ORDER LOG */
+            await logService.logTaskEvent(
+            useManager,
+            order,
+            {
+                actor: reqUsername,
+                status: StatusOrders.ERROR,
+            }
+            );
+
+            /* 5️⃣ INSERT EVENT */
+            await eventRepo.insert({
+            type: "ERROR",
+            category: "MRS",
+            event_code: "MRS_ERROR",
+            message: `MRS-Error`,
+            related_id: order_id,
+            level: "ERROR",
+            status: "ACTIVE",
+            created_at: new Date(),
+            created_by: "SYSTEM MRS",
+            is_cleared: false,
+            order_id: order_id,
+            store_type: order.store_type
+            });
+
+            if (!manager && queryRunner) {
+            await queryRunner.commitTransaction();
+            }
+
+        } catch (error: any) {
+
+            if (!manager && queryRunner) {
+            await queryRunner.rollbackTransaction();
+            }
+
+            console.error(`Error during ${operation}:`, error);
+
+            return response.setIncomplete(error.message);
+
+        } finally {
+
+            if (!manager && queryRunner) {
+            await queryRunner.release();
+            }
+
+        }
+
+        /* POST COMMIT (Realtime Notification) */
+        try {
+            if (counterId) {
+            broadcast(counterId, {
+                counter_id: counterId,
+                status: "ERROR"
+            });
+            }
+        } catch (e) {
+            console.error("Broadcast error:", e);
+        }
+
+        return response.setComplete("Order set to ERROR", { order_id });
+    }
+
+    async clearOrderErrorTM(
+        event_id: number,
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+        const operation = "EventsService.clearOrderErrorTM";
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager ?? queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete("No entity manager available");
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        try {
+
+            const ordersRepo = useManager.getRepository(Orders);
+            const eventRepo = useManager.getRepository(Events);
+            const orderTransferRepo = useManager.getRepository(OrdersTransfer);
+
+            /* 1️⃣ LOCK EVENT */
+            const event = await eventRepo.findOne({
+                where: { id: event_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!event)
+                throw new Error("Event not found");
+
+            if (event.is_cleared)
+                throw new Error("Event already cleared");
+
+            const order_id = event.order_id;
+
+            /* 2️⃣ LOCK ORDER */
+            const order = await ordersRepo.findOne({
+                where: { order_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!order)
+                throw new Error("Order not found");
+
+            if (order.status !== StatusOrders.ERROR)
+                throw new Error("Order is not in ERROR state");
+
+            /* 3️⃣ UPDATE ORDER → PROCESSING */
+            order.status = StatusOrders.PROCESSING;
+            await ordersRepo.save(order);
+
+            /* 4️⃣ UPDATE TRANSFER (if transfer order) */
+            if (order.type === TypeInfm.TRANSFER) {
+
+                const transfer = await orderTransferRepo.findOne({
+                    where: { order_id },
+                    lock: { mode: "pessimistic_write" }
+                });
+
+                if (transfer && transfer.transfer_status === StatusOrders.ERROR) {
+                    transfer.transfer_status = "PROCESSING";
+                    await orderTransferRepo.save(transfer);
+                }
+            }
+
+            /* 5️⃣ INSERT ORDER LOG */
+            await logService.logTaskEvent(
+                useManager,
+                order,
+                {
+                    actor: reqUsername,
+                    status: StatusOrders.PROCESSING
+                }
+            );
+
+            /* 6️⃣ CLEAR EVENT */
+            event.is_cleared = true;
+            event.status = "CLEARED";
+            event.cleared_by = reqUsername;
+            event.cleared_at = new Date();
+
+            await eventRepo.save(event);
+
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete(
+                "Order error cleared and resumed successfully",
+                { order_id }
+            );
+
+        } catch (error: any) {
+
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+
+            console.error(`Error during ${operation}:`, error);
+            return response.setIncomplete(error.message);
+
+        } finally {
+
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
+        }
+    }
+
+    //agmb
+    async setOrderErrorAgmb(
+        order_id: number,
+        reqUsername: string,
+        manager?: EntityManager
+        ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+        const operation = 'EventsService.setOrderErrorAgmb';
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager ?? queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete("No entity manager available");
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        let counterId: number | null = null;
+
+        try {
+
+            const ordersRepo = useManager.getRepository(Orders);
+            const eventRepo = useManager.getRepository(Events);
+            const orderTransferRepo = useManager.getRepository(OrdersTransfer);
+
+            /* 1️⃣ LOCK ORDER */
+            const order = await ordersRepo.findOne({
+            where: { order_id },
+            lock: { mode: "pessimistic_write" }
+            });
+
+            if (!order) {
+            throw new Error(`Order ${order_id} not found`);
+            }
+
+            if (order.status === StatusOrders.ERROR) {
+            throw new Error(`Order ${order_id} already ERROR`);
+            }
+
+            /* 2️⃣ UPDATE ORDER STATUS */
+            order.status = StatusOrders.ERROR;
+            await ordersRepo.save(order);
+
+            /* UPDATE TRANSFER STATUS (if transfer order) */
+            if (order.type === TypeInfm.TRANSFER) {
+                const transfer = await orderTransferRepo.findOne({
+                    where: { order_id },
+                    lock: { mode: "pessimistic_write" }
+                });
+
+                if (transfer && transfer.transfer_status !== StatusOrders.ERROR) {
+                    transfer.transfer_status = StatusOrders.ERROR;
+                    await orderTransferRepo.save(transfer);
+                }
+            }
+
+            /* 3️⃣ INSERT ORDER LOG */
+            await logService.logTaskEvent(
+            useManager,
+            order,
+            {
+                actor: reqUsername,
+                status: StatusOrders.ERROR,
+            }
+            );
+
+            /* 5️⃣ INSERT EVENT */
+            await eventRepo.insert({
+            type: "ERROR",
+            category: "AGMB",
+            event_code: "AGMB_ERROR",
+            message: `AGMB-Error`,
+            related_id: order_id,
+            level: "ERROR",
+            status: "ACTIVE",
+            created_at: new Date(),
+            created_by: "SYSTEM AGMB",
+            is_cleared: false,
+            order_id: order_id,
+            store_type: order.store_type
+            });
+
+            if (!manager && queryRunner) {
+            await queryRunner.commitTransaction();
+            }
+
+        } catch (error: any) {
+
+            if (!manager && queryRunner) {
+            await queryRunner.rollbackTransaction();
+            }
+
+            console.error(`Error during ${operation}:`, error);
+
+            return response.setIncomplete(error.message);
+
+        } finally {
+
+            if (!manager && queryRunner) {
+            await queryRunner.release();
+            }
+
+        }
+
+        /* POST COMMIT (Realtime Notification) */
+        try {
+            if (counterId) {
+            broadcast(counterId, {
+                counter_id: counterId,
+                status: "ERROR"
+            });
+            }
+        } catch (e) {
+            console.error("Broadcast error:", e);
+        }
+
+        return response.setComplete("Order set to ERROR", { order_id });
+    }
+
+    async clearOrderErrorAgmb(
+        event_id: number,
+        reqUsername: string,
+        manager?: EntityManager
+    ): Promise<ApiResponse<any>> {
+
+        const response = new ApiResponse<any>();
+        const operation = "EventsService.clearOrderErrorAgmb";
+
+        const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+        const useManager = manager ?? queryRunner?.manager;
+
+        if (!useManager) {
+            return response.setIncomplete("No entity manager available");
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+        }
+
+        try {
+
+            const ordersRepo = useManager.getRepository(Orders);
+            const eventRepo = useManager.getRepository(Events);
+            const orderTransferRepo = useManager.getRepository(OrdersTransfer);
+
+            /* 1️⃣ LOCK EVENT */
+            const event = await eventRepo.findOne({
+                where: { id: event_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!event)
+                throw new Error("Event not found");
+
+            if (event.is_cleared)
+                throw new Error("Event already cleared");
+
+            const order_id = event.order_id;
+
+            /* 2️⃣ LOCK ORDER */
+            const order = await ordersRepo.findOne({
+                where: { order_id },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!order)
+                throw new Error("Order not found");
+
+            if (order.status !== StatusOrders.ERROR)
+                throw new Error("Order is not in ERROR state");
+
+            /* 3️⃣ UPDATE ORDER → PROCESSING */
+            order.status = StatusOrders.PROCESSING;
+            await ordersRepo.save(order);
+
+            /* 4️⃣ UPDATE TRANSFER (if transfer order) */
+            if (order.type === TypeInfm.TRANSFER) {
+
+                const transfer = await orderTransferRepo.findOne({
+                    where: { order_id },
+                    lock: { mode: "pessimistic_write" }
+                });
+
+                if (transfer && transfer.transfer_status === StatusOrders.ERROR) {
+                    transfer.transfer_status = "PROCESSING";
+                    await orderTransferRepo.save(transfer);
+                }
+            }
+
+            /* 5️⃣ INSERT ORDER LOG */
+            await logService.logTaskEvent(
+                useManager,
+                order,
+                {
+                    actor: reqUsername,
+                    status: StatusOrders.PROCESSING
+                }
+            );
+
+            /* 6️⃣ CLEAR EVENT */
+            event.is_cleared = true;
+            event.status = "CLEARED";
+            event.cleared_by = reqUsername;
+            event.cleared_at = new Date();
+
+            await eventRepo.save(event);
+
+            if (!manager && queryRunner) {
+                await queryRunner.commitTransaction();
+            }
+
+            return response.setComplete(
+                "Order error cleared and resumed successfully",
+                { order_id }
+            );
+
+        } catch (error: any) {
+
+            if (!manager && queryRunner) {
+                await queryRunner.rollbackTransaction();
+            }
+
+            console.error(`Error during ${operation}:`, error);
+            return response.setIncomplete(error.message);
+
+        } finally {
+
+            if (!manager && queryRunner) {
+                await queryRunner.release();
+            }
+        }
+    }
 }
+

@@ -86,25 +86,6 @@ class CounterAPI {
         }
     }
 
-    static async getOrderAllBlockByUser(params) {
-        try {
-            const token = GlobalVar.getToken();
-            const endpoint = "/api/counter/get-all-order-block-by-user";
-
-            const response = await ApiProvider.getData(
-                endpoint,
-                params || {}, // 👈 ส่ง query params (ถ้าไม่ส่ง = ทั้งหมด)
-                token
-            );
-
-            return response;
-
-        } catch (error) {
-            console.error("Error search block:", error.message || error);
-            throw new Error(`Error: ${error.message}`);
-        }
-    }
-
     static async getByID(counterId) {
         try {
         const token = GlobalVar.getToken();

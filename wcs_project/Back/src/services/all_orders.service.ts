@@ -832,14 +832,27 @@ export class AllOrdersService {
                 // ----------------------------
                 .orderBy(`
                     CASE
-                        WHEN order.status = 'PROCESSING' THEN 1
+                        WHEN order.status = 'ERROR' THEN 1
+                        WHEN order.status = 'PROCESSING' THEN 2
                         WHEN order.status = 'PENDING' THEN 3
-                        WHEN order.status = 'COMPLETED' THEN 4
-                        WHEN order.status = 'FINISHED' THEN 5
-                        ELSE 2
+                        WHEN order.status IN ('COMPLETED','FINISHED') THEN 4
+                        ELSE 5
                     END
                 `, 'ASC')
-                .addOrderBy('order.requested_at', 'ASC');
+
+                .addOrderBy(`
+                    CASE
+                        WHEN order.status IN ('COMPLETED','FINISHED')
+                        THEN order.requested_at
+                    END
+                `, 'DESC')
+
+                .addOrderBy(`
+                    CASE
+                        WHEN order.status NOT IN ('COMPLETED','FINISHED')
+                        THEN order.requested_at
+                    END
+                `, 'ASC')
 
             // ----------------------------
             // filters (เหมือนเดิม)

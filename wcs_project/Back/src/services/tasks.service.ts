@@ -101,16 +101,15 @@ export class OrchestratedTaskService {
             let r: ApiResponse<any> | undefined;
 
             /* ---------- T1M ---------- */
-            if (store_type === 'T1M') {
-                if (type === 'USAGE' || type === 'RECEIPT') {
-                r = await this.t1mOrders.executionInbT1m(
-                    order_id,
+            if (store_type === 'T1M' || store_type === 'AGMB') {
+
+                r = await this.changeToProcessingBatch(
+                    {
+                        items: [{ order_id }]
+                    },
                     executor.username,
                     manager
                 );
-                } else {
-                throw new Error(`Unknown T1M type: ${type}`);
-                }
             }
 
             /* ---------- T1 ---------- */
@@ -171,6 +170,111 @@ export class OrchestratedTaskService {
         }
     }
 
+
+    async changeToProcessingBatch(
+    dto: { items: { order_id: number }[] },
+    reqUsername: string,
+    manager?: EntityManager
+): Promise<ApiResponse<any>> {
+
+    const response = new ApiResponse<any>();
+    const operation = "OrchestratedTaskService.changeToProcessingBatch";
+
+    if (!dto?.items?.length) {
+        return response.setIncomplete("items[] is required");
+    }
+
+    const queryRunner = manager ? null : AppDataSource.createQueryRunner();
+    const useManager = manager || queryRunner?.manager;
+
+    if (!useManager) {
+        return response.setIncomplete(
+            lang.msg("validation.no_entityManager_or_queryRunner_available")
+        );
+    }
+
+    if (!manager && queryRunner) {
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+    }
+
+    try {
+
+        const ordersRepo = useManager.getRepository(Orders);
+        const logService = new OrdersLogService();
+
+        const updated: number[] = [];
+
+        for (const item of dto.items) {
+
+            const orderId = item.order_id;
+
+            /* 1️⃣ Load order */
+            const order = await ordersRepo.findOne({
+                where: { order_id: orderId }
+            });
+
+            if (!order) {
+                throw new Error(`Order not found: ${orderId}`);
+            }
+
+            /* 2️⃣ ต้องเป็น PENDING เท่านั้น */
+            if (order.status !== StatusOrders.PENDING) {
+                throw new Error(
+                    `${orderId}: Only PENDING status can be changed to PROCESSING`
+                );
+            }
+
+            /* 3️⃣ Update status */
+            await ordersRepo.update(
+                { order_id: orderId },
+                {
+                    status: StatusOrders.PROCESSING,
+                    started_at: new Date()
+                }
+            );
+
+            /* 4️⃣ Log event */
+            await logService.logTaskEvent(useManager, order, {
+                actor: reqUsername,
+                status: StatusOrders.PROCESSING
+            });
+
+            updated.push(orderId);
+        }
+
+        if (!manager && queryRunner) {
+            await queryRunner.commitTransaction();
+        }
+
+        return response.setComplete("create completed", {
+            updated
+        });
+
+    } catch (error: any) {
+
+        if (!manager && queryRunner) {
+            await queryRunner.rollbackTransaction();
+        }
+
+        console.error(`Error during ${operation}:`, error);
+
+        if (error instanceof QueryFailedError) {
+            return response.setIncomplete(
+                lang.msgErrorFunction(operation, error.message)
+            );
+        }
+
+        return response.setIncomplete(error.message);
+
+    } finally {
+
+        if (!manager && queryRunner) {
+            await queryRunner.release();
+        }
+
+    }
+}
 
     /* เปลี่ยนจาก execution to waiting */
     async changeToWaitingBatch(
@@ -706,7 +810,6 @@ export class OrchestratedTaskService {
             }
         }
     }
-
     async callNextQueue(loc_id: number, reqUser: string, manager: EntityManager) {
         const ordersRepo = manager.getRepository(Orders);
 
@@ -779,8 +882,6 @@ export class OrchestratedTaskService {
             created_by: "SYSTEM"
         });
     }
-
-    //V02
 
     /*กรณี AUTO ใช้ตอนกด auto หน้า execution*/
     private async finishOrderCore(

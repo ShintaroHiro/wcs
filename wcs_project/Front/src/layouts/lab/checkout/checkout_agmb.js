@@ -4,11 +4,11 @@ import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
-import CounterAPI from "api/CounterAPI";
 import EventsAPI from "api/EventsAPI";
 import ReusableDataTable from "../components/table_component_v2";
 import SweetAlertComponent from "../components/sweetAlert";
 import ExecutionAPI from "api/TaskAPI";
+import ExecutionAgmbAPI from "api/TaskAgmbAPI";
 import StatusBadge from "../components/statusBadge";
 import {
   normalizeStatus,
@@ -17,11 +17,11 @@ import {
 
 import { GlobalVar } from "common/GlobalVar";
 import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
+import AgmbAPI from "api/AgmbAPI";
 
 const CheckOutAGMBPage = () => {
   // const [loading, setLoading] = useState(true);
   const [ordersList, setOrdersList] = useState([]);
-  const [counters, setCounters] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [shortageStep, setShortageStep] = useState(1);
@@ -38,22 +38,11 @@ const CheckOutAGMBPage = () => {
   const storeType = GlobalVar.getStoreType();
   const storeTypeTrans = getStoreTypeTrans(storeType);
 
-  const FIXED_COUNTER_IDS = [1, 2, 3, 4, 5, 6];
-
-  const createDefaultCounter = (id) => ({
-    id,
-    status: "IDLE",
-    color: "#000",
-    actual: 0,
-    plan: 0,
-    isActive: false,
-  });
-
   /* ---------------- Fetch Orders ---------------- */
   const fetchDataAll = async () => {
     // setLoading(true);
     try {
-      const response = await CounterAPI.getOrderAllBlockByUser();
+      const response = await AgmbAPI.getOrderAllByUser();
       setOrdersList(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error(error);
@@ -63,174 +52,88 @@ const CheckOutAGMBPage = () => {
     }
   };
 
-  /* ---------------- Fetch Counters ---------------- */
-  const fetchCounters = async () => {
-    try {
-      const res = await CounterAPI.getCounterAll();
-      const apiCounters = Array.isArray(res?.data) ? res.data : [];
-
-      const mappedCounters = FIXED_COUNTER_IDS.map((counterId) => {
-        const apiCounter = apiCounters.find(
-          (c) => Number(c.id) === counterId || Number(c.counter_id) === counterId
-        );
-
-      const actual = Number(apiCounter?.actual_qty || 0);
-      const plan = Number(apiCounter?.plan_qty || 0);
-
-      const isActive = plan > 0 || actual > 0;
-
-        return {
-          ...createDefaultCounter(counterId),
-          ...(apiCounter || {}),
-          id: counterId,
-
-          // ⭐ สี counter ใช้เมื่อ active เท่านั้น
-          color: isActive ? apiCounter.color || "#000" : "#000",
-
-          // normalize status
-          status: isActive ? apiCounter.status : "IDLE",
-          actual,
-          plan,
-          // ⭐ ส่ง flag ไปให้ CounterBox
-          isActive,
-        };
-      });
-
-      setCounters(mappedCounters);
-    } catch (err) {
-      console.error(err);
-      setCounters(FIXED_COUNTER_IDS.map(createDefaultCounter));
-    }
-  };
 
   useEffect(() => {
     fetchDataAll();
-    fetchCounters();
   }, []);
 
-  const handleScan = async (row) => {
-    try {
-      if (!row?.order_id) throw new Error("Order not found");
+  const handleScan = (row) => {
+    setOrdersList((prev) =>
+        prev.map((order) =>
+        order.order_id === row.order_id
+            ? { ...order, actual_qty: Number(order.plan_qty || 0) }
+            : order
+        )
+    );
+    };
 
-      const counterId = row.counter_id;
-      const planQty = Number(row.plan_qty || 0);
-      const unitCost = Number(row.unit_cost_handled || 0);
-
-      const counter = counters.find(
-        (c) => Number(c.id) === Number(counterId)
-      );
-
-      if (!counter) throw new Error("Counter not found");
-
-      const actual = Number(counter.actual || 0);
-
-      let newQty;
-
-      if (unitCost >= 500) {
-        // 🔴 ราคาแพง → เพิ่มทีละ 1
-        newQty = actual + 1;
-      } else {
-        // 🟢 ราคาถูก → ยิงเต็ม plan
-        newQty = planQty;
-      }
-
-      const res = await CounterAPI.scanBulk(counterId, newQty);
-
-      if (!res?.ok) {
-        throw new Error(res?.message || "Scan failed");
-      }
-
-      await fetchDataAll();
-      await fetchCounters();
-
-    } catch (err) {
-      console.error("handleScan error:", err);
-      setAlert({
-        show: true,
-        type: "error",
-        title: "Error",
-        message: err.message || "Scan failed",
-      });
-    }
-  };
-
-  const submitConfirm = async () => {
+    const submitConfirm = async () => {
     try {
 
-      const counter = counters.find(
-        (c) => Number(c.id) === Number(selectedOrder.counter_id)
-      );
+        const actual_qty = Number(selectedOrder.actual_qty || 0);
 
-      const actual_qty = Number(counter?.actual || 0);
-
-      const response = await ExecutionAPI.handleOrderItemT1(
+        const response = await ExecutionAgmbAPI.handleOrderItemAgmb(
         selectedOrder.order_id,
         actual_qty
-      );
+        );
 
-      if (response.isCompleted) {
+        if (response.isCompleted) {
 
         if (
-          selectedOrder.type === "TRANSFER" &&
-          selectedOrder.transfer_scenario === "INTERNAL_OUT"
+            selectedOrder.type === "TRANSFER" &&
+            selectedOrder.transfer_scenario === "INTERNAL_OUT"
         ) {
 
-          await ExecutionAPI.transferChangeStatus({
+            await ExecutionAPI.transferChangeStatus({
             items: [{ order_id: selectedOrder.order_id }],
             transfer_status: "PICK_SUCCESS",
-          });
-
-          await CounterAPI.counterChangeStatus({
-            order_id: selectedOrder.order_id,
-            status: "WAITING_AMR",
-          });
+            });
 
         }
 
         if (
-          selectedOrder.type === "TRANSFER" &&
-          selectedOrder.transfer_scenario === "INTERNAL_IN"
+            selectedOrder.type === "TRANSFER" &&
+            selectedOrder.transfer_scenario === "INTERNAL_IN"
         ) {
 
-          await ExecutionAPI.transferChangeStatus({
+            await ExecutionAPI.transferChangeStatus({
             items: [{ order_id: selectedOrder.order_id }],
             transfer_status: "COMPLETED",
-          });
+            });
 
         }
 
         setAlert({
-          show: true,
-          type: "success",
-          title: "Confirmed",
-          message: response.message,
+            show: true,
+            type: "success",
+            title: "Confirmed",
+            message: response.message,
         });
 
         await fetchDataAll();
-        await fetchCounters();
 
-      } else {
+        } else {
         throw new Error(response.message || "Failed");
-      }
+        }
 
     } catch (err) {
 
-      console.error(err);
+        console.error(err);
 
-      setAlert({
+        setAlert({
         show: true,
         type: "error",
         title: "Error",
         message: err.message || "Something went wrong",
-      });
+        });
 
     } finally {
 
-      setConfirmDialog(null);
-      setSelectedOrder(null);
+        setConfirmDialog(null);
+        setSelectedOrder(null);
 
     }
-  };
+    };
 
   /* ---------------- Table Columns By Requester ---------------- */
   const requesterColumns = [
@@ -400,9 +303,6 @@ const CheckOutAGMBPage = () => {
         </MDBox>
         <Card>
           <MDBox p={3}>
-            {/* {loading ? (
-              <div>Loading...</div>
-            ) : ( */}
               <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>
                 <ReusableDataTable
                   columns={columns}
@@ -432,7 +332,14 @@ const CheckOutAGMBPage = () => {
 
                 //     return actual >= plan;   // 🔥 disable เมื่อเต็ม plan
                 //   }}
-scanSkuDisabled={() => true}
+                scanSkuDisabled={(row) => {
+  if (row?.status !== "PROCESSING") return true;
+
+  const actual = Number(row.actual_qty || 0);
+  const plan = Number(row.plan_qty || 0);
+
+  return actual >= plan;
+}}
                   onScanSku={(row) => handleScan(row)}
 
                   /* ---------------- CONFIRM ---------------- */
@@ -447,46 +354,51 @@ scanSkuDisabled={() => true}
 
                 //     return Number(counter.actual || 0) <= 0;
                 //   }}
-confirmSkuDisabled={() => true}
+// confirmSkuDisabled={() => true}
 
+                confirmSkuDisabled={(row) => {
+  if (row?.status !== "PROCESSING") return true;
+
+  const actual = Number(row.actual_qty || 0);
+
+  return actual <= 0;
+}}
                 onConfirmSku={(row) => {
 
-                  const counter = counters.find(
-                    (c) => Number(c.id) === Number(row.counter_id)
-                  );
+  const latest = ordersList.find(
+    (o) => o.order_id === row.order_id
+  );
 
-                  if (!counter) return;
+  const actualQty = Number(latest?.actual_qty || 0);
+  const planQty = Number(latest?.plan_qty || 0);
 
-                  const actualQty = Number(counter.actual || 0);
-                  const planQty = Number(row.plan_qty || 0);
+  setSelectedOrder(latest);
+  setShortageStep(1);
 
-                  setSelectedOrder(row);
-                  setShortageStep(1);
+  if (actualQty === 0) {
+    setConfirmDialog("empty");
+    return;
+  }
 
-                  if (actualQty === 0) {
-                    setConfirmDialog("empty");
-                    return;
-                  }
+  if (actualQty < planQty) {
+    setConfirmDialog("shortage");
+    return;
+  }
 
-                  if (actualQty < planQty) {
-                    setConfirmDialog("shortage");
-                    return;
-                  }
+  if (actualQty === planQty) {
+    setConfirmDialog("confirmExact");
+  }
 
-                  if (actualQty === planQty) {
-                    setConfirmDialog("confirmExact");
-                  }
-
-                }}
+}}
 
                 /* ---------------- ERROR BUTTON ---------------- */
-                // errorDisabled={(row) =>
-                //   row?.status !== "PROCESSING"
-                // }
-errorDisabled={() => true}
+                errorDisabled={(row) =>
+                  row?.status !== "PROCESSING"
+                }
+// errorDisabled={() => true}
                 onError={async (row) => {
                   try {
-                    const res = await EventsAPI.setOrderError(row.order_id);
+                    const res = await EventsAPI.setOrderErrorAgmb(row.order_id);
 
                     if (!res?.isCompleted) {
                       throw new Error(res?.message || "Failed");
@@ -500,7 +412,6 @@ errorDisabled={() => true}
                     });
 
                     await fetchDataAll();
-                    await fetchCounters();
 
                   } catch (err) {
                     console.error(err);
@@ -514,10 +425,10 @@ errorDisabled={() => true}
                 }}
 
                 /* ---------------- FORCE MANUAL ---------------- */
-                // forceManualDisabled={(row) =>
-                //   row?.status !== "ERROR"
-                // }
-forceManualDisabled={() => true}
+                forceManualDisabled={(row) =>
+                  row?.status !== "ERROR"
+                }
+// forceManualDisabled={() => true}
                 onForceManual={async (row) => {
                   try {
 
@@ -527,11 +438,11 @@ forceManualDisabled={() => true}
                       actual_qty: Number(row.plan_qty || 0)   // 👈 ใช้ plan_qty แทน
                     }];
 
-                    const res = await ExecutionAPI.handleErrorOrderItemT1(
+                    const res = await ExecutionAgmbAPI.handleErrorOrderItemAgmb(
                       row.event_id,   // 👈 ใช้ event_id จาก row
                       payloadItems
                     );
-
+console.log("res",res);
                     if (!res?.isCompleted) {
                       throw new Error(res?.message || "Failed");
                     }
@@ -544,7 +455,6 @@ forceManualDisabled={() => true}
                     });
 
                     await fetchDataAll();
-                    await fetchCounters();
 
                   } catch (err) {
 
@@ -561,7 +471,6 @@ forceManualDisabled={() => true}
                 }}
                 />
               </MDBox>
-            {/* )} */}
           </MDBox>
         </Card>
       </MDBox>

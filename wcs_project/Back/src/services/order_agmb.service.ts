@@ -5,16 +5,16 @@ import { Orders } from "../entities/orders.entity";
 import { AppDataSource } from "../config/app-data-source";
 import { MRS } from "../entities/mrs.entity";
 
-export class BlockService {
+export class OrderAgmbService {
 
-    async getOrderAllBlockByUser(
+    async getOrderAllByUser(
         userId?: number,
         storeType?: string,
         manager?: EntityManager
     ): Promise<ApiResponse<any | null>> {
 
         const response = new ApiResponse<any | null>();
-        const operation = 'BlockService.getOrderAllBlockByUser';
+        const operation = 'OrderAgmbService.getOrderAllByUser';
 
         try {
             const orderRepo = manager
@@ -98,7 +98,7 @@ export class BlockService {
                     `
                         sev.order_id = order.order_id
                         AND sev.type = 'ERROR'
-                        AND sev.category = 'MRS'
+                        AND sev.category = 'AGMB'
                         AND sev.status = 'ACTIVE'
                         AND sev.level = 'ERROR'
                         AND sev.is_cleared = 0

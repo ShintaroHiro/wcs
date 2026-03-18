@@ -283,3 +283,207 @@ export const getErrorAlert = async (req: Request, res: Response) => {
         );
     }
 };
+
+export const setOrderErrorTM = async (req: Request, res: Response) => {
+    const operation = 'EventsController.setOrderErrorTM';
+
+    // 🔹 ดึง username จาก token
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgRequiredUsername()
+        );
+    }
+
+    // 🔹 รับ order_id จาก path
+    const order_id_str = req.params.order_id;
+    const order_id = Number(order_id_str);
+
+    if (isNaN(order_id)) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgInvalidParameter()
+        );
+    }
+
+    try {
+
+        const response = await eventsService.setOrderErrorTM(
+            order_id,
+            reqUsername
+        );
+
+        return ResponseUtils.handleCustomResponse(
+            res,
+            response,
+            HttpStatus.OK
+        );
+
+    } catch (error: any) {
+
+        console.error(`Error during ${operation}:`, error);
+
+        return ResponseUtils.handleErrorUpdate(
+            res,
+            operation,
+            error.message,
+            'execution.setOrderError',
+            true,
+            reqUsername
+        );
+    }
+};
+
+export const clearOrderErrorTM = async (req: Request, res: Response) => {
+    const operation = 'EventsController.clearOrderErrorTM';
+
+    // 🔹 ดึง username จาก token
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgRequiredUsername()
+        );
+    }
+
+    // 🔹 รับ event_id จาก path
+    const event_id_str = req.params.event_id;
+    const event_id = Number(event_id_str);
+
+    if (isNaN(event_id)) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgInvalidParameter()
+        );
+    }
+
+    try {
+
+        const response = await eventsService.clearOrderErrorTM(
+            event_id,
+            reqUsername
+        );
+
+        return ResponseUtils.handleCustomResponse(
+            res,
+            response,
+            HttpStatus.OK
+        );
+
+    } catch (error: any) {
+
+        console.error(`Error during ${operation}:`, error);
+
+        return ResponseUtils.handleErrorUpdate(
+            res,
+            operation,
+            error.message,
+            'execution.clearOrderError',
+            true,
+            reqUsername
+        );
+    }
+};
+
+export const setOrderErrorAgmb = async (req: Request, res: Response) => {
+    const operation = 'EventsController.setOrderErrorAgmb';
+
+    // 🔹 ดึง username จาก token
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgRequiredUsername()
+        );
+    }
+
+    // 🔹 รับ order_id จาก path
+    const order_id_str = req.params.order_id;
+    const order_id = Number(order_id_str);
+
+    if (isNaN(order_id)) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgInvalidParameter()
+        );
+    }
+
+    try {
+
+        const response = await eventsService.setOrderErrorAgmb(
+            order_id,
+            reqUsername
+        );
+
+        return ResponseUtils.handleCustomResponse(
+            res,
+            response,
+            HttpStatus.OK
+        );
+
+    } catch (error: any) {
+
+        console.error(`Error during ${operation}:`, error);
+
+        return ResponseUtils.handleErrorUpdate(
+            res,
+            operation,
+            error.message,
+            'execution.setOrderError',
+            true,
+            reqUsername
+        );
+    }
+};
+
+export const clearOrderErrorAgmb = async (req: Request, res: Response) => {
+    const operation = 'EventsController.clearOrderErrorAgmb';
+
+    // 🔹 ดึง username จาก token
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgRequiredUsername()
+        );
+    }
+
+    // 🔹 รับ event_id จาก path
+    const event_id_str = req.params.event_id;
+    const event_id = Number(event_id_str);
+
+    if (isNaN(event_id)) {
+        return ResponseUtils.handleBadRequest(
+            res,
+            lang.msgInvalidParameter()
+        );
+    }
+
+    try {
+
+        const response = await eventsService.clearOrderErrorAgmb(
+            event_id,
+            reqUsername
+        );
+
+        return ResponseUtils.handleCustomResponse(
+            res,
+            response,
+            HttpStatus.OK
+        );
+
+    } catch (error: any) {
+
+        console.error(`Error during ${operation}:`, error);
+
+        return ResponseUtils.handleErrorUpdate(
+            res,
+            operation,
+            error.message,
+            'execution.clearOrderError',
+            true,
+            reqUsername
+        );
+    }
+};

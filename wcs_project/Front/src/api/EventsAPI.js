@@ -154,6 +154,57 @@ class EventsAPI {
         }
     }
 
+    static async setOrderErrorTM(order_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/events/set-order-error-t1m/${order_id}`;
+
+            const response = await ApiProvider.postData(endpoint, {}, token);
+            return response;
+        } catch (error) {
+            console.error("Error in Order Error:", error);
+            throw error;
+        }
+    }
+
+    static async clearOrderErrorTM(event_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/events/clear-order-error-t1m/${event_id}`;
+
+            const response = await ApiProvider.postData(endpoint, {}, token);
+            return response;
+        } catch (error) {
+            console.error("Clear in Order Error:", error);
+            throw error;
+        }
+    }
+
+    static async setOrderErrorAgmb(order_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/events/set-order-error-agmb/${order_id}`;
+
+            const response = await ApiProvider.postData(endpoint, {}, token);
+            return response;
+        } catch (error) {
+            console.error("Error in Order Error:", error);
+            throw error;
+        }
+    }
+
+    static async clearOrderErrorAgmb(event_id) {
+        try {
+            const token = GlobalVar.getToken();
+            const endpoint = `/api/events/clear-order-error-agmb/${event_id}`;
+
+            const response = await ApiProvider.postData(endpoint, {}, token);
+            return response;
+        } catch (error) {
+            console.error("Clear in Order Error:", error);
+            throw error;
+        }
+    }
 }
 
 export default EventsAPI;

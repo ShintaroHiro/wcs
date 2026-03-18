@@ -131,7 +131,7 @@ const TransferExecutionPage = () => {
             //mc_code: mcCodes,
             store_type: storeType === "WCS" ? undefined : storeType, 
         });
-        //console.log("storeType:", storeType);
+        console.log("storeType:", storeType);
         const list = Array.isArray(response?.data) ? response.data : [];
         setExecutionList(list);
         } catch (err) {

@@ -58,7 +58,7 @@ class ExecutionAPI {
             return response; // ส่งค่ากลับไป
 
     } catch (error) {
-      console.error("Error search Task:", error.message || error);
+      console.error("Error create Task:", error.message || error);
       throw new Error(`Error: ${error.message}`);
 
     }

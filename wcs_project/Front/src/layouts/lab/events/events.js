@@ -402,36 +402,59 @@ const EventsPage = () => {
     }, [eventsList, searchEvents, filterType, filterCategory]);
 
     const handleClear = async (row) => {
-        try {
-            const res = await EventsAPI.clearOrderError(
-                row.event_id,
+    try {
+
+        const storeType = GlobalVar.getStoreType();
+
+        let res;
+
+        if (storeType === "T1") {
+
+            res = await EventsAPI.clearOrderError(
+                row.event_id
             );
 
-            if (!res?.isCompleted) {
-                throw new Error(res?.message || "Failed to clear");
-            }
+        } else if (storeType === "T1M") {
 
-            setAlert({
-                show: true,
-                type: "success",
-                title: "Cleared",
-                message: "Order resumed successfully",
-            });
+            res = await EventsAPI.clearOrderErrorTM(
+                row.event_id
+            );
 
-            await fetchDataAll();
+        } else if (storeType === "AGMB") {
 
-        } catch (err) {
+            res = await EventsAPI.clearOrderErrorAgmb(
+                row.event_id
+            );
 
-            console.error("CLEAR ERROR:", err);
-
-            setAlert({
-                show: true,
-                type: "error",
-                title: "Error",
-                message: err.message || "Failed to clear error",
-            });
+        } else {
+            throw new Error(`Unsupported store type: ${storeType}`);
         }
-    };
+
+        if (!res?.isCompleted) {
+            throw new Error(res?.message || "Failed to clear");
+        }
+
+        setAlert({
+            show: true,
+            type: "success",
+            title: "Cleared",
+            message: "Order resumed successfully",
+        });
+
+        await fetchDataAll();
+
+    } catch (err) {
+
+        console.error("CLEAR ERROR:", err);
+
+        setAlert({
+            show: true,
+            type: "error",
+            title: "Error",
+            message: err.message || "Failed to clear error",
+        });
+    }
+};
 
 
     const columns = [

@@ -205,4 +205,132 @@ router.get('/get-error-alert'
     , authenticateToken
     , eventsController.getErrorAlert);
 
+    /**
+ * @swagger
+ * /api/events/set-order-error-t1m/{order_id}:
+ *   post:
+ *     summary: เปลี่ยนสถานะ Order เป็น ERROR และอัปเดต T1M, Event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *       - in: path
+ *         name: order_id
+ *         required: true
+ *         schema:
+ *           type: number
+ *         description: ไอดีของ order ที่ต้องการเปลี่ยนเป็น ERROR
+ *     responses:
+ *       200:
+ *         description: เปลี่ยนสถานะ Order เป็น ERROR สำเร็จ
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้อง
+ *       404:
+ *         description: ไม่พบ Order
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.post(
+    '/set-order-error-t1m/:order_id',
+    authenticateToken,
+    eventsController.setOrderErrorTM
+);
+
+/**
+ * @swagger
+ * /api/events/clear-order-error-t1m/{event_id}:
+ *   post:
+ *     summary: เปลี่ยนสถานะ Order เป็น CLEAR และอัปเดต T1M, Event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *       - in: path
+ *         name: event_id
+ *         required: true
+ *         schema:
+ *           type: number
+ *         description: ไอดีของ event ที่ต้องการ CLEAR
+ *     responses:
+ *       200:
+ *         description: Clear order error และ resume workflow
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้อง
+ *       404:
+ *         description: ไม่พบ Event
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.post(
+    '/clear-order-error-t1m/:event_id',
+    authenticateToken,
+    eventsController.clearOrderErrorTM
+);
+
+    /**
+ * @swagger
+ * /api/events/set-order-error-agmb/{order_id}:
+ *   post:
+ *     summary: เปลี่ยนสถานะ Order เป็น ERROR และอัปเดต AGMB, Event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *       - in: path
+ *         name: order_id
+ *         required: true
+ *         schema:
+ *           type: number
+ *         description: ไอดีของ order ที่ต้องการเปลี่ยนเป็น ERROR
+ *     responses:
+ *       200:
+ *         description: เปลี่ยนสถานะ Order เป็น ERROR สำเร็จ
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้อง
+ *       404:
+ *         description: ไม่พบ Order
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.post(
+    '/set-order-error-agmb/:order_id',
+    authenticateToken,
+    eventsController.setOrderErrorAgmb
+);
+
+/**
+ * @swagger
+ * /api/events/clear-order-error-agmb/{event_id}:
+ *   post:
+ *     summary: เปลี่ยนสถานะ Order เป็น CLEAR และอัปเดต AGMB, Event
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *       - in: path
+ *         name: event_id
+ *         required: true
+ *         schema:
+ *           type: number
+ *         description: ไอดีของ event ที่ต้องการ CLEAR
+ *     responses:
+ *       200:
+ *         description: Clear order error และ resume workflow
+ *       400:
+ *         description: ข้อมูลที่ส่งมาไม่ถูกต้อง
+ *       404:
+ *         description: ไม่พบ Event
+ *       500:
+ *         description: เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์
+ */
+router.post(
+    '/clear-order-error-agmb/:event_id',
+    authenticateToken,
+    eventsController.clearOrderErrorAgmb
+);
+
 export default router;

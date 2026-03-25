@@ -11,7 +11,7 @@ const PutHome = () => {
   const storeTypeTrans = getStoreTypeTrans(storeType);
 
   const putMenus = [
-    { title: "Create", path: "" },
+    //{ title: "Create", path: "" },
     { title: "Execute", path: "/put/execute" },
   ];
 

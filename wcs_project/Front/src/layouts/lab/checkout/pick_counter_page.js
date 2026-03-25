@@ -4,12 +4,46 @@ import CounterScreen from "../components/counter_screen";
 import CounterAPI from "api/CounterAPI";
 import MDBox from "components/MDBox";
 import DisplayLayout from "../../../utils/DisplayLayout";
-import CounterStandbyScreen from "../components/counter_standby_screen";
+//import CounterStandbyScreen from "../components/counter_standby_screen";
 //import ScanQtyDialog from "../transactions/scan_qty_form";
+
+const ScaledWrapper = ({ children }) => {
+  const BASE_W = 1920;
+  const BASE_H = 1080;
+
+  const [scale, setScale] = React.useState(() => {
+    return Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H);
+  });
+
+  React.useEffect(() => {
+    const resize = () => {
+      const s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H);
+      setScale(s);
+    };
+
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  return (
+    <div
+      style={{
+        width: BASE_W,
+        height: BASE_H,
+        transform: `scale(${scale})`,
+        transformOrigin: "top left",
+        marginLeft: `calc((100vw - ${BASE_W * scale}px) / 2)`,
+        marginTop: `calc((100vh - ${BASE_H * scale}px) / 2)`,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
 const PickCounterPage = () => {
   const { counterId } = useParams();
   const [counter, setCounter] = useState(null);
-  const [loading, setLoading] = useState(true);
   //const [scanOpen, setScanOpen] = useState(false);
 
   useEffect(() => {
@@ -29,8 +63,6 @@ const PickCounterPage = () => {
       } catch (err) {
         console.error(err);
         setCounter(null);
-      } finally {
-        setLoading(false);
       }
     };
     fetchCounter();
@@ -93,42 +125,6 @@ const PickCounterPage = () => {
     };
   }, [counterId]);
 
-  function ScaledWrapper({ children }) {
-    const BASE_W = 1920;
-    const BASE_H = 1080;
-
-    const [scale, setScale] = React.useState(1);
-
-    React.useEffect(() => {
-      const resize = () => {
-        const s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H);
-        setScale(s);
-      };
-
-      resize();
-      window.addEventListener("resize", resize);
-      return () => window.removeEventListener("resize", resize);
-    }, []);
-
-    return (
-      <div
-        style={{
-          width: BASE_W,
-          height: BASE_H,
-          transform: `scale(${scale})`,
-          transformOrigin: "top left",
-
-          /* 🔥 จัดให้อยู่กลาง "หลังจาก scale" */
-          marginLeft: `calc((100vw - ${BASE_W * scale}px) / 2)`,
-          marginTop: `calc((100vh - ${BASE_H * scale}px) / 2)`,
-        }}
-      >
-        {children}
-      </div>
-    );
-  }
-
-  if (loading) return <div>Loading...</div>;
   if (!counter) return <div>Counter not found</div>;
 
   return (
@@ -142,9 +138,9 @@ const PickCounterPage = () => {
         }}
       >
         <ScaledWrapper>
-          {counter?.trx_type === null ? (
+          {/* {counter?.trx_type === null ? (
             <CounterStandbyScreen counter={counter} />
-          ) : (
+          ) : ( */}
             <CounterScreen
               counter={counter} // counter object
               status={counter.status}
@@ -163,8 +159,10 @@ const PickCounterPage = () => {
               item_id={counter.item_id}
               imageUrl={counter.item_img_url}
               slots={6}
+
+              isStandby={counter?.trx_type === null} //render สลับcounter ภายใน
             />
-          )}
+          {/* )} */}
         </ScaledWrapper>
         {/* 🔥 Dialog อยู่นี่ */}
       {/* <ScanQtyDialog

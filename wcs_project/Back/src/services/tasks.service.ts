@@ -86,6 +86,10 @@ export class OrchestratedTaskService {
             const executionGroupId = uuidv4();
             const resultList: any[] = [];
 
+            // ✅ ใช้ flag
+            let hasT1 = false;
+            let hasT1M = false;
+
             /* ================= LOOP หลาย order ================= */
             for (const order_id of orderIds) {
 
@@ -100,8 +104,42 @@ export class OrchestratedTaskService {
             const { type, store_type } = order;
             let r: ApiResponse<any> | undefined;
 
+            /* ---------- T1 ---------- */
+            if (store_type === 'T1') {
+                hasT1 = true; // ✅ mark
+                
+                await ordersRepo.update(
+                { order_id },
+                {
+                    executed_by_user_id: executor.user_id,
+                    status: StatusOrders.QUEUE,
+                    execution_group_id: executionGroupId,
+                    queued_at: new Date()
+                }
+                );
+
+                r = new ApiResponse<any>().setComplete('T1 order queued', {});
+            }
+
             /* ---------- T1M ---------- */
-            if (store_type === 'T1M' || store_type === 'AGMB') {
+            else if (store_type === 'T1M') {
+                hasT1M = true; // ✅ mark
+
+                await ordersRepo.update(
+                    { order_id },
+                    {
+                        executed_by_user_id: executor.user_id,
+                        status: StatusOrders.QUEUE,
+                        execution_group_id: executionGroupId,
+                        queued_at: new Date()
+                    }
+                );
+
+                r = new ApiResponse<any>().setComplete('T1M order queued', {});
+            }
+
+            /* ---------- AGMB ---------- */
+            else if (store_type === 'AGMB') {
 
                 r = await this.changeToProcessingBatch(
                     {
@@ -110,20 +148,6 @@ export class OrchestratedTaskService {
                     executor.username,
                     manager
                 );
-            }
-
-            /* ---------- T1 ---------- */
-            else if (store_type === 'T1') {
-                await ordersRepo.update(
-                { order_id },
-                {
-                    executed_by_user_id: executor.user_id,
-                    status: StatusOrders.QUEUE,
-                    execution_group_id: executionGroupId
-                }
-                );
-
-                r = new ApiResponse<any>().setComplete('T1 order queued', {});
             }
 
             else {
@@ -141,8 +165,14 @@ export class OrchestratedTaskService {
             });
             }
 
-            // 🔥 trigger scheduler ครั้งเดียว
-            await this.callNextQueueT1(queryRunner.manager);
+             // 🔥 trigger scheduler เฉพาะที่มี
+            if (hasT1) {
+                await this.callNextQueueT1(manager);
+            }
+
+            if (hasT1M) {
+                await this.callNextQueueT1M(manager);
+            }
 
             await queryRunner.commitTransaction();
 
@@ -219,9 +249,9 @@ export class OrchestratedTaskService {
             }
 
             /* 2️⃣ ต้องเป็น PENDING เท่านั้น */
-            if (order.status !== StatusOrders.PENDING) {
+            if (![StatusOrders.PENDING, StatusOrders.QUEUE].includes(order.status)) {
                 throw new Error(
-                    `${orderId}: Only PENDING status can be changed to PROCESSING`
+                    `${orderId}: Only PENDING or QUEUE status can be changed to PROCESSING`
                 );
             }
 
@@ -1278,6 +1308,66 @@ if (o.type === TypeInfm.TRANSFER) {
             // ข้าม order นี้ ไปดูตัวถัดไป
             if (result === 'SKIPPED')
                 continue;
+        }
+    }
+
+    async callNextQueueT1M(manager: EntityManager) {
+        const ordersRepo = manager.getRepository(Orders);
+        const aisleRepo = manager.getRepository(Aisle);
+
+        for (let i = 0; i < 20; i++) {
+
+            // ❌ ถ้ามี aisle ทำงานอยู่ → หยุด (ทีละ 1 order)
+            const busyAisle = await aisleRepo.findOne({
+                where: [
+                    { status: AisleStatus.OPEN },
+                    { status: AisleStatus.ERROR }
+                ]
+            });
+
+            if (busyAisle) break;
+
+            // 🔍 หา order
+            const nextOrder = await ordersRepo.findOne({
+                where: {
+                    store_type: 'T1M',
+                    status: StatusOrders.QUEUE
+                },
+                order: { priority: 'DESC', requested_at: 'ASC' },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!nextOrder) break;
+
+            // 🔥 เลือก aisle ที่ว่างนานสุด
+            const selectedAisle = await aisleRepo.findOne({
+                where: { status: AisleStatus.CLOSED },
+                order: { last_opened_at: 'ASC' }, // ⭐ KEY POINT
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!selectedAisle) break;
+
+            // 🔒 จอง aisle
+            await aisleRepo.update(
+                { aisle_id: selectedAisle.aisle_id },
+                {
+                    status: AisleStatus.OPEN,
+                    current_order_id: nextOrder.order_id,
+                    last_opened_at: new Date()
+                }
+            );
+
+            // 🚀 execute
+            const r = await this.changeToProcessingBatch(
+                {
+                    items: [{ order_id: nextOrder.order_id }]
+                },
+                'system',
+                manager
+            );
+
+            if (!r.isCompleted) break;
         }
     }
 

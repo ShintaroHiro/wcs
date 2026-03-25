@@ -12,6 +12,7 @@ import { Events } from "../entities/s_events.entity";
 import { OrdersTransfer } from "../entities/order_transfer.entity";
 import { Locations } from "../entities/m_location.entity";
 import { StockItems } from "../entities/m_stock_items.entity";
+import { Aisle } from "../entities/aisle.entity";
 
 const eventService = new EventService();
 const ordersLogService = new OrdersLogService();
@@ -26,7 +27,7 @@ export class TMStoreService {
 ): Promise<ApiResponse<any>> {
 
     const response = new ApiResponse<any>();
-    const operation = "OrchestratedTaskService.changeToProcessingBatch";
+    const operation = "TMStoreService.changeToProcessingBatch";
 
     if (!dto?.items?.length) {
         return response.setIncomplete("items[] is required");
@@ -67,9 +68,9 @@ export class TMStoreService {
             }
 
             /* 2️⃣ ต้องเป็น PENDING เท่านั้น */
-            if (order.status !== StatusOrders.PENDING) {
+            if (![StatusOrders.PENDING, StatusOrders.QUEUE].includes(order.status)) {
                 throw new Error(
-                    `${orderId}: Only PENDING status can be changed to PROCESSING`
+                    `${orderId}: Only PENDING or QUEUE status can be changed to PROCESSING`
                 );
             }
 
@@ -252,6 +253,22 @@ private async finishOrderCore(
             throw new Error(`Unsupported type`);
     }
 
+        // 🔥 RESET AISLE (T1M เท่านั้น)
+        const aisleRepo = manager.getRepository(Aisle);
+
+        const result = await aisleRepo.update(
+            { current_order_id: order.order_id },
+            {
+                status: AisleStatus.CLOSED,
+                current_order_id: null
+            }
+        );
+
+        // (optional แต่แนะนำ)
+        if (result.affected === 0) {
+            console.warn(`No aisle found for order ${order.order_id}`);
+        }
+
         /* RESET WRS */
         // const wrs = await wrsRepo.findOne({
         //     where: { current_order_id: order.order_id },
@@ -311,6 +328,10 @@ async handleOrderItemMRS(
                 reqUsername
             );
 
+        });
+
+        await AppDataSource.transaction(async (manager) => {
+            await this.callNextQueueT1M(manager);
         });
 
     } catch (error: any) {
@@ -440,6 +461,10 @@ async handleErrorOrderItemMRS(
 
         });
 
+        await AppDataSource.transaction(async (manager) => {
+            await this.callNextQueueT1M(manager);
+        });
+
     } catch (error: any) {
         return response.setIncomplete(error.message);
     }
@@ -466,48 +491,67 @@ async handleErrorOrderItemMRS(
         event_id
     });
 }
-
-    // async callNextQueueT1(manager: EntityManager) {
-
-    //     const ordersRepo = manager.getRepository(Orders);
-    //     const counterRepo = manager.getRepository(Counter);
-
-    //     for (let i = 0; i < 20; i++) { // 🔥 safety limit
-
-    //         const counter = await counterRepo.findOne({
-    //             where: { status: 'EMPTY' },
-    //             order: { last_event_at: 'ASC' },
-    //             lock: { mode: "pessimistic_write" }
-    //         });
-
-    //         // ❌ ไม่มี counter ว่าง → จบ loop
-    //         if (!counter) break;
-
-    //         const nextOrder = await ordersRepo.findOne({
-    //             where: { store_type: 'T1', status: StatusOrders.QUEUE },
-    //             order: { priority: 'DESC', requested_at: 'ASC' },
-    //             lock: { mode: "pessimistic_write" }
-    //         });
-
-    //         // ❌ ไม่มี order → จบ loop
-    //         if (!nextOrder) break;
-
-    //         const result = await this.t1Orders.executeT1Order(
-    //             nextOrder.order_id,
-    //             manager
-    //         );
-
-    //         // 🔥 logic หยุด / ไปต่อ
-    //         if (['NO_COUNTER', 'NO_AMR'].includes(result))
-    //             break;
-
-    //         // ข้าม order นี้ ไปดูตัวถัดไป
-    //         if (result === 'SKIPPED')
-    //             continue;
-    //     }
-    // }
-
     
+async callNextQueueT1M(manager: EntityManager) {
+        const ordersRepo = manager.getRepository(Orders);
+        const aisleRepo = manager.getRepository(Aisle);
+
+        for (let i = 0; i < 20; i++) {
+
+            // ❌ ถ้ามี aisle ทำงานอยู่ → หยุด (ทีละ 1 order)
+            const busyAisle = await aisleRepo.findOne({
+                where: [
+                    { status: AisleStatus.OPEN },
+                    { status: AisleStatus.ERROR }
+                ]
+            });
+
+            if (busyAisle) break;
+
+            // 🔍 หา order
+            const nextOrder = await ordersRepo.findOne({
+                where: {
+                    store_type: 'T1M',
+                    status: StatusOrders.QUEUE
+                },
+                order: { priority: 'DESC', requested_at: 'ASC' },
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!nextOrder) break;
+
+            // 🔥 เลือก aisle ที่ว่างนานสุด
+            const selectedAisle = await aisleRepo.findOne({
+                where: { status: AisleStatus.CLOSED },
+                order: { last_opened_at: 'ASC' }, // ⭐ KEY POINT
+                lock: { mode: "pessimistic_write" }
+            });
+
+            if (!selectedAisle) break;
+
+            // 🔒 จอง aisle
+            await aisleRepo.update(
+                { aisle_id: selectedAisle.aisle_id },
+                {
+                    status: AisleStatus.OPEN,
+                    current_order_id: nextOrder.order_id,
+                    last_opened_at: new Date()
+                }
+            );
+
+            // 🚀 execute
+            const r = await this.changeToProcessingBatch(
+                {
+                    items: [{ order_id: nextOrder.order_id }]
+                },
+                'system',
+                manager
+            );
+
+            if (!r.isCompleted) break;
+        }
+    }
+
         /*กรณี MANUAL ใช้ตอนกด manual หน้า execution*/
         private async finishManualOrderCore(
             manager: EntityManager,

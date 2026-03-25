@@ -34,6 +34,10 @@ export class Aisle {
     @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP'})
     last_event_at!: Date;
 
+     /** order ที่กำลังทำอยู่ */
+    @Column({ type: 'int', unsigned: true, nullable: true })
+    current_order_id: number | null;
+
     /** ความกว้างปลอดภัยของช่อง (มม.) ถ้าใช้ตรวจสอบ */
     @Column({ type: 'int', nullable: true, comment: 'Safe aisle width (mm), optional' })
     safe_width_mm?: number;

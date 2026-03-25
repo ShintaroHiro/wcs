@@ -15,7 +15,7 @@ const router = Router();
  * @swagger
  * /api/counter/get-all-order-by-user:
  *   get:
- *     summary: ดึงข้อมูล counter + order ของ user ที่ login เท่านั้น เฉพาะกรณี requester เท่านั้น
+ *     summary: ดึงข้อมูล counter + order ของ user ที่ login เท่านั้น
  *     tags: [Counter]
  *     security:
  *       - bearerAuth: []

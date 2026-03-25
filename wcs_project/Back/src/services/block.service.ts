@@ -1,11 +1,18 @@
-import { EntityManager, QueryFailedError } from "typeorm";
+import { EntityManager, QueryFailedError, Repository } from "typeorm";
 import { ApiResponse } from "../models/api-response.model";
 import * as lang from "../utils/LangHelper";
 import { Orders } from "../entities/orders.entity";
 import { AppDataSource } from "../config/app-data-source";
 import { MRS } from "../entities/mrs.entity";
+import { Aisle } from "../entities/aisle.entity";
 
 export class BlockService {
+
+    private aisleRepository : Repository<Aisle>;
+    
+    constructor(){
+        this.aisleRepository = AppDataSource.getRepository(Aisle);
+    }
 
     async getOrderAllBlockByUser(
         userId?: number,
@@ -25,12 +32,12 @@ export class BlockService {
                 .createQueryBuilder('order')
 
                 /* =======================
-                * mrs
+                * aisle
                 * ======================= */
                 .leftJoin(
-                    MRS,
-                    'mrs',
-                    'mrs.current_order_id = order.order_id'
+                    Aisle,
+                    'aisle',
+                    'aisle.current_order_id = order.order_id'
                 )
 
                 /* =======================
@@ -122,10 +129,11 @@ export class BlockService {
                     'order.transfer_scenario AS transfer_scenario',
 
                     /* phys location */
-                    `'N1-MDR3-F5' AS phys_loc`,
+                    `COALESCE(fromLoc.box_loc, '-') AS phys_loc`,
 
-                    /* mrs */
-                    `COALESCE(mrs.mrs_id, 'MOCK') AS mrs_id`,
+                    /* aisle */
+                    'aisle.aisle_id AS aisle_id',
+                    `COALESCE(aisle.aisle_code, '-') AS aisle_code`,
 
                     /* s_events */
                     `COALESCE(sev.id, NULL) AS event_id`,
@@ -408,4 +416,64 @@ export class BlockService {
             throw new Error(lang.msgErrorFunction(operation, error.message));
         }
     }
+
+    async getBlockAll(manager?: EntityManager): Promise<ApiResponse<any | null>> {
+            const response = new ApiResponse<any | null>();
+            const operation = 'BlockService.getBlockAll';
+        
+            try {
+                const repository = manager ? manager.getRepository(Aisle) : this.aisleRepository;
+        
+                const rawData = await repository
+                .createQueryBuilder('aisle')
+
+                // 🔥 JOIN Orders
+                .leftJoin(Orders, 'orders', 'orders.order_id = aisle.current_order_id')
+
+                // 🔥 JOIN Stock Item
+                .leftJoin('m_stock_items', 'stock', 'stock.item_id = orders.item_id')
+
+                // 🔥 JOIN Location
+                .leftJoin('m_location', 'loc', 'loc.loc_id = orders.loc_id')
+
+                .select([
+                    // aisle
+                    'aisle.aisle_id AS aisle_id',
+                    'aisle.aisle_code AS aisle_code',
+                    'aisle.status AS status',
+                    'aisle.current_order_id AS current_order_id',
+
+                    // order
+                    'orders.order_id AS order_id',
+                    'orders.plan_qty AS plan_qty',
+                    'orders.actual_qty AS actual_qty',
+
+                    // stock item
+                    'stock.stock_item AS stock_item',
+
+                    // location
+                    'loc.loc AS loc',
+                    'loc.box_loc AS box_loc'
+                ])
+
+                .orderBy('aisle.aisle_id', 'ASC')
+
+                .getRawMany();
+        
+                if (!rawData || rawData.length === 0) {
+                    return response.setIncomplete(lang.msgNotFound('item.aisle'));
+                }
+        
+                return response.setComplete(lang.msgFound('item.aisle'), rawData);
+        
+            } catch (error: any) {
+                console.error('Error in get aisle all:', error);
+        
+                if (error instanceof QueryFailedError) {
+                    return response.setIncomplete(lang.msgErrorFunction(operation, error.message));
+                }
+        
+                throw new Error(lang.msgErrorFunction(operation, error.message));
+            }
+        }
 }

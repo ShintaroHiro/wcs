@@ -11,7 +11,7 @@ const TransferHome = () => {
   const storeTypeTrans = getStoreTypeTrans(storeType);
 
   const transferMenus = [
-    { title: "Create", path: "" },
+    //{ title: "Create", path: "" },
     { title: "Execute", path: "/transfer/execute" },
   ];
 

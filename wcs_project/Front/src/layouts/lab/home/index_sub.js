@@ -11,7 +11,7 @@ const PickHome = () => {
   const storeTypeTrans = getStoreTypeTrans(storeType);
 
   const pickMenus = [
-    { title: "Create", path: "" },
+    //{ title: "Create", path: "" },
     { title: "Execute", path: "/pick/execute" },
   ];
 

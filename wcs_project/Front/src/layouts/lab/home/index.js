@@ -53,6 +53,11 @@ const HomePage = () => {
     { title: "Pick", path: "/pick/execute" },
     { title: "Status-req", path: "/status-requester" },
     { title: "Status", path: "/status" },
+    // ✅ แสดงเฉพาะ WCS
+    ...(storeType === "WCS" ? [
+      { title: "Inventory", path: "/inventory" },
+      {title: "History", path: "/events"}
+    ] : []),
     //แสดงทุกคลัง
     ...(checkoutPath
     ? [{ title: "Check In & Out", path: checkoutPath }]
@@ -60,11 +65,6 @@ const HomePage = () => {
     { title: "Put", path: "/put/execute" },
     { title: "Return", path: "/return/execute" },
     { title: "Transfer", path: "/transfer/execute" },
-    // ✅ แสดงเฉพาะ WCS
-    ...(storeType === "WCS" ? [
-      { title: "Inventory", path: "/inventory" },
-      {title: "Events", path: "/events"}
-    ] : []),
   ];
 
   //menu_route
@@ -83,15 +83,15 @@ const HomePage = () => {
     { title: "Return", path: "/return" },
     { title: "Transfer", path: "/transfer" },
     { title: "Status", path: "/status" },
+    { title: "Inventory", path: "/inventory" },
+    {title: "History", path: "/events"},
     ...(checkoutPath
     ? [{ title: "Check In & Out", path: checkoutPath }]
     : []),
-    { title: "Inventory", path: "/inventory" },
-    {title: "Events", path: "/events"}
     // ✅ แสดงเฉพาะ WCS
     // ...(storeType === "WCS" ? [
     //   { title: "Inventory", path: "/inventory" },
-    //   {title: "Events", path: "/events"}
+    //   {title: "History", path: "/events"}
     // ] : []),
   ];
 
@@ -193,7 +193,7 @@ const HomePage = () => {
                         />
                         <Typography variant="h5">{item.title}</Typography>
                       </Card>
-                        {item.title === "Events" && isError && (
+                        {item.title === "History" && isError && (
                           <Box
                             sx={{
                               position: "absolute",

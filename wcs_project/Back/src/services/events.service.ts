@@ -8,12 +8,13 @@ import { WRS } from '../entities/wrs.entity';
 import { OrdersUsage } from '../entities/order_usage.entity';
 import { StockItems } from '../entities/m_stock_items.entity';
 import { Counter } from '../entities/counter.entity';
-import { ControlSource, StatusOrders, TypeInfm } from '../common/global.enum';
+import { AisleStatus, ControlSource, StatusOrders, TypeInfm } from '../common/global.enum';
 import { OrdersLogService } from '../utils/logTaskEvent';
 import { EventService } from '../utils/EventService';
 import { WrsLogService } from '../utils/LogWrsService';
 import { broadcast } from './sse.service';
 import { OrdersTransfer } from '../entities/order_transfer.entity';
+import { Aisle } from '../entities/aisle.entity';
 
 const logService = new OrdersLogService();
 const eventService = new EventService();
@@ -903,6 +904,22 @@ export class EventsService {
                 }
             }
 
+            /* 🔥 UPDATE AISLE → ERROR */
+            const aisleRepo = useManager.getRepository(Aisle);
+
+            const result = await aisleRepo.update(
+                { current_order_id: order_id },
+                {
+                    status: AisleStatus.ERROR,
+                    last_event_at: new Date()
+                }
+            );
+
+            // optional (debug ดีมาก)
+            if (result.affected === 0) {
+                console.warn(`No aisle found for order ${order_id}`);
+            }
+
             /* 3️⃣ INSERT ORDER LOG */
             await logService.logTaskEvent(
             useManager,
@@ -1035,6 +1052,22 @@ export class EventsService {
                     transfer.transfer_status = "PROCESSING";
                     await orderTransferRepo.save(transfer);
                 }
+            }
+
+            /* 🔥 RESUME AISLE → OPEN */
+            const aisleRepo = useManager.getRepository(Aisle);
+
+            const result = await aisleRepo.update(
+                { current_order_id: order_id },
+                {
+                    status: AisleStatus.OPEN,
+                    last_event_at: new Date()
+                }
+            );
+
+            // optional debug
+            if (result.affected === 0) {
+                console.warn(`No aisle found for order ${order_id}`);
             }
 
             /* 5️⃣ INSERT ORDER LOG */

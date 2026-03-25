@@ -20,7 +20,6 @@ import { GlobalVar } from "common/GlobalVar";
 import { getStoreTypeTrans } from "common/utils/storeTypeHelper";
 
 const CheckOutTPage = () => {
-  // const [loading, setLoading] = useState(true);
   const [ordersList, setOrdersList] = useState([]);
   const [counters, setCounters] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -52,15 +51,12 @@ const CheckOutTPage = () => {
 
   /* ---------------- Fetch Orders ---------------- */
   const fetchDataAll = async () => {
-    // setLoading(true);
     try {
       const response = await CounterAPI.getAllOrders();
       setOrdersList(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error(error);
       setOrdersList([]);
-    // } finally {
-    //   setLoading(false);
     }
   };
 
@@ -490,9 +486,6 @@ const CheckOutTPage = () => {
         </MDBox>
         <Card>
           <MDBox p={3}>
-            {/* {loading ? (
-              <div>Loading...</div>
-            ) : ( */}
               <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>
                 <ReusableDataTable
                   columns={columns}

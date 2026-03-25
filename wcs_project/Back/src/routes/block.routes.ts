@@ -35,4 +35,26 @@ router.get('/get-all-order-block-by-user',
     blockController.getOrderAllBlockByUser
 );
 
+/**
+ * @swagger
+ * /api/block/get-all-block:
+ *   get:
+ *     summary: Get all data about Aisle
+ *     tags: [Block]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/lng'
+ *     responses:
+ *       200:
+ *         description: successful
+ *       400:
+ *         description: bad request
+ *       404:
+ *         description: not found
+ *       500:
+ *         description: internet server error
+ */
+router.get('/get-all-block', authenticateToken, blockController.getBlockAll);
+
 export default router;

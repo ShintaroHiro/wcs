@@ -54,4 +54,22 @@ export const getOrderAllBlockByUser = async (req: Request, res: Response) => {
             reqUsername
         );
     }
+    
+};
+
+export const getBlockAll = async (req: Request, res: Response) => {
+    const operation = 'blockController.getBlockAll';
+
+    const reqUsername = RequestUtils.getUsernameToken(req, res);
+    if (!reqUsername) {
+        return ResponseUtils.handleBadRequest(res, lang.msgRequiredUsername());
+    }
+
+    try {
+        const response = await blockService.getBlockAll();
+        return ResponseUtils.handleResponse(res, response);
+    } catch (error: any) {
+        console.error(`Error during ${operation}:`, error);
+        return ResponseUtils.handleErrorGet(res, operation, error.message, 'item.aisle', true, reqUsername);
+    }
 };

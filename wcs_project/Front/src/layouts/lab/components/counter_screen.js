@@ -1,5 +1,6 @@
 import { Box, Card, Typography, Grid } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import CounterStandbyScreen from "./counter_standby_screen";
 
 export default function CounterScreen({
   counter, // counter object จาก API
@@ -18,6 +19,7 @@ export default function CounterScreen({
   object_id,
   imageUrl,
   slots = 6,
+  isStandby,
 }) {
   console.log("[CounterScreen] render pickedQty =", pickedQty);
   const counterColor = counter?.color || "#ff0000";
@@ -45,6 +47,10 @@ export default function CounterScreen({
       ["USAGE NO.", usage_num],
       ["USAGE Line", usage_line],
     ];
+  }
+
+  if (isStandby) {
+    return <CounterStandbyScreen counter={counter} />;
   }
 
   return (

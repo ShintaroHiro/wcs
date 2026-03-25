@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Grid, Card, IconButton, InputAdornment, FormControl } from "@mui/material";
-import AddCircleIcon from "@mui/icons-material/AddCircle";
-import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
 
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -621,6 +619,9 @@ const PickExecutionPage = () => {
         { field: "plan_qty", label: "Required Quantity" },
     ];
 
+    const isMoveDisabled = selectedWaitingIds.length === 0 || loading;
+    const isDeleteDisabled = selectedExecutionIds.length === 0 || loading;
+
     // --------------------------------------------------
     // RENDER
     // --------------------------------------------------
@@ -745,7 +746,7 @@ const PickExecutionPage = () => {
     {/* --------------------------------------------------
         LEFT: WAITING LIST
     --------------------------------------------------- */}
-            <Grid item xs={12} md={5.8}>
+            <Grid item xs={12} md={5.6}>
                 <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
                 <MDTypography variant="h5" mb={4}>
                     Pick - Waiting List
@@ -1077,39 +1078,64 @@ const PickExecutionPage = () => {
             <Grid
                 item
                 xs={12}
-                md={0.4}
+                md={0.8}
                 container
                 direction="column"
                 alignItems="center"
                 justifyContent="center"
-                sx={{ gap: 3 }}
+                sx={{ gap: 7 }}
             >
                 {/* + Button */}
                 <IconButton
-                color="primary"
-                onClick={handleMoveToExecution}
-                disabled={selectedWaitingIds.length === 0 || loading}
-
-                sx={{ p: 0.3 }}
-                >
-                <AddCircleIcon sx={{ fontSize: 36 }} />
+                    onClick={handleMoveToExecution}
+                    disabled={isMoveDisabled}
+                    sx={{
+                        width: "100%",        // 🔥 เต็ม column
+                        aspectRatio: "2 / 1", // 🔥 คุมทรงลูกศร
+                        maxWidth: 160,        // 🔥 กันใหญ่เกิน
+                    }}
+                    >
+                    <svg
+                        width="100%"
+                        height="100%"
+                        viewBox="0 0 200 100"
+                        preserveAspectRatio="xMidYMid meet"
+                    >
+                        <polygon
+                        points="20,15 95,15 95,0 180,50 95,100 95,85 20,85"
+                        fill={isMoveDisabled ? "#bdbdbd" : "#1976d2"}
+                        />
+                    </svg>
                 </IconButton>
 
                 {/* - Button */}
                 <IconButton
-                color="error"
-                onClick={handleDeleteTask}
-                disabled={selectedExecutionIds.length === 0 || loading}
-                sx={{ p: 0.3 }}
-                >
-                <RemoveCircleIcon sx={{ fontSize: 36 }} />
+                    onClick={handleDeleteTask}
+                    disabled={isDeleteDisabled}
+                    sx={{
+                        width: "100%",
+                        aspectRatio: "2 / 1",
+                        maxWidth: 160,
+                    }}
+                    >
+                    <svg
+                        width="100%"
+                        height="100%"
+                        viewBox="0 0 200 100"
+                        preserveAspectRatio="xMidYMid meet"
+                    >
+                        <polygon
+                        points="180,15 105,15 105,0 20,50 105,100 105,85 180,85"
+                        fill={isDeleteDisabled ? "#bdbdbd" : "#d32f2f"} // 🔥 ตรงนี้
+                        />
+                    </svg>
                 </IconButton>
             </Grid>
 
     {/* --------------------------------------------------
         RIGHT: EXECUTION LIST
     --------------------------------------------------- */}
-            <Grid item xs={12} md={5.8}>
+            <Grid item xs={12} md={5.6}>
                 <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
                 <MDTypography variant="h5" mb={4}>
                     Pick - Execution List

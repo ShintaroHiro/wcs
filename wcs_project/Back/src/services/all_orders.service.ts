@@ -834,9 +834,10 @@ export class AllOrdersService {
                     CASE
                         WHEN order.status = 'ERROR' THEN 1
                         WHEN order.status = 'PROCESSING' THEN 2
-                        WHEN order.status = 'PENDING' THEN 3
-                        WHEN order.status IN ('COMPLETED','FINISHED') THEN 4
-                        ELSE 5
+                        WHEN order.status = 'QUEUE' THEN 3
+                        WHEN order.status = 'PENDING' THEN 4
+                        WHEN order.status IN ('COMPLETED','FINISHED') THEN 5
+                        ELSE 6
                     END
                 `, 'ASC')
 

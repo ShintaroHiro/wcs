@@ -2,22 +2,30 @@ import React, { useState } from "react";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import BlockMRSPopup from "./block_mrs_popup";
+import { GlobalVar } from "common/GlobalVar";
 
 const statusMap = {
-  IDLE: {
+  CLOSED: {
     color: "#10a64a",
     text: "Standby",
   },
-  RUNNING: {
+  ERROR: {
     color: "#e21d1d",
+    text: "Error",
+  },
+  OPEN: {
+    color: "#ffce18",
     text: "Occupied",
   },
 };
 
-const BlockMRS = ({ mrs }) => {
+const BlockMRS = ({ block }) => {
   const [open, setOpen] = useState(false);
 
-  const statusConfig = statusMap[mrs.status] || statusMap.IDLE;
+  const userRole = GlobalVar.getRole();
+  const isRequester = userRole === "REQUESTER";
+
+  const statusConfig = statusMap[block.status] || statusMap.IDLE;
 
   return (
     <>
@@ -25,7 +33,7 @@ const BlockMRS = ({ mrs }) => {
         onClick={() => setOpen(true)}
         sx={{
           width: "100%",
-          height: 150,
+          height: 200,
           borderRadius: "20px",
           backgroundColor: statusConfig.color,
           display: "flex",
@@ -36,32 +44,57 @@ const BlockMRS = ({ mrs }) => {
           boxShadow: 3,
         }}
       >
-        {/* line 1 */}
-        <MDTypography variant="h3" fontWeight="bold" color="black">
-          Block {mrs.id}
+        {/* 🔹 บรรทัด 1: Block */}
+        <MDTypography variant="h4" fontWeight="bold" color="black">
+          Block {block.id}
         </MDTypography>
 
-        {/* line 2 */}
-        <MDTypography variant="h3" fontWeight="bold" color="black">
+        {/* 🔹 บรรทัด 2: Status */}
+        <MDTypography variant="h4" fontWeight="bold" color="black">
           {statusConfig.text}
         </MDTypography>
 
-        {/* line 3 */}
-        {mrs.status === "RUNNING" && (
-          <MDTypography variant="h3" fontWeight="bold" color="black">
-            {mrs.mrs_location}
+        {/* ================= OPEN ================= */}
+        {block.status === "OPEN" && (
+          <>
+            {/* 🔹 บรรทัด 3: stock item */}
+            <MDTypography variant="h4" color="black" sx={{ wordBreak: "break-word"}}>
+              Stock Item: {block.stock_item}
+            </MDTypography>
+
+            {/* 🔹 บรรทัด 4: qty */}
+            <MDTypography variant="h4" color="black" sx={{ wordBreak: "break-word"}}>
+              Quantity: {block.actual_qty} / {block.plan_qty}
+            </MDTypography>
+
+            {/* 🔹 บรรทัด 5: box_loc */}
+            <MDTypography variant="h4" color="black" sx={{ wordBreak: "break-word"}}>
+              Location: {block.box_loc}
+            </MDTypography>
+          </>
+        )}
+
+        {/* ================= ERROR ================= */}
+        {block.status === "ERROR" && !isRequester && (
+          <MDTypography
+            variant="h4"
+            color="black"
+            sx={{ wordBreak: "break-word" }}
+          >
+            Communication Error
           </MDTypography>
         )}
+
       </MDBox>
 
       {/* Popup */}
       <BlockMRSPopup
         open={open}
         onClose={() => setOpen(false)}
-        blockId={mrs.id}
-        bottomText={mrs.aisle}
-        status={mrs.status}
-        image={mrs.image}
+        blockId={block.id}
+        bottomText={block.aisle}
+        status={block.status}
+        image={block.image}
       />
     </>
   );

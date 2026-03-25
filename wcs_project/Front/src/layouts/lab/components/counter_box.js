@@ -3,10 +3,15 @@ import MDBox from "components/MDBox";
 import MDButton from "components/MDButton";
 import MDTypography from "components/MDTypography";
 
+import { GlobalVar } from "common/GlobalVar";
+
 const DEFAULT_TEXT_COLOR = "#000";
 const DEFAULT_BG_COLOR = "#FFF";
 
 const CounterBox = ({ counter, onClick, onQtyChange }) => {
+  const userRole = GlobalVar.getRole();
+  const isRequester = userRole === "REQUESTER";
+
   const status = counter.status || "IDLE";
   const isWaiting = status === "WAITING_PICK";
   const isIdle = status === "IDLE";
@@ -114,8 +119,8 @@ const CounterBox = ({ counter, onClick, onQtyChange }) => {
     alignItems="center"
     gap={1.5}
   >
-    {/* - Button */}
-    {counter.plan > 0 && (
+     {/* - Button (ซ่อนเฉพาะ REQUESTER) */}
+    {!isRequester && counter.plan > 0 && (
       <MDButton
         size="small"
         variant="outlined"
@@ -169,8 +174,8 @@ const CounterBox = ({ counter, onClick, onQtyChange }) => {
       {counter.actual}/{counter.plan}
     </MDTypography>
 
-    {/* + Button */}
-    {counter.plan > 0 && (
+    {/* + Button (ซ่อนเฉพาะ REQUESTER) */}
+    {!isRequester && counter.plan > 0 && (
       <MDButton
         size="small"
         variant="outlined"

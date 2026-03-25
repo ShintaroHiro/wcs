@@ -26,7 +26,7 @@ export class AgmbStoreService {
 ): Promise<ApiResponse<any>> {
 
     const response = new ApiResponse<any>();
-    const operation = "OrchestratedTaskService.changeToProcessingBatch";
+    const operation = "AgmbStoreService.changeToProcessingBatch";
 
     if (!dto?.items?.length) {
         return response.setIncomplete("items[] is required");

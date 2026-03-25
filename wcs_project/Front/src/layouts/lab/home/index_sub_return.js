@@ -11,7 +11,7 @@ const ReturnHome = () => {
   const storeTypeTrans = getStoreTypeTrans(storeType);
 
   const returnMenus = [
-    { title: "Create", path: "" },
+    //{ title: "Create", path: "" },
     { title: "Execute", path: "/return/execute" },
   ];
 

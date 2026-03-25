@@ -22,6 +22,7 @@ import BlockAPI from "api/BlockAPI";
 
 const CheckOutT1MPage = () => {
   // const [loading, setLoading] = useState(true);
+  const [blocksList, setBlocksList] = useState([]);
   const [ordersList, setOrdersList] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -39,6 +40,17 @@ const CheckOutT1MPage = () => {
   const storeType = GlobalVar.getStoreType();
   const storeTypeTrans = getStoreTypeTrans(storeType);
 
+    /* ---------------- Fetch Orders ---------------- */
+  const fetchBlockAll = async () => {
+    try {
+      const response = await BlockAPI.getBlockAll();
+      setBlocksList(Array.isArray(response?.data) ? response.data : []);
+    } catch (error) {
+      console.error(error);
+      setBlocksList([]);
+    }
+  };
+
   /* ---------------- Fetch Orders ---------------- */
   const fetchDataAll = async () => {
     // setLoading(true);
@@ -54,18 +66,31 @@ const CheckOutT1MPage = () => {
   };
 
   useEffect(() => {
+    fetchBlockAll();
     fetchDataAll();
   }, []);
 
   const handleScan = (row) => {
+    const newActual = Number(row.plan_qty || 0);
+
+    // ✅ update orders table
     setOrdersList((prev) =>
-        prev.map((order) =>
+      prev.map((order) =>
         order.order_id === row.order_id
-            ? { ...order, actual_qty: Number(order.plan_qty || 0) }
-            : order
-        )
+          ? { ...order, actual_qty: newActual }
+          : order
+      )
     );
-    };
+
+    // ✅ update block (สำคัญ!!)
+    setBlocksList((prev) =>
+      prev.map((b) =>
+        b.current_order_id === row.order_id
+          ? { ...b, actual_qty: newActual }
+          : b
+      )
+    );
+  };
 
     const submitConfirm = async () => {
     try {
@@ -111,6 +136,7 @@ const CheckOutT1MPage = () => {
         });
 
         await fetchDataAll();
+        await fetchBlockAll();
 
         } else {
         throw new Error(response.message || "Failed");
@@ -167,7 +193,7 @@ const CheckOutT1MPage = () => {
       type: "scanSku",
     },
     {
-      field: "mrs_id",
+      field: "aisle_code",
       label: "Block",
       minWidth: 120,
       renderCell: (value) => (
@@ -182,7 +208,7 @@ const CheckOutT1MPage = () => {
           </span>
         ),
     },
-    { field: "phys_loc", label: "Physical Location(Mock)" },
+    { field: "phys_loc", label: "Physical Location" },
   ];
 
   /* ---------------- Table Columns By Defualt ---------------- */
@@ -219,7 +245,7 @@ const CheckOutT1MPage = () => {
     { field: "plan_qty", label: "Required Quantity" },
     { field: "actual_qty", label: "Scanned Quantity" },
     {
-      field: "mrs_id",
+      field: "aisle_code",
       label: "Block",
       minWidth: 120,
       renderCell: (value) => (
@@ -234,7 +260,7 @@ const CheckOutT1MPage = () => {
           </span>
         ),
     },
-    { field: "phys_loc", label: "Physical Location(Mock)" },
+    { field: "phys_loc", label: "Physical Location" },
     {
       field: "scan",
       label: "Scan",
@@ -252,12 +278,27 @@ const CheckOutT1MPage = () => {
     return defaultColumns;
   }, [role]);
 
-    const mrsList = [
-        { id: 1, status: "IDLE", aisle: "Aisle A7", image: "stock_items_image/91/S__17113092.jpg" },
-        { id: 2, status: "RUNNING", mrs_location: "N1-MDR3-F5", aisle: "Aisle A6", image: "stock_items_image/92/LINE_P2026312_050016_new.jpg" },
-        { id: 3, status: "IDLE", aisle: "Aisle B2", image: "stock_items_image/93/S__17113093.jpg" },
-        { id: 4, status: "IDLE", aisle: "Aisle C1", image: "stock_items_image/94/S__17113094.jpg" }
-    ];
+  const defaultBlockImages = {
+    1: "stock_items_image/91/S__17113092.jpg",
+    2: "stock_items_image/92/LINE_P2026312_050016_new.jpg",
+    3: "stock_items_image/93/S__17113093.jpg",
+    4: "stock_items_image/94/S__17113094.jpg",
+  };
+
+  const mappedBlocks = blocksList.map((b) => ({
+    id: b.aisle_id,
+    aisle_code: b.aisle_code,
+    status: b.status,
+     // 🔥 ใช้ default ถ้า image ใช้ไม่ได้
+    image: b.image || defaultBlockImages[b.aisle_id],
+
+    stock_item: b.stock_item,
+    loc: b.loc,
+    box_loc: b.box_loc,
+    plan_qty: b.plan_qty,
+    actual_qty: b.actual_qty,
+    current_order_id: b.current_order_id,
+  }));
 
   return (
     <DashboardLayout>
@@ -293,9 +334,11 @@ const CheckOutT1MPage = () => {
           <MDTypography variant="h4">Status</MDTypography>
         </MDBox>
         <Grid container spacing={3}>
-            {mrsList.map((mrs) => (
-                <Grid item xs={6} key={mrs.id}>
-                <BlockMRS mrs={mrs} />
+            {mappedBlocks.map((block) => (
+                <Grid item xs={6} key={block.id}>
+                <BlockMRS  
+                  block={block}
+                />
                 </Grid>
             ))}
         </Grid>
@@ -413,6 +456,7 @@ confirmSkuDisabled={(row) => {
                     });
 
                     await fetchDataAll();
+                    await fetchBlockAll();
 
                   } catch (err) {
                     console.error(err);
@@ -456,6 +500,7 @@ confirmSkuDisabled={(row) => {
                     });
 
                     await fetchDataAll();
+                    await fetchBlockAll();
 
                   } catch (err) {
 

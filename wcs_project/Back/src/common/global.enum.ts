@@ -150,7 +150,8 @@ export enum StatusMRS {
 export enum AisleStatus {
     OPEN = 'OPEN',
     CLOSED = 'CLOSED',
-    BLOCKED = 'BLOCKED'
+    BLOCKED = 'BLOCKED',
+    ERROR = 'ERROR'
 }
 
 export enum TaskMrsAction {

@@ -657,10 +657,19 @@ export default function ReusableDataTable({
                       allSelectableIds.every((id) => selectedRows.includes(id))
                     }
                     indeterminate={
-                      selectedRows.length > 0 && selectedRows.length < allSelectableIds.length
+                      selectedRows.length > 0 &&
+                      selectedRows.length < allSelectableIds.length
                     }
                     onChange={(e) => {
                       onSelectedRowsChange?.(e.target.checked ? allSelectableIds : []);
+                    }}
+                    sx={{
+                      "& .MuiSvgIcon-root": {
+                        fontSize: 28,
+                        border: "2px solid black",
+                        borderRadius: "4px",
+                        backgroundColor: "#fff",
+                      },
                     }}
                   />
                 </TableCell>
@@ -776,20 +785,28 @@ export default function ReusableDataTable({
                     >
                       <Checkbox
                         checked={selectedRows.includes(rowId)}
-                        //disabled={isRowSelectable ? !isRowSelectable(row) : false}
                         disabled={!rowSelectable}
-                        sx={{
-                          opacity: rowSelectable ? 1 : 0.4,
-                        }}
                         onChange={(e) => {
-                          //if (isRowSelectable && !isRowSelectable(row)) return;
-
                           if (!rowSelectable) return;
+
                           if (e.target.checked) {
                             onSelectedRowsChange?.([...selectedRows, rowId]);
                           } else {
-                            onSelectedRowsChange?.(selectedRows.filter((id) => id !== rowId));
+                            onSelectedRowsChange?.(
+                              selectedRows.filter((id) => id !== rowId)
+                            );
                           }
+                        }}
+                        sx={{
+                          opacity: rowSelectable ? 1 : 0.4,
+
+                          // 🔥 ตัวนี้แหละสำคัญ
+                          "& .MuiSvgIcon-root": {
+                            fontSize: 28,              // ขยายให้เห็นชัด
+                            border: "2px solid black", // กรอบจริง
+                            borderRadius: "4px",
+                            backgroundColor: "#fff",
+                          },
                         }}
                       />
                     </TableCell>

@@ -101,6 +101,17 @@ export class ApiResponse<T> {
     return this;
   }
 
+  // Method สำหรับตั้งค่าเมื่อข้อมูลไม่ครบถ้วน V02
+  public setIncompleteWithData(message: string, data?: any, log: boolean = false, operation: string = '', username: string = 'system'): ApiResponse<T> {
+    this.isCompleted = false;
+    this.message = message;
+    this.data = data;
+    if (log) {
+      this.savelog(operation, username);
+    }
+    return this;
+  }
+
   // Method สำหรับตั้งค่าเมื่อการดำเนินการสำเร็จ
   public setComplete(message: string, data: Partial<T>, operation: string = '', username: string = 'system', log: boolean = false): ApiResponse<T> {
     this.isCompleted = true;

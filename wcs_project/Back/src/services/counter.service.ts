@@ -585,6 +585,7 @@ export class CounterService {
                     'order.plan_qty AS plan_qty',
                     'COALESCE(runtime.actual_qty, 0) AS actual_qty',
                     'order.item_id AS item_id',
+                    'order.transfer_scenario AS transfer_scenario',
 
                     // ⭐ USAGE / RETURN (ใช้ CASE)
                     `
@@ -654,6 +655,22 @@ export class CounterService {
                 const isReceipt = row.trx_type === 'RECEIPT';
                 const isTransfer = row.trx_type === 'TRANSFER';
 
+                //map type two
+                const getTypeTwo = (type: string, scenario?: string) => {
+                    if (type === 'USAGE') return 'PICK';
+                    if (type === 'RECEIPT') return 'PUT';
+                    if (type === 'RETURN') return 'PUT';
+
+                    if (type === 'TRANSFER') {
+                        if (!scenario) return null;
+                        
+                        if (['INTERNAL_OUT', 'OUTBOUND'].includes(scenario)) return 'PICK';
+                        if (['INTERNAL_IN', 'INBOUND'].includes(scenario)) return 'PUT';
+                    }
+
+                    return null;
+                };
+
                 return {
                     // counter
                     counter_id: row.counter_id,
@@ -690,6 +707,8 @@ export class CounterService {
                     item_desc: row.item_desc,
                     item_img: row.item_img,
                     item_img_url: row.item_img_url,
+
+                    typetwo: getTypeTwo(row.trx_type, row.transfer_scenario),
                 };
             });
 

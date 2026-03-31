@@ -1396,6 +1396,7 @@ if (o.type === TypeInfm.TRANSFER) {
         // 🔹 Update Order
         order.actual_qty = actual_qty;
         order.actual_by = reqUsername;
+        order.started_at = new Date();
         order.finished_at = new Date();
         order.is_confirm = true;
         order.status = isCompleted ? StatusOrders.COMPLETED : StatusOrders.FINISHED;

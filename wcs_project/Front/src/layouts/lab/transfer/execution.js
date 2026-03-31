@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Card, IconButton, InputAdornment, FormControl } from "@mui/material";
+import { Grid, Card, IconButton, InputAdornment, FormControl, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
@@ -26,6 +26,10 @@ import {
 import ExecutionModeBadge from "../components/executionModeBadge";
 import ButtonComponent from "../components/ButtonComponent";
 import Swal from "sweetalert2";
+
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 
 //store
@@ -36,12 +40,16 @@ const TransferExecutionPage = () => {
     const [filteredWaiting, setFilteredWaiting] = useState([]);
     const [filteredExecution, setFilteredExecution] = useState([]);
 
+    const [openAdvanceWaiting, setOpenAdvanceWaiting] = useState(false);
+    const [openAdvanceExecution, setOpenAdvanceExecution] = useState(false);
+
     // นำเข้า useState หากยังไม่ได้ import
     const [selectedFile, setSelectedFile] = useState(null);
      // state สำหรับ key ของ input element เพื่อบังคับ re-mount
     const [fileInputKey, setFileInputKey] = useState(Date.now());
 
     const [searchWaiting, setSearchWaiting] = useState({
+        date: "", 
         object_id: "",
         mc_code: "",
         stock_item: "", 
@@ -55,6 +63,7 @@ const TransferExecutionPage = () => {
         total_cost_handled: "",
     });
     const [searchExecution, setSearchExecution] = useState({
+        date: "", 
         object_id: "",
         mc_code: "",
         stock_item: "", 
@@ -68,6 +77,47 @@ const TransferExecutionPage = () => {
         total_cost_handled: "",
         status: "",
     });
+
+     //Dialog
+    const handleClearAdvancedWaiting = () => {
+        setSearchWaiting({
+            date: "", 
+            object_id: "",
+            mc_code: "",
+            stock_item: "", 
+            item_desc: "",
+            cond: "", 
+            from_loc: "",
+            from_box_loc: "",
+            to_loc: "",
+            to_box_loc: "",
+            unit_cost_handled: "",
+            total_cost_handled: "",
+        });
+
+        setFilterConditionWaiting("");
+    };
+
+    const handleClearAdvancedExecution = () => {
+        setSearchExecution({
+            date: "", 
+            object_id: "",
+            mc_code: "",
+            stock_item: "", 
+            item_desc: "",
+            cond: "",
+            from_loc: "",
+            from_box_loc: "",
+            to_loc: "",
+            to_box_loc: "",
+            unit_cost_handled: "",
+            total_cost_handled: "",
+            status: "",
+        });
+
+        setFilterConditionExecution("");
+        setFilterStatusExecution("");
+    };
 
     const [selectedWaitingIds, setSelectedWaitingIds] = useState([]);
     const [selectedExecutionIds, setSelectedExecutionIds] = useState([]);
@@ -108,7 +158,7 @@ const TransferExecutionPage = () => {
         const response = await OrdersAPI.OrdersTransferAll({
             isExecution: true,
             //mc_code: mcCodes,
-            store_type: storeType === "WCS" ? undefined : storeType,
+            //store_type: storeType === "WCS" ? undefined : storeType,
         });
         //console.log("storeType:", storeType);
         const list = Array.isArray(response?.data) ? response.data : [];
@@ -127,7 +177,7 @@ const TransferExecutionPage = () => {
         const response = await OrdersAPI.OrdersTransferAll({
             isExecution: false,
             //mc_code: mcCodes,
-            store_type: storeType === "WCS" ? undefined : storeType, 
+            //store_type: storeType === "WCS" ? undefined : storeType, 
         });
         console.log("storeType:", storeType);
         const list = Array.isArray(response?.data) ? response.data : [];
@@ -181,6 +231,7 @@ const TransferExecutionPage = () => {
     useEffect(() => {
         const filtered = waitingList.filter(
             (item) =>
+                includesIgnoreCase(item.requested_at, searchWaiting.date) &&
                 includesIgnoreCase(item.object_id, searchWaiting.object_id) &&
                 includesIgnoreCase(item.mc_code, searchWaiting.mc_code) &&
                 includesIgnoreCase(item.stock_item, searchWaiting.stock_item) &&
@@ -208,6 +259,7 @@ const TransferExecutionPage = () => {
     useEffect(() => {
         const filtered = executionList.filter(
             (item) =>
+                includesIgnoreCase(item.requested_at, searchExecution.date) &&
                 includesIgnoreCase(item.object_id, searchExecution.object_id) &&
                 includesIgnoreCase(item.mc_code, searchExecution.mc_code) &&
                 (
@@ -729,21 +781,25 @@ const TransferExecutionPage = () => {
             setFileInputKey(Date.now());
         };
 
-        const getWaitingOrderIds = () => {
-                return waitingList
-                    .filter(r => r.status === "WAITING")
-                    .map(r => r.order_id);
-            };
-            
+        const getSelectedWaitingIds = () => {
+            return selectedWaitingIds.filter(id =>
+                waitingList.some(r => r.order_id === id && r.status === "WAITING")
+            );
+        };
+                    
+        const isDeleteWaitingDisabled = selectedWaitingIds.length === 0 || loading;
+
         const handleDeleteAll = async () => {
-            const waitingIds = getWaitingOrderIds();
+            // ✅ เอาเฉพาะ id ที่ user select
+            // + เช็คว่าต้องเป็น WAITING เท่านั้น
+            const waitingIds = getSelectedWaitingIds();
+
             if (waitingIds.length === 0) return;
-    
+
             try {
-                // 🔄 แสดง loading
                 Swal.fire({
                     title: "Deleting...",
-                    text: "Please wait while clearing waiting list",
+                    text: "Please wait while clearing selected waiting list",
                     allowOutsideClick: false,
                     allowEscapeKey: false,
                     backdrop: "rgba(0,0,0,0.6)",
@@ -751,70 +807,44 @@ const TransferExecutionPage = () => {
                         Swal.showLoading();
                     },
                 });
-    
-                 // 🔥 ดึง order เต็มจาก waitingList
-        const selectedOrders = waitingList.filter(o =>
-            waitingIds.includes(o.order_id)
-        );
 
-        // 🔥 สร้าง order_ids ใหม่ (รวม related_order_id)
-        const orderIds = [];
+                const payload = {
+                    order_ids: waitingIds,
+                };
 
-        selectedOrders.forEach(o => {
-
-            // ใส่ order หลัก
-            orderIds.push(o.order_id);
-
-            // 🔥 ถ้าเป็น INTERNAL_OUT ให้ใส่ related_order_id ด้วย
-            if (
-                o.transfer_scenario === "INTERNAL_OUT" &&
-                o.related_order_id
-            ) {
-                orderIds.push(o.related_order_id);
-            }
-        });
-
-        const payload = {
-            order_ids: orderIds,
-        };
-    
                 const res = await WaitingAPI.deleteWaiting(payload);
-    
-                // ❌ ปิด loading
+
                 Swal.close();
-    
+
                 await Promise.all([
                     fetchDataWaitingAll(),
                     fetchDataExecuteAll(),
                 ]);
-    
+
                 setSelectedWaitingIds([]);
-    
+
                 if (res?.isCompleted) {
                     setAlert({
                         show: true,
                         type: "success",
                         title: "Success",
-                        message: res.message || "Clear waiting list success",
+                        message: res.message || "Delete selected waiting success",
                     });
                     return;
                 }
-    
+
                 setAlert({
                     show: true,
                     type: "error",
                     title: "Error",
                     message: res?.message || "Delete failed",
                 });
-    
+
             } catch (err) {
-                // ❌ ปิด loading (กันเหนียว)
                 Swal.close();
-    
-                console.error("FULL ERROR:", err);
-                console.error("RESPONSE:", err.response);
-                console.error("DATA:", err.response?.data);
-    
+
+                console.error(err);
+
                 setAlert({
                     show: true,
                     type: "error",
@@ -1020,12 +1050,13 @@ const TransferExecutionPage = () => {
             alignItems="stretch"
             >
                 <Grid mr={2}>
-                 <MDButton
+                <MDButton
                 variant="contained"
                 color="secondary"
                 onClick={handleDeleteAll}
+                disabled={isDeleteWaitingDisabled}
                 >
-                Delete All
+                Delete
                 </MDButton>
               </Grid>
 
@@ -1077,12 +1108,52 @@ const TransferExecutionPage = () => {
     --------------------------------------------------- */}
             <Grid item xs={12} md={5.6}>
                 <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
-                <MDTypography variant="h5" mb={4}>
-                    Transfer - Waiting List
-                </MDTypography>
+                <MDBox display="flex" justifyContent="space-between" alignItems="center">
+                    <MDTypography variant="h5">
+                        Transfer - Waiting List
+                    </MDTypography>
 
-                {/* Filters */}
-                <Grid container spacing={2} mb={2}>
+                    <MDButton
+                        variant="contained"
+                        color="info"
+                        onClick={() => setOpenAdvanceWaiting(true)}
+                    >
+                        Advance Search
+                    </MDButton>
+                </MDBox>
+
+                {/* Filters*/}
+                <Grid container spacing={2} mb={2} mt={0.1}>
+
+                    {/* Date */}
+                    <Grid item xs={12} md={4}>
+                    <MDTypography variant="h6">Date</MDTypography>
+
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                        inputFormat="DD/MM/YYYY"   // ✅ รูปแบบ 24/01/2026
+                        value={
+                            searchWaiting.date
+                            ? dayjs(searchWaiting.date, "DD/MM/YYYY")
+                            : null
+                        }
+                        onChange={(newValue) => {
+                            setSearchWaiting({
+                            ...searchWaiting,
+                            date: newValue ? newValue.format("DD/MM/YYYY") : "",
+                            });
+                        }}
+                        renderInput={(params) => (
+                            <MDInput
+                            {...params}
+                            placeholder="Select date"
+                            fullWidth
+                            sx={{ height: "45px" }}
+                            />
+                        )}
+                        />
+                    </LocalizationProvider>
+                    </Grid>
 
                     {/* Maintenance Contract */}
                     <Grid item xs={12} md={4}>
@@ -1093,28 +1164,6 @@ const TransferExecutionPage = () => {
                         value={searchWaiting.mc_code}
                         onChange={(e) =>
                         setSearchWaiting({ ...searchWaiting, mc_code: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
-                    {/* OBJECT ID */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">OBJECT ID</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchWaiting.object_id}
-                        onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, object_id: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1150,15 +1199,15 @@ const TransferExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* Stock Item Description */}
+                    {/* OBJECT ID */}
                     <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Stock Item Description</MDTypography>
+                    <MDTypography variant="h6">OBJECT ID</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchWaiting.item_desc}
+                        value={searchWaiting.object_id}
                         onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, item_desc: e.target.value })
+                        setSearchWaiting({ ...searchWaiting, object_id: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1171,9 +1220,28 @@ const TransferExecutionPage = () => {
                         fullWidth
                     />
                     </Grid>
+                </Grid>
+
+            <Dialog
+                open={openAdvanceWaiting}
+                onClose={() => setOpenAdvanceWaiting(false)}
+                maxWidth="md"
+                fullWidth
+                sx={{
+                    "& .MuiDialog-paper": {
+                    p: 2,
+                    borderRadius: 5,
+                    },
+                }}
+            >
+            <DialogTitle>Advanced Search - Waiting List</DialogTitle>
+
+            <DialogContent>
+                {/* Dialog */}
+                <Grid container spacing={2}>
 
                     {/* From Location */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">From Location</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1195,7 +1263,7 @@ const TransferExecutionPage = () => {
                     </Grid>
                     
                     {/* From BIN */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">From BIN</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1217,7 +1285,7 @@ const TransferExecutionPage = () => {
                     </Grid>
 
                     {/* To Location */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">To Location</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1239,7 +1307,7 @@ const TransferExecutionPage = () => {
                     </Grid>
                     
                     {/* To BIN */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">To BIN</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1261,7 +1329,7 @@ const TransferExecutionPage = () => {
                     </Grid>
 
                     {/* Unit Cost */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Unit Cost</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1283,7 +1351,7 @@ const TransferExecutionPage = () => {
                     </Grid>
 
                     {/* Total Cost */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Total Cost</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1304,8 +1372,30 @@ const TransferExecutionPage = () => {
                     />
                     </Grid>
 
+                    {/* Stock Item Description */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Stock Item Description</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchWaiting.item_desc}
+                        onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, item_desc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
                     {/* Condition */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Condition</MDTypography>
                     <FormControl fullWidth>
                         <StyledSelect
@@ -1327,6 +1417,18 @@ const TransferExecutionPage = () => {
 
 
                 </Grid>
+            </DialogContent>
+
+            <DialogActions>
+                <MDButton color="secondary" onClick={handleClearAdvancedWaiting}>
+                    Clear
+                </MDButton>
+
+                {/* <MDButton color="secondary" onClick={() => setOpenAdvanceWaiting(false)}>
+                    Cancel
+                </MDButton> */}
+            </DialogActions>
+        </Dialog>
 
                 {/* Table */}
                 <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>
@@ -1381,7 +1483,7 @@ const TransferExecutionPage = () => {
                     >
                         <polygon
                         points="20,15 95,15 95,0 180,50 95,100 95,85 20,85"
-                        fill={isMoveDisabled ? "#bdbdbd" : "#1976d2"}
+                        fill={isMoveDisabled ? "#bdbdbd" : "#00FF00"}
                         />
                     </svg>
                 </IconButton>
@@ -1404,7 +1506,7 @@ const TransferExecutionPage = () => {
                     >
                         <polygon
                         points="180,15 105,15 105,0 20,50 105,100 105,85 180,85"
-                        fill={isDeleteDisabled ? "#bdbdbd" : "#d32f2f"} // 🔥 ตรงนี้
+                        fill={isDeleteDisabled ? "#bdbdbd" : "#FF0000"} // 🔥 ตรงนี้
                         />
                     </svg>
                 </IconButton>
@@ -1415,13 +1517,53 @@ const TransferExecutionPage = () => {
     --------------------------------------------------- */}
             <Grid item xs={12} md={5.6}>
                 <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
-                <MDTypography variant="h5" mb={4}>
-                    Transfer - Execution List
-                </MDTypography>
+                <MDBox display="flex" justifyContent="space-between" alignItems="center">
+                    <MDTypography variant="h5">
+                        Transfer - Execution List
+                    </MDTypography>
 
-                {/* Filters */}
-                <Grid container spacing={2} mb={2}>
-{/* 
+                    <MDButton
+                        variant="contained"
+                        color="info"
+                        onClick={() => setOpenAdvanceExecution(true)}
+                    >
+                        Advance Search
+                    </MDButton>
+                </MDBox>
+
+                {/* Filters*/}
+                <Grid container spacing={2} mb={2} mt={0.1}>
+
+                    {/* Date */}
+                    <Grid item xs={12} md={4}>
+                    <MDTypography variant="h6">Date</MDTypography>
+
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                        inputFormat="DD/MM/YYYY"   // ✅ รูปแบบ 24/01/2026
+                        value={
+                            searchExecution.date
+                            ? dayjs(searchExecution.date, "DD/MM/YYYY")
+                            : null
+                        }
+                        onChange={(newValue) => {
+                            setSearchExecution({
+                            ...searchExecution,
+                            date: newValue ? newValue.format("DD/MM/YYYY") : "",
+                            });
+                        }}
+                        renderInput={(params) => (
+                            <MDInput
+                            {...params}
+                            placeholder="Select date"
+                            fullWidth
+                            sx={{ height: "45px" }}
+                            />
+                        )}
+                        />
+                    </LocalizationProvider>
+                    </Grid>
+
                     {/* Maintenance Contract */}
                     <Grid item xs={12} md={4}>
                     <MDTypography variant="h6">Maintenance Contract</MDTypography>
@@ -1487,31 +1629,28 @@ const TransferExecutionPage = () => {
                         fullWidth
                     />
                     </Grid>
+                </Grid>
+                
+            <Dialog
+                open={openAdvanceExecution}
+                onClose={() => setOpenAdvanceExecution(false)}
+                maxWidth="md"
+                fullWidth
+                sx={{
+                    "& .MuiDialog-paper": {
+                    p: 2,
+                    borderRadius: 5,
+                    },
+                }}
+            >
+                <DialogTitle>Advanced Search - Execution List</DialogTitle>
 
-                    {/* Stock Item Description */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Stock Item Description</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchExecution.item_desc}
-                        onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, item_desc: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
+                <DialogContent>
+                {/* Filters */}
+                <Grid container spacing={2}>
 
                     {/* From Location */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">From Location</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1533,7 +1672,7 @@ const TransferExecutionPage = () => {
                     </Grid>
                     
                     {/* From BIN */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">From BIN</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1555,7 +1694,7 @@ const TransferExecutionPage = () => {
                     </Grid>
 
                     {/* To Location */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">To Location</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1577,7 +1716,7 @@ const TransferExecutionPage = () => {
                     </Grid>
                     
                     {/* To BIN */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">To BIN</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1599,7 +1738,7 @@ const TransferExecutionPage = () => {
                     </Grid>
 
                     {/* Unit Cost */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Unit Cost</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1621,7 +1760,7 @@ const TransferExecutionPage = () => {
                     </Grid>
 
                     {/* Total Cost */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Total Cost</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1642,8 +1781,30 @@ const TransferExecutionPage = () => {
                     />
                     </Grid>
 
+                    {/* Stock Item Description */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Stock Item Description</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchExecution.item_desc}
+                        onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, item_desc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
                     {/* Condition */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Condition</MDTypography>
                         <FormControl fullWidth>
                         <StyledSelect
@@ -1665,7 +1826,7 @@ const TransferExecutionPage = () => {
                     </Grid>
 
                     {/* Order Status */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Order Status</MDTypography>
                         <FormControl fullWidth>
                         <StyledSelect
@@ -1687,7 +1848,18 @@ const TransferExecutionPage = () => {
                     </Grid>
 
                 </Grid>
+                </DialogContent>
 
+                <DialogActions>
+                    <MDButton color="secondary" onClick={handleClearAdvancedExecution}>
+                        Clear
+                    </MDButton>
+
+                    {/* <MDButton onClick={() => setOpenAdvanceExecution(false)}>
+                        Cancel
+                    </MDButton> */}
+                </DialogActions>
+            </Dialog>
                 {/* Table */}
                 <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>
                     <ReusableDataTable

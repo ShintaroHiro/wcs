@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Card, IconButton, InputAdornment, FormControl } from "@mui/material";
+import { Grid, Card, IconButton, InputAdornment, FormControl, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 //import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import MDBox from "components/MDBox";
@@ -32,6 +32,9 @@ const PickExecutionReqPage = () => {
   const [filteredWaiting, setFilteredWaiting] = useState([]);
   const [filteredExecution, setFilteredExecution] = useState([]);
 
+  const [openAdvanceWaiting, setOpenAdvanceWaiting] = useState(false);
+  const [openAdvanceExecution, setOpenAdvanceExecution] = useState(false);
+
   const [searchWaiting, setSearchWaiting] = useState({ 
     date: "", 
     spr_no: "", 
@@ -51,6 +54,34 @@ const PickExecutionReqPage = () => {
     stock_item: "", 
     item_desc: "",
   });
+
+  //Dialog
+  const handleClearAdvancedWaiting = () => {
+      setSearchWaiting({
+        date: "", 
+        spr_no: "", 
+        work_order: "",
+        usage_num: "", 
+        usage_line: "",
+        stock_item: "", 
+        item_desc: "",
+      });
+  };
+
+  const handleClearAdvancedExecution = () => {
+      setSearchExecution({
+        date: "", 
+        spr_no: "", 
+        work_order: "",
+        usage_num: "", 
+        usage_line: "",
+        status: "",
+        stock_item: "", 
+        item_desc: "",
+      });
+
+      setFilterStatusExecution("");
+  };
 
   const [selectedWaitingIds, setSelectedWaitingIds] = useState([]);
   const [selectedExecutionIds, setSelectedExecutionIds] = useState([]);
@@ -78,7 +109,7 @@ const PickExecutionReqPage = () => {
   
   // ดึงจาก localStorage 
   const mcCodes = GlobalVar.getMcCodes(); 
-  const storeType = GlobalVar.getStoreType();
+  //const storeType = GlobalVar.getStoreType();
 
   // --------------------------------------------------
   // FETCH API
@@ -89,7 +120,7 @@ const PickExecutionReqPage = () => {
       const response = await OrdersAPI.OrdersUsageAll({
         isExecution: true,
         mc_code: mcCodes,
-        store_type: storeType === "WCS" ? undefined : storeType,
+        //store_type: storeType === "WCS" ? undefined : storeType,
       });
       const list = Array.isArray(response?.data) ? response.data : [];
       setWaitingList(list);
@@ -107,7 +138,7 @@ const PickExecutionReqPage = () => {
       const response = await OrdersAPI.OrdersUsageAll({
         isExecution: false,
         mc_code: mcCodes,
-        store_type: storeType === "WCS" ? undefined : storeType,
+        //store_type: storeType === "WCS" ? undefined : storeType,
       });
       const list = Array.isArray(response?.data) ? response.data : [];
       setExecutionList(list);
@@ -478,124 +509,44 @@ const PickExecutionReqPage = () => {
 --------------------------------------------------- */}
           <Grid item xs={12} md={5.6}>
             <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
-              <MDTypography variant="h5" mb={4}>
-                Pick - Waiting List
-              </MDTypography>
+              <MDBox display="flex" justifyContent="space-between" alignItems="center">
+                <MDTypography variant="h5">
+                    Pick - Waiting List
+                </MDTypography>
 
-              {/* Filters */}
-              <Grid container spacing={2} mb={2}>
-                {/* Date */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Date</MDTypography>
-                  <MDInput
-                    placeholder="dd/mm/yyyy"
-                    value={searchWaiting.date}
-                    onChange={(e) =>
-                      setSearchWaiting({ ...searchWaiting, date: e.target.value })
-                    }
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <CalendarMonthIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                    sx={{ height: "45px" }}
-                  />
-                </Grid>
+                <MDButton
+                    variant="contained"
+                    color="info"
+                    onClick={() => setOpenAdvanceWaiting(true)}
+                >
+                    Advance Search
+                </MDButton>
+            </MDBox>
 
-                {/* Work Order */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Work Order</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchWaiting.work_order}
-                    onChange={(e) =>
-                      setSearchWaiting({ ...searchWaiting, work_order: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
+            {/* Filters*/}
+            <Grid container spacing={2} mb={2} mt={0.1}>
+              {/* Date */}
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="h6">Date</MDTypography>
+                <MDInput
+                  placeholder="dd/mm/yyyy"
+                  value={searchWaiting.date}
+                  onChange={(e) =>
+                    setSearchWaiting({ ...searchWaiting, date: e.target.value })
+                  }
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarMonthIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                  sx={{ height: "45px" }}
+                />
+              </Grid>
 
-                {/* SPR No. */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">SPR No.</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchWaiting.spr_no}
-                    onChange={(e) =>
-                      setSearchWaiting({ ...searchWaiting, spr_no: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                {/* Usage No. */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Usage No.</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchWaiting.usage_num}
-                    onChange={(e) =>
-                      setSearchWaiting({ ...searchWaiting, usage_num: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                {/* Usage Line */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Usage Line</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchWaiting.usage_line}
-                    onChange={(e) =>
-                      setSearchWaiting({ ...searchWaiting, usage_line: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={4}></Grid>
-
-                {/* Stock Item No. */}
+              {/* Stock Item No. */}
                 <Grid item xs={12} md={4}>
                   <MDTypography variant="h6">Stock Item No.</MDTypography>
                   <MDInput
@@ -617,29 +568,147 @@ const PickExecutionReqPage = () => {
                   />
                 </Grid>
 
-                {/* Stock Item Description */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Stock Item Description</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchWaiting.item_desc}
-                    onChange={(e) =>
-                      setSearchWaiting({ ...searchWaiting, item_desc: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
+              {/* Usage No. */}
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="h6">Usage No.</MDTypography>
+                <MDInput
+                  placeholder="Text Field"
+                  sx={{ height: "45px" }}
+                  value={searchWaiting.usage_num}
+                  onChange={(e) =>
+                    setSearchWaiting({ ...searchWaiting, usage_num: e.target.value })
+                  }
+                  displayEmpty
+                  InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <SearchIcon />
+                        </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                />
               </Grid>
+            </Grid>
+
+            <Dialog
+              open={openAdvanceWaiting}
+              onClose={() => setOpenAdvanceWaiting(false)}
+              maxWidth="md"
+              fullWidth
+              sx={{
+                  "& .MuiDialog-paper": {
+                  p: 2,
+                  borderRadius: 5,
+                  },
+              }}
+            >
+            <DialogTitle>Advanced Search - Waiting List</DialogTitle>
+
+            <DialogContent>
+                {/* Dialog*/}
+                <Grid container spacing={2}>
+
+                  {/* Work Order */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Work Order</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchWaiting.work_order}
+                      onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, work_order: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* SPR No. */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">SPR No.</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchWaiting.spr_no}
+                      onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, spr_no: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* Usage Line */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Usage Line</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchWaiting.usage_line}
+                      onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, usage_line: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid> 
+
+                  {/* Stock Item Description */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Stock Item Description</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchWaiting.item_desc}
+                      onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, item_desc: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+              </Grid>
+            </DialogContent>
+
+                <DialogActions>
+                    <MDButton color="secondary" onClick={handleClearAdvancedWaiting}>
+                        Clear
+                    </MDButton>
+
+                    {/* <MDButton color="secondary" onClick={() => setOpenAdvanceWaiting(false)}>
+                        Cancel
+                    </MDButton> */}
+                </DialogActions>
+            </Dialog>
 
               {/* Table */}
               <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>
@@ -694,7 +763,7 @@ const PickExecutionReqPage = () => {
                 >
                     <polygon
                     points="20,15 95,15 95,0 180,50 95,100 95,85 20,85"
-                    fill={isMoveDisabled ? "#bdbdbd" : "#1976d2"}
+                    fill={isMoveDisabled ? "#bdbdbd" : "#00FF00"}
                     />
                 </svg>
             </IconButton>
@@ -717,7 +786,7 @@ const PickExecutionReqPage = () => {
                 >
                     <polygon
                     points="180,15 105,15 105,0 20,50 105,100 105,85 180,85"
-                    fill={isDeleteDisabled ? "#bdbdbd" : "#d32f2f"} // 🔥 ตรงนี้
+                    fill={isDeleteDisabled ? "#bdbdbd" : "#FF0000"} // 🔥 ตรงนี้
                     />
                 </svg>
             </IconButton>
@@ -728,190 +797,228 @@ const PickExecutionReqPage = () => {
 --------------------------------------------------- */}
           <Grid item xs={12} md={5.6}>
             <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
-              <MDTypography variant="h5" mb={4}>
-                Pick - Execution List
-              </MDTypography>
+              <MDBox display="flex" justifyContent="space-between" alignItems="center">
+                <MDTypography variant="h5">
+                    Pick - Execution List
+                </MDTypography>
 
-              {/* Filters */}
-              <Grid container spacing={2} mb={2}>
-                {/* Date */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Date</MDTypography>
-                  <MDInput
-                    placeholder="Calendar"
-                    value={searchExecution.date}
-                    onChange={(e) =>
-                      setSearchExecution({ ...searchExecution, date: e.target.value })
-                    }
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <CalendarMonthIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                    sx={{ height: "45px" }}
-                  />
-                </Grid>
+                <MDButton
+                    variant="contained"
+                    color="info"
+                    onClick={() => setOpenAdvanceExecution(true)}
+                >
+                    Advance Search
+                </MDButton>
+            </MDBox>
 
-                {/* Work Order */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Work Order</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchExecution.work_order}
-                    onChange={(e) =>
-                      setSearchExecution({ ...searchExecution, work_order: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                {/* SPR No. */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">SPR No.</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchExecution.spr_no}
-                    onChange={(e) =>
-                      setSearchExecution({ ...searchExecution, spr_no: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                {/* Usage No. */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Usage No.</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchExecution.usage_num}
-                    onChange={(e) =>
-                      setSearchExecution({ ...searchExecution, usage_num: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                {/* Usage Line */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Usage Line</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchExecution.usage_line}
-                    onChange={(e) =>
-                      setSearchExecution({ ...searchExecution, usage_line: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={4}></Grid>
-
-                {/* Stock Item No. */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Stock Item No.</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchExecution.stock_item}
-                    onChange={(e) =>
-                      setSearchExecution({ ...searchExecution, stock_item: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                {/* Stock Item Description */}
-                <Grid item xs={12} md={4}>
-                  <MDTypography variant="h6">Stock Item Description</MDTypography>
-                  <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchExecution.item_desc}
-                    onChange={(e) =>
-                      setSearchExecution({ ...searchExecution, item_desc: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                      endAdornment: (
-                          <InputAdornment position="end">
-                              <SearchIcon />
-                          </InputAdornment>
-                      ),
-                    }}
-                    fullWidth
-                  />
-                </Grid>
-
-                {/* Order Status */}
-                <Grid item xs={12} md={4}>
-                <MDTypography variant="h6">Order Status</MDTypography>
-                    <FormControl fullWidth>
-                    <StyledSelect
-                        sx={{ height: "45px" }}
-                        name="filterStatusExecution"
-                        value={filterStatusExecution}
-                        onChange={(e) => setFilterStatusExecution(e.target.value)}
-                        displayEmpty
-                    >
-                        <StyledMenuItem value="">Pull Down List</StyledMenuItem>
-
-                        {OrderStatusNoFinish.map((t) => (
-                        <StyledMenuItem key={t.value} value={t.value}>
-                            {t.text}
-                        </StyledMenuItem>
-                        ))}
-                    </StyledSelect>
-                    </FormControl>
-                </Grid>
-
+            {/* Filters */}
+            <Grid container spacing={2} mb={2} mt={0.1} >
+              {/* Date */}
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="h6">Date</MDTypography>
+                <MDInput
+                  placeholder="Calendar"
+                  value={searchExecution.date}
+                  onChange={(e) =>
+                    setSearchExecution({ ...searchExecution, date: e.target.value })
+                  }
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarMonthIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                  sx={{ height: "45px" }}
+                />
               </Grid>
+
+              {/* Stock Item No. */}
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="h6">Stock Item No.</MDTypography>
+                <MDInput
+                  placeholder="Text Field"
+                  sx={{ height: "45px" }}
+                  value={searchExecution.stock_item}
+                  onChange={(e) =>
+                    setSearchExecution({ ...searchExecution, stock_item: e.target.value })
+                  }
+                  displayEmpty
+                  InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <SearchIcon />
+                        </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                />
+              </Grid>
+
+              {/* Usage No. */}
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="h6">Usage No.</MDTypography>
+                <MDInput
+                  placeholder="Text Field"
+                  sx={{ height: "45px" }}
+                  value={searchExecution.usage_num}
+                  onChange={(e) =>
+                    setSearchExecution({ ...searchExecution, usage_num: e.target.value })
+                  }
+                  displayEmpty
+                  InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <SearchIcon />
+                        </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                />
+              </Grid>
+            </Grid>
+
+          <Dialog
+            open={openAdvanceExecution}
+            onClose={() => setOpenAdvanceExecution(false)}
+            maxWidth="md"
+            fullWidth
+            sx={{
+                "& .MuiDialog-paper": {
+                p: 2,
+                borderRadius: 5,
+                },
+            }}
+        >
+            <DialogTitle>Advanced Search - Execution List</DialogTitle>
+
+            <DialogContent>
+                {/* Dialog */}
+                <Grid container spacing={2}>
+
+                  {/* Work Order */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Work Order</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchExecution.work_order}
+                      onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, work_order: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* SPR No. */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">SPR No.</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchExecution.spr_no}
+                      onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, spr_no: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* Usage Line */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Usage Line</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchExecution.usage_line}
+                      onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, usage_line: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* Stock Item Description */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Stock Item Description</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchExecution.item_desc}
+                      onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, item_desc: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* Order Status */}
+                  <Grid item xs={12} md={6}>
+                  <MDTypography variant="h6">Order Status</MDTypography>
+                      <FormControl fullWidth>
+                      <StyledSelect
+                          sx={{ height: "45px" }}
+                          name="filterStatusExecution"
+                          value={filterStatusExecution}
+                          onChange={(e) => setFilterStatusExecution(e.target.value)}
+                          displayEmpty
+                      >
+                          <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+
+                          {OrderStatusNoFinish.map((t) => (
+                          <StyledMenuItem key={t.value} value={t.value}>
+                              {t.text}
+                          </StyledMenuItem>
+                          ))}
+                      </StyledSelect>
+                      </FormControl>
+                  </Grid>
+                </Grid>
+              </DialogContent>
+
+              <DialogActions>
+                  <MDButton color="secondary" onClick={handleClearAdvancedExecution}>
+                      Clear
+                  </MDButton>
+
+                  {/* <MDButton onClick={() => setOpenAdvanceExecution(false)}>
+                      Cancel
+                  </MDButton> */}
+              </DialogActions>
+          </Dialog>
 
               {/* Table */}
               <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>

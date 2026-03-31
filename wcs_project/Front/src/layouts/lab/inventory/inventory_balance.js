@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"; // นำเข้า useState และ useEffect จาก React
-import { Card, Grid, Box, InputAdornment, FormControl} from "@mui/material"; // นำเข้า components จาก MUI (Material-UI)
+import { Card, Grid, Box, InputAdornment, FormControl, Dialog, DialogTitle, DialogContent, DialogActions} from "@mui/material"; // นำเข้า components จาก MUI (Material-UI)
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout"; // นำเข้า layout component
 import DashboardNavbar from "examples/Navbars/DashboardNavbar"; // นำเข้า navbar component
 import MDBox from "components/MDBox";
@@ -40,6 +40,27 @@ const InventoryBalance = () => {
 
     const [filterCondition, setFilterCondition] = useState("");
     const [filterLocation, setFilterLocation] = useState("");
+    const [openSearchDialog, setOpenSearchDialog] = useState(false);
+
+    const handleClearSearch = () => {
+        setSearchItems({
+            stock_item: "",
+            item_desc: "",
+            mc_code: "",
+            total_inv_qty: "",
+            avg_unit_cost: "",
+            total_cost_inv: "",
+            cond: "",
+            loc: "",
+            box_loc: "",
+            item_status: "",
+            org_id: "",
+            dept: ""
+        });
+
+    setFilterCondition("");
+    setFilterLocation("");
+    };
 
     //stock
     const fetchDataAll = async () => {
@@ -144,296 +165,340 @@ const InventoryBalance = () => {
         <MDBox mt={1}>
             <Card>
             <MDBox p={3}>
-                <Box sx={{ flexGrow: 1 }} mb={3}>
-                <Grid container spacing={2} sx={{ mb: 0.5 }}>
-                {/* Stock Item No. */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Stock Item No.</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.stock_item}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, stock_item: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-                
-                {/* Stock Item Description */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Stock Item Description</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.item_desc}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, item_desc: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-
-                {/* OGR ID */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">OGR ID</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.org_id}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, org_id: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-
-                {/* Department */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Department</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.dept}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, dept: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-
-                {/* Status */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Status</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.item_status}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, item_status: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-                
-                </Grid>
-                <Grid container spacing={2} sx={{ mb: 0.5 }}>
-                {/* Maintenance Contract */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Maintenance Contract</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.mc_code}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, mc_code: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-                {/* Inventory Quantity */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Inventory Quantity</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.total_inv_qty}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, total_inv_qty: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-                {/* Average Unit Cost */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Average Unit Cost</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.avg_unit_cost}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, avg_unit_cost: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-
-                {/* Total Cost */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Total Cost</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.total_cost_inv}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, total_cost_inv: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-
-                {/* Condition */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Condition</MDTypography>
-                    <FormControl fullWidth>
-                    <StyledSelect
-                        sx={{ height: "45px" }}
-                        name="filterCondition"
-                        value={filterCondition}
-                        onChange={(e) => setFilterCondition(e.target.value)}
-                        displayEmpty
+                <MDBox display="flex" justifyContent="flex-start">
+                    <MDButton
+                    variant="contained"
+                    color="info"
+                    onClick={() => setOpenSearchDialog(true)}
                     >
-                        <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+                    Advanced Search
+                    </MDButton>
+                </MDBox>
 
-                        {Condition.map((t) => (
-                        <StyledMenuItem key={t.value} value={t.value}>
-                            {t.text}
-                        </StyledMenuItem>
-                        ))}
-                    </StyledSelect>
-                    </FormControl>
-                </Grid>
-                </Grid>
-                <Grid container spacing={2} sx={{ mb: 0.5 }}>
-                {/* Store Location */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Store Location</MDTypography>
-                    <FormControl fullWidth>
-                    <StyledSelect
+                {/* Filters*/}
+                <Grid container spacing={2} mb={2} mt={0.1}>
+
+                    {/* Stock Item No. */}
+                    <Grid item xs={12} md={3}>
+                        <MDTypography variant="caption" fontWeight="bold">Stock Item No.</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        name="filterLocation"
-                        value={filterLocation}
-                        onChange={(e) => setFilterLocation(e.target.value)}
+                        value={searchItems.stock_item}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, stock_item: e.target.value })
+                        }
                         displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                    {/* Average Unit Cost */}
+                    <Grid item xs={12} md={3}>
+                        <MDTypography variant="caption" fontWeight="bold">Average Unit Cost</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.avg_unit_cost}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, avg_unit_cost: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                    {/* Store Location */}
+                    <Grid item xs={12} md={3}>
+                        <MDTypography variant="caption" fontWeight="bold">Store Location</MDTypography>
+                        <FormControl fullWidth>
+                        <StyledSelect
+                            sx={{ height: "45px" }}
+                            name="filterLocation"
+                            value={filterLocation}
+                            onChange={(e) => setFilterLocation(e.target.value)}
+                            displayEmpty
+                        >
+                            <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+
+                            {StoreType.map((t) => (
+                            <StyledMenuItem key={t.value} value={t.value}>
+                                {t.text}
+                            </StyledMenuItem>
+                            ))}
+                        </StyledSelect>
+                        </FormControl>
+                    </Grid>
+
+                    {/* Inventory Quantity */}
+                    <Grid item xs={12} md={3}>
+                        <MDTypography variant="caption" fontWeight="bold">Inventory Quantity</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.total_inv_qty}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, total_inv_qty: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                </Grid>
+            <Dialog
+                open={openSearchDialog}
+                onClose={() => setOpenSearchDialog(false)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                sx: {
+                    p: 2,
+                    borderRadius: 5, // ปรับโค้งได้
+                },
+                }}
+            >
+                <DialogTitle>Advanced Search - Inventory Balance</DialogTitle>
+    
+                <DialogContent sx={{ p: 3 }}>
+                <Grid container spacing={2}>
+                    {/* Maintenance Contract */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">Maintenance Contract</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.mc_code}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, mc_code: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+                    
+                    {/* Total Cost */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">Total Cost</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.total_cost_inv}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, total_cost_inv: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                    {/* Condition */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">Condition</MDTypography>
+                        <FormControl fullWidth>
+                        <StyledSelect
+                            sx={{ height: "45px" }}
+                            name="filterCondition"
+                            value={filterCondition}
+                            onChange={(e) => setFilterCondition(e.target.value)}
+                            displayEmpty
+                        >
+                            <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+
+                            {Condition.map((t) => (
+                            <StyledMenuItem key={t.value} value={t.value}>
+                                {t.text}
+                            </StyledMenuItem>
+                            ))}
+                        </StyledSelect>
+                        </FormControl>
+                    </Grid>
+
+                    {/* Stock Item Description */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">Stock Item Description</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.item_desc}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, item_desc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                    {/* Location */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">Location</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.loc}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                    {/* Box Location */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">Box Location</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.box_loc}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, box_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                    {/* OGR ID */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">OGR ID</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.org_id}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, org_id: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                    {/* Department */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">Department</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.dept}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, dept: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+
+                    {/* Status */}
+                    <Grid item xs={12} md={6}>
+                        <MDTypography variant="caption" fontWeight="bold">Status</MDTypography>
+                        <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchItems.item_status}
+                        onChange={(e) =>
+                            setSearchItems({ ...searchItems, item_status: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                        fullWidth
+                        />
+                    </Grid>
+                </Grid>
+                </DialogContent>
+
+                <DialogActions>
+                    <MDButton
+                    color="secondary"
+                    onClick={handleClearSearch}
                     >
-                        <StyledMenuItem value="">Pull Down List</StyledMenuItem>
-
-                        {StoreType.map((t) => (
-                        <StyledMenuItem key={t.value} value={t.value}>
-                            {t.text}
-                        </StyledMenuItem>
-                        ))}
-                    </StyledSelect>
-                    </FormControl>
-                </Grid>
-
-                {/* Location */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Location</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.loc}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, loc: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-
-                {/* Box Location */}
-                <Grid item xs={12} md={2.4}>
-                    <MDTypography variant="caption" fontWeight="bold">Box Location</MDTypography>
-                    <MDInput
-                    placeholder="Text Field"
-                    sx={{ height: "45px" }}
-                    value={searchItems.box_loc}
-                    onChange={(e) =>
-                        setSearchItems({ ...searchItems, box_loc: e.target.value })
-                    }
-                    displayEmpty
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                    }}
-                    fullWidth
-                    />
-                </Grid>
-                </Grid>
-            </Box>
+                    Clear
+                    </MDButton>
+                    {/* 
+                    <MDButton
+                    color="dark"
+                    onClick={() => setOpenSearchDialog(false)}
+                    >
+                    Close
+                    </MDButton> */}
+                </DialogActions>
+            </Dialog>
             {loading ? (
             <div>Loading...</div>
             ) : (

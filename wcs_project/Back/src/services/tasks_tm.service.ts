@@ -260,7 +260,8 @@ private async finishOrderCore(
             { current_order_id: order.order_id },
             {
                 status: AisleStatus.CLOSED,
-                current_order_id: null
+                current_order_id: null,
+                last_closed_at: new Date(),
             }
         );
 
@@ -577,6 +578,7 @@ async callNextQueueT1M(manager: EntityManager) {
             // 🔹 Update Order
             order.actual_qty = actual_qty;
             order.actual_by = reqUsername;
+            order.started_at = new Date();
             order.finished_at = new Date();
             order.is_confirm = true;
             order.status = isCompleted ? StatusOrders.COMPLETED : StatusOrders.FINISHED;

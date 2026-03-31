@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Card, IconButton, InputAdornment, FormControl } from "@mui/material";
+import { Grid, Card, IconButton, InputAdornment, FormControl, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
 
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -22,7 +22,7 @@ import MDButton from "components/MDButton";
 import { StyledMenuItem, StyledSelect } from "common/Global.style";
 import { Condition, OrderStatusNoFinish } from "common/dataMain";
 import SearchIcon from "@mui/icons-material/Search";
-import { GlobalVar } from "common/GlobalVar";
+//import { GlobalVar } from "common/GlobalVar";
 import StatusBadge from "../components/statusBadge";
 import {
   normalizeStatus,
@@ -40,11 +40,15 @@ const ReturnExecutionPage = () => {
     const [filteredWaiting, setFilteredWaiting] = useState([]);
     const [filteredExecution, setFilteredExecution] = useState([]);
 
+    const [openAdvanceWaiting, setOpenAdvanceWaiting] = useState(false);
+    const [openAdvanceExecution, setOpenAdvanceExecution] = useState(false);
+
     // นำเข้า useState หากยังไม่ได้ import
     const [selectedFile, setSelectedFile] = useState(null);
     // state สำหรับ key ของ input element เพื่อบังคับ re-mount
     const [fileInputKey, setFileInputKey] = useState(Date.now());
 
+    //Filter
     const [searchWaiting, setSearchWaiting] = useState({ 
         mc_code: "",
         date: "", 
@@ -77,6 +81,49 @@ const ReturnExecutionPage = () => {
         total_cost_handled: "",
     });
 
+    //Dialog
+    const handleClearAdvancedWaiting = () => {
+        setSearchWaiting({
+            mc_code: "",
+            date: "", 
+            spr_no: "", 
+            work_order: "",
+            usage_num: "", 
+            usage_line: "",
+            stock_item: "", 
+            item_desc: "",
+            cond: "", 
+            loc: "",
+            box_loc: "",
+            unit_cost_handled: "",
+            total_cost_handled: "",
+        });
+
+        setFilterConditionWaiting("");
+    };
+
+    const handleClearAdvancedExecution = () => {
+        setSearchExecution({
+            mc_code: "",
+            date: "", 
+            spr_no: "", 
+            work_order: "",
+            usage_num: "", 
+            usage_line: "",
+            status: "",
+            stock_item: "", 
+            item_desc: "",
+            cond: "",
+            loc: "",
+            box_loc: "",
+            unit_cost_handled: "",
+            total_cost_handled: "",
+        });
+
+        setFilterConditionExecution("");
+        setFilterStatusExecution("");
+    };
+
     const [selectedWaitingIds, setSelectedWaitingIds] = useState([]);
     const [selectedExecutionIds, setSelectedExecutionIds] = useState([]);
 
@@ -103,7 +150,7 @@ const ReturnExecutionPage = () => {
 
     // ดึงจาก localStorage 
     //const mcCodes = GlobalVar.getMcCodes(); 
-    const storeType = GlobalVar.getStoreType();
+    //const storeType = GlobalVar.getStoreType();
 
     const [overdueChecked, setOverdueChecked] = useState(false);
 
@@ -116,7 +163,7 @@ const ReturnExecutionPage = () => {
         const response = await OrdersAPI.OrdersReturnAll({
             isExecution: true,
             //mc_code: mcCodes,
-            store_type: storeType === "WCS" ? undefined : storeType,
+            //store_type: storeType === "WCS" ? undefined : storeType,
         });
         const list = Array.isArray(response?.data) ? response.data : [];
         setWaitingList(list);
@@ -134,7 +181,7 @@ const ReturnExecutionPage = () => {
         const response = await OrdersAPI.OrdersReturnAll({
             isExecution: false,
             //mc_code: mcCodes,
-            store_type: storeType === "WCS" ? undefined : storeType, 
+            //store_type: storeType === "WCS" ? undefined : storeType, 
         });
         const list = Array.isArray(response?.data) ? response.data : [];
         setExecutionList(list);
@@ -573,22 +620,25 @@ const ReturnExecutionPage = () => {
         setFileInputKey(Date.now());
     };
 
-    
-    const getWaitingOrderIds = () => {
-    return waitingList
-        .filter(r => r.status === "WAITING")
-        .map(r => r.order_id);
+    const getSelectedWaitingIds = () => {
+        return selectedWaitingIds.filter(id =>
+            waitingList.some(r => r.order_id === id && r.status === "WAITING")
+        );
     };
-    
+
+    const isDeleteWaitingDisabled = selectedWaitingIds.length === 0 || loading;
+
     const handleDeleteAll = async () => {
-        const waitingIds = getWaitingOrderIds();
+        // ✅ เอาเฉพาะ id ที่ user select
+        // + เช็คว่าต้องเป็น WAITING เท่านั้น
+        const waitingIds = getSelectedWaitingIds();
+
         if (waitingIds.length === 0) return;
 
         try {
-            // 🔄 แสดง loading
             Swal.fire({
                 title: "Deleting...",
-                text: "Please wait while clearing waiting list",
+                text: "Please wait while clearing selected waiting list",
                 allowOutsideClick: false,
                 allowEscapeKey: false,
                 backdrop: "rgba(0,0,0,0.6)",
@@ -597,14 +647,12 @@ const ReturnExecutionPage = () => {
                 },
             });
 
-            // ✅ payload ให้ตรงกับ backend
             const payload = {
                 order_ids: waitingIds,
             };
 
             const res = await WaitingAPI.deleteWaiting(payload);
 
-            // ❌ ปิด loading
             Swal.close();
 
             await Promise.all([
@@ -619,7 +667,7 @@ const ReturnExecutionPage = () => {
                     show: true,
                     type: "success",
                     title: "Success",
-                    message: res.message || "Clear waiting list success",
+                    message: res.message || "Delete selected waiting success",
                 });
                 return;
             }
@@ -632,12 +680,9 @@ const ReturnExecutionPage = () => {
             });
 
         } catch (err) {
-            // ❌ ปิด loading (กันเหนียว)
             Swal.close();
 
-            console.error("FULL ERROR:", err);
-            console.error("RESPONSE:", err.response);
-            console.error("DATA:", err.response?.data);
+            console.error(err);
 
             setAlert({
                 show: true,
@@ -820,12 +865,13 @@ const ReturnExecutionPage = () => {
             alignItems="stretch"
             >
                 <Grid mr={2}>
-                 <MDButton
+                <MDButton
                 variant="contained"
                 color="secondary"
                 onClick={handleDeleteAll}
+                disabled={isDeleteWaitingDisabled}
                 >
-                Delete All
+                Delete
                 </MDButton>
               </Grid>
 
@@ -877,12 +923,22 @@ const ReturnExecutionPage = () => {
     --------------------------------------------------- */}
             <Grid item xs={12} md={5.6}>
                 <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
-                <MDTypography variant="h5" mb={4}>
-                    Return - Waiting List
-                </MDTypography>
+                <MDBox display="flex" justifyContent="space-between" alignItems="center">
+                    <MDTypography variant="h5">
+                        Return - Waiting List
+                    </MDTypography>
 
-                {/* Filters */}
-                <Grid container spacing={2} mb={2}>
+                    <MDButton
+                        variant="contained"
+                        color="info"
+                        onClick={() => setOpenAdvanceWaiting(true)}
+                    >
+                        Advance Search
+                    </MDButton>
+                </MDBox>
+
+                {/* Filters*/}
+                <Grid container spacing={2} mb={2} mt={0.1}>
 
                     {/* Date */}
                     <Grid item xs={12} md={4}>
@@ -936,37 +992,15 @@ const ReturnExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* Work Order */}
+                    {/* Stock Item No. */}
                     <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Work Order</MDTypography>
+                    <MDTypography variant="h6">Stock Item No.</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchWaiting.work_order}
+                        value={searchWaiting.stock_item}
                         onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, work_order: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
-                    {/* SPR No. */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">SPR No.</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchWaiting.spr_no}
-                        onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, spr_no: e.target.value })
+                        setSearchWaiting({ ...searchWaiting, stock_item: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1023,16 +1057,35 @@ const ReturnExecutionPage = () => {
                         fullWidth
                     />
                     </Grid>
+                </Grid>
 
-                    {/* Stock Item No. */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Stock Item No.</MDTypography>
+            <Dialog
+                open={openAdvanceWaiting}
+                onClose={() => setOpenAdvanceWaiting(false)}
+                maxWidth="md"
+                fullWidth
+                sx={{
+                    "& .MuiDialog-paper": {
+                    p: 2,
+                    borderRadius: 5,
+                    },
+                }}
+            >
+            <DialogTitle>Advanced Search - Waiting List</DialogTitle>
+
+            <DialogContent>
+                {/* Dialog */}
+                <Grid container spacing={2}>
+
+                    {/* Work Order */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Work Order</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchWaiting.stock_item}
+                        value={searchWaiting.work_order}
                         onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, stock_item: e.target.value })
+                        setSearchWaiting({ ...searchWaiting, work_order: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1046,15 +1099,15 @@ const ReturnExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* Stock Item Description */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Stock Item Description</MDTypography>
+                    {/* SPR No. */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">SPR No.</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchWaiting.item_desc}
+                        value={searchWaiting.spr_no}
                         onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, item_desc: e.target.value })
+                        setSearchWaiting({ ...searchWaiting, spr_no: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1069,7 +1122,7 @@ const ReturnExecutionPage = () => {
                     </Grid>
 
                     {/* Store Location */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Store Location</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1090,8 +1143,30 @@ const ReturnExecutionPage = () => {
                     />
                     </Grid>
 
+                    {/* Bin Location */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Bin Location</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchWaiting.box_loc}
+                        onChange={(e) =>
+                        setSearchWaiting({ ...searchWaiting, box_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
+
                      {/* Unit Cost */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Unit Cost</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1113,7 +1188,7 @@ const ReturnExecutionPage = () => {
                     </Grid>
 
                     {/* Total Cost */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Total Cost</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1134,15 +1209,15 @@ const ReturnExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* Bin Location */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Bin Location</MDTypography>
+                    {/* Stock Item Description */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Stock Item Description</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchWaiting.box_loc}
+                        value={searchWaiting.item_desc}
                         onChange={(e) =>
-                        setSearchWaiting({ ...searchWaiting, box_loc: e.target.value })
+                        setSearchWaiting({ ...searchWaiting, item_desc: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1157,7 +1232,7 @@ const ReturnExecutionPage = () => {
                     </Grid>
 
                     {/* Condition */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Condition</MDTypography>
                     <FormControl fullWidth>
                         <StyledSelect
@@ -1177,6 +1252,18 @@ const ReturnExecutionPage = () => {
                     </FormControl>
                     </Grid>
                 </Grid>
+            </DialogContent>
+
+                <DialogActions>
+                    <MDButton color="secondary" onClick={handleClearAdvancedWaiting}>
+                        Clear
+                    </MDButton>
+
+                    {/* <MDButton color="secondary" onClick={() => setOpenAdvanceWaiting(false)}>
+                        Cancel
+                    </MDButton> */}
+                </DialogActions>
+            </Dialog>
 
                 {/* Table */}
                 <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>
@@ -1231,7 +1318,7 @@ const ReturnExecutionPage = () => {
                     >
                         <polygon
                         points="20,15 95,15 95,0 180,50 95,100 95,85 20,85"
-                        fill={isMoveDisabled ? "#bdbdbd" : "#1976d2"}
+                        fill={isMoveDisabled ? "#bdbdbd" : "#00FF00"}
                         />
                     </svg>
                 </IconButton>
@@ -1254,7 +1341,7 @@ const ReturnExecutionPage = () => {
                     >
                         <polygon
                         points="180,15 105,15 105,0 20,50 105,100 105,85 180,85"
-                        fill={isDeleteDisabled ? "#bdbdbd" : "#d32f2f"} // 🔥 ตรงนี้
+                        fill={isDeleteDisabled ? "#bdbdbd" : "#FF0000"} // 🔥 ตรงนี้
                         />
                     </svg>
                 </IconButton>
@@ -1265,12 +1352,23 @@ const ReturnExecutionPage = () => {
     --------------------------------------------------- */}
             <Grid item xs={12} md={5.6}>
                 <Card sx={{ p: 2, display: "flex", flexDirection: "column", minHeight: "500px" }}>
-                <MDTypography variant="h5" mb={4}>
-                    Return - Execution List
-                </MDTypography>
+                <MDBox display="flex" justifyContent="space-between" alignItems="center">
+                    <MDTypography variant="h5">
+                        Return - Execution List
+                    </MDTypography>
 
-                {/* Filters */}
-                <Grid container spacing={2} mb={2}>
+                    <MDButton
+                        variant="contained"
+                        color="info"
+                        onClick={() => setOpenAdvanceExecution(true)}
+                    >
+                        Advance Search
+                    </MDButton>
+                </MDBox>
+
+                {/* Filters*/}
+                <Grid container spacing={2} mb={2} mt={0.1}>
+
                     {/* Date */}
                     <Grid item xs={12} md={4}>
                     <MDTypography variant="h6">Date</MDTypography>
@@ -1323,37 +1421,15 @@ const ReturnExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* Work Order */}
+                    {/* Stock Item No. */}
                     <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Work Order</MDTypography>
+                    <MDTypography variant="h6">Stock Item No.</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchExecution.work_order}
+                        value={searchExecution.stock_item}
                         onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, work_order: e.target.value })
-                        }
-                        displayEmpty
-                        InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon />
-                            </InputAdornment>
-                        ),
-                        }}
-                        fullWidth
-                    />
-                    </Grid>
-
-                    {/* SPR No. */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">SPR No.</MDTypography>
-                    <MDInput
-                        placeholder="Text Field"
-                        sx={{ height: "45px" }}
-                        value={searchExecution.spr_no}
-                        onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, spr_no: e.target.value })
+                        setSearchExecution({ ...searchExecution, stock_item: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1410,16 +1486,35 @@ const ReturnExecutionPage = () => {
                         fullWidth
                     />
                     </Grid>
+                </Grid>
 
-                    {/* Stock Item No. */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Stock Item No.</MDTypography>
+            <Dialog
+                open={openAdvanceExecution}
+                onClose={() => setOpenAdvanceExecution(false)}
+                maxWidth="md"
+                fullWidth
+                sx={{
+                    "& .MuiDialog-paper": {
+                    p: 2,
+                    borderRadius: 5,
+                    },
+                }}
+            >
+                <DialogTitle>Advanced Search - Execution List</DialogTitle>
+
+                <DialogContent>
+                {/* Dialog */}
+                <Grid container spacing={2}>
+
+                    {/* Work Order */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Work Order</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchExecution.stock_item}
+                        value={searchExecution.work_order}
                         onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, stock_item: e.target.value })
+                        setSearchExecution({ ...searchExecution, work_order: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1433,15 +1528,15 @@ const ReturnExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* Stock Item Description */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Stock Item Description</MDTypography>
+                    {/* SPR No. */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">SPR No.</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchExecution.item_desc}
+                        value={searchExecution.spr_no}
                         onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, item_desc: e.target.value })
+                        setSearchExecution({ ...searchExecution, spr_no: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1456,7 +1551,7 @@ const ReturnExecutionPage = () => {
                     </Grid>
 
                     {/* Store Location */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Store Location</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1477,8 +1572,29 @@ const ReturnExecutionPage = () => {
                     />
                     </Grid>
 
+                    {/* Bin Location */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Bin Location</MDTypography>
+                    <MDInput
+                        placeholder="Text Field"
+                        sx={{ height: "45px" }}
+                        value={searchExecution.box_loc}
+                        onChange={(e) =>
+                        setSearchExecution({ ...searchExecution, box_loc: e.target.value })
+                        }
+                        displayEmpty
+                        InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                        }}
+                        fullWidth
+                    />
+                    </Grid>
                     {/* Unit Cost */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Unit Cost</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1500,7 +1616,7 @@ const ReturnExecutionPage = () => {
                     </Grid>
 
                     {/* Total Cost */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Total Cost</MDTypography>
                     <MDInput
                         placeholder="Text Field"
@@ -1521,15 +1637,15 @@ const ReturnExecutionPage = () => {
                     />
                     </Grid>
 
-                    {/* Bin Location */}
-                    <Grid item xs={12} md={4}>
-                    <MDTypography variant="h6">Bin Location</MDTypography>
+                    {/* Stock Item Description */}
+                    <Grid item xs={12} md={6}>
+                    <MDTypography variant="h6">Stock Item Description</MDTypography>
                     <MDInput
                         placeholder="Text Field"
                         sx={{ height: "45px" }}
-                        value={searchExecution.box_loc}
+                        value={searchExecution.item_desc}
                         onChange={(e) =>
-                        setSearchExecution({ ...searchExecution, box_loc: e.target.value })
+                        setSearchExecution({ ...searchExecution, item_desc: e.target.value })
                         }
                         displayEmpty
                         InputProps={{
@@ -1544,7 +1660,7 @@ const ReturnExecutionPage = () => {
                     </Grid>
 
                     {/* Condition */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Condition</MDTypography>
                         <FormControl fullWidth>
                         <StyledSelect
@@ -1566,7 +1682,7 @@ const ReturnExecutionPage = () => {
                     </Grid>
 
                     {/* Order Status */}
-                    <Grid item xs={12} md={4}>
+                    <Grid item xs={12} md={6}>
                     <MDTypography variant="h6">Order Status</MDTypography>
                         <FormControl fullWidth>
                         <StyledSelect
@@ -1588,6 +1704,18 @@ const ReturnExecutionPage = () => {
                     </Grid>
 
                 </Grid>
+                </DialogContent>
+
+                <DialogActions>
+                    <MDButton color="secondary" onClick={handleClearAdvancedExecution}>
+                        Clear
+                    </MDButton>
+
+                    {/* <MDButton onClick={() => setOpenAdvanceExecution(false)}>
+                        Cancel
+                    </MDButton> */}
+                </DialogActions>
+            </Dialog>
 
                 {/* Table */}
                 <MDBox sx={{ fontSize: "0.85rem", maxHeight: "600px", overflowY: "auto" }}>

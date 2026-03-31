@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"; // นำเข้า useState และ useEffect จาก React
-import { Card, Grid, InputAdornment, FormControl, Box } from "@mui/material"; // นำเข้า components จาก MUI (Material-UI)
+import { Card, Grid, InputAdornment, FormControl, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material"; // นำเข้า components จาก MUI (Material-UI)
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout"; // นำเข้า layout component
 import DashboardNavbar from "examples/Navbars/DashboardNavbar"; // นำเข้า navbar component
 import MDBox from "components/MDBox";
@@ -33,10 +33,24 @@ const OrderStatusPage = () => {
   const [loading, setLoading] = useState(true);
   const [ordersList, setOrdersList] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
+
+  const [filterCondition, setFilterCondition] = useState("");
+  const [filterStatusOrder, setFilterStatusOrders] = useState("");
+  const [filterTrxType, setFilterTrxType] = useState("");
+
+  const [openSearchDialog, setOpenSearchDialog] = useState(false);
+
+  const navigate = useNavigate();
+
+  // ดึงจาก localStorage
+  //const mcCodes = GlobalVar.getMcCodes();
+  const storeType = GlobalVar.getStoreType();
+
   const [searchOrders, setSearchOrders] = useState({
     type: "",
     mc_code: "",
     spr_no: "",
+    object_id: "",
     work_order: "",
     usage_num: "", 
     usage_line: "",
@@ -49,19 +63,38 @@ const OrderStatusPage = () => {
     to_loc: "",
     to_box_loc: "",
     actual_qty: "",   
-    date: "",  
+    started_at: "",  
+    finished_at: "",  
     status: "",
   });
 
-  const [filterCondition, setFilterCondition] = useState("");
-  const [filterStatusOrder, setFilterStatusOrders] = useState("");
-  const [filterTrxType, setFilterTrxType] = useState("");
+  const handleClearSearch = () => {
+    setSearchOrders({
+      type: "",
+      mc_code: "",
+      spr_no: "",
+      object_id: "",
+      work_order: "",
+      usage_num: "",
+      usage_line: "",
+      po_num: "",
+      stock_item: "",
+      item_desc: "",
+      cond: "",
+      from_loc: "",
+      from_box_loc: "",
+      to_loc: "",
+      to_box_loc: "",
+      actual_qty: "",
+      started_at: "",  
+      finished_at: "",  
+      status: "",
+    });
 
-  const navigate = useNavigate();
-
-  // ดึงจาก localStorage
-  //const mcCodes = GlobalVar.getMcCodes();
-  const storeType = GlobalVar.getStoreType();
+    setFilterCondition("");
+    setFilterStatusOrders("");
+    setFilterTrxType("");
+  };
 
   const handleNext = () => {
     const routeMap = {
@@ -83,7 +116,7 @@ const OrderStatusPage = () => {
       const response = await OrdersAPI.OrdersStatusAll({
         //isExecution: true, ดึงทั้งหมด
         //mc_code: mcCodes, ดึงทั้งหมด
-        store_type: storeType === "WCS" ? undefined : storeType,
+        //store_type: storeType === "WCS" ? undefined : storeType,
         // type: "", ดึงทั้งหมด
       });
       const list = Array.isArray(response?.data) ? response.data : [];
@@ -117,6 +150,7 @@ const OrderStatusPage = () => {
         (filterTrxType === "" || item.type === filterTrxType) &&
         includesIgnoreCase(item.mc_code, searchOrders.mc_code) &&
         includesIgnoreCase(item.spr_no, searchOrders.spr_no) &&
+        includesIgnoreCase(item.object_id, searchOrders.object_id) &&
         includesIgnoreCase(item.work_order, searchOrders.work_order) &&
         includesIgnoreCase(item.usage_num, searchOrders.usage_num) &&
         includesIgnoreCase(item.usage_line, searchOrders.usage_line) &&
@@ -129,7 +163,8 @@ const OrderStatusPage = () => {
         includesIgnoreCase(item.to_loc, searchOrders.to_loc) &&
         includesIgnoreCase(item.to_box_loc, searchOrders.to_box_loc) &&
         includesIgnoreCase(item.actual_qty, searchOrders.actual_qty) &&
-        includesIgnoreCase(item.requested_at, searchOrders.date) &&
+        includesIgnoreCase(item.started_at, searchOrders.started_at) &&
+        includesIgnoreCase(item.finished_at, searchOrders.finished_at) &&
         (
           filterStatusOrder === "" ||
           normalizeStatus(item.status) === filterStatusOrder
@@ -182,7 +217,9 @@ const OrderStatusPage = () => {
     { field: "usage_num", label: "Usage No." },
     { field: "usage_line", label: "Usage Line" },
     { field: "po_num", label: "PO No." },
-    { field: "requested_at", label: "Date" },
+    { field: "object_id", label: "OBJECT ID" },
+    { field: "started_at", label: "Starting Date" },
+    { field: "finished_at", label: "Finished Date" },
     { field: "stock_item", label: "Stock Item Number" },
     { field: "item_desc", label: "Stock Item Description" },
     { field: "cond", label: "Condition" },
@@ -229,10 +266,21 @@ const OrderStatusPage = () => {
       <MDBox mt={1}>
         <Card>
           <MDBox p={3}>
-            <Box sx={{ flexGrow: 1 }} mb={3}>
-            <Grid container spacing={2} sx={{ mb: 0.5 }}>
-                {/* Transaction Type */}
-              <Grid item xs={12} md={1.71}>
+            <MDBox display="flex" justifyContent="flex-start">
+              <MDButton
+                variant="contained"
+                color="info"
+                onClick={() => setOpenSearchDialog(true)}
+              >
+                Advanced Search
+              </MDButton>
+            </MDBox>
+
+          {/* Filters*/}
+          <Grid container spacing={2} mb={2} mt={0.1}>
+
+              {/* Transaction Type */}
+              <Grid item xs={12} md={2}>
                 <MDTypography variant="caption" fontWeight="bold">Transaction Type</MDTypography>
                 <FormControl fullWidth>
                   <StyledSelect
@@ -252,41 +300,9 @@ const OrderStatusPage = () => {
                   </StyledSelect>
                   </FormControl>
               </Grid>
-            </Grid>
-            <Grid container spacing={2} sx={{ mb: 0.5 }}>
-
-              {/* Date */}
-              <Grid item xs={12} md={1.71}>
-              <MDTypography variant="caption" fontWeight="bold">Date</MDTypography>
-
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                  <DatePicker
-                  inputFormat="DD/MM/YYYY"   // ✅ รูปแบบ 24/01/2026
-                  value={
-                      searchOrders.date
-                      ? dayjs(searchOrders.date, "DD/MM/YYYY")
-                      : null
-                  }
-                  onChange={(newValue) => {
-                      setSearchOrders({
-                      ...searchOrders,
-                      date: newValue ? newValue.format("DD/MM/YYYY") : "",
-                      });
-                  }}
-                  renderInput={(params) => (
-                      <MDInput
-                      {...params}
-                      placeholder="Select date"
-                      fullWidth
-                      sx={{ height: "45px" }}
-                      />
-                  )}
-                  />
-              </LocalizationProvider>
-              </Grid>
 
               {/* Maintenance Contract */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={2}>
                 <MDTypography variant="caption" fontWeight="bold">Maintenance Contract</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -305,39 +321,17 @@ const OrderStatusPage = () => {
                   }}
                   fullWidth
                 />
-              </Grid>
+              </Grid>              
               
-              {/* SPR No. */}
-              <Grid item xs={12} md={1.71}>
-                <MDTypography variant="caption" fontWeight="bold">SPR No.</MDTypography>
+              {/* Stock Item Number */}
+              <Grid item xs={12} md={2}>
+                <MDTypography variant="caption" fontWeight="bold">Stock Item Number</MDTypography>
                 <MDInput
                   placeholder="Text Field"
                   sx={{ height: "45px" }}
-                  value={searchOrders.spr_no}
+                  value={searchOrders.stock_item}
                   onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, spr_no: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
-
-              {/* Work Order */}
-              <Grid item xs={12} md={1.71}>
-                <MDTypography variant="caption" fontWeight="bold">Work Order</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.work_order}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, work_order: e.target.value })
+                    setSearchOrders({ ...searchOrders, stock_item: e.target.value })
                   }
                   displayEmpty
                   InputProps={{
@@ -352,7 +346,7 @@ const OrderStatusPage = () => {
               </Grid>
 
               {/* Usage No. */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={2}>
                 <MDTypography variant="caption" fontWeight="bold">Usage No.</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -374,7 +368,7 @@ const OrderStatusPage = () => {
               </Grid>
 
               {/* Usage Line */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={2}>
                 <MDTypography variant="caption" fontWeight="bold">Usage Line</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -394,8 +388,9 @@ const OrderStatusPage = () => {
                   fullWidth
                 />
               </Grid>
+
               {/* PO No. */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={2}>
                 <MDTypography variant="caption" fontWeight="bold">PO No.</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -415,77 +410,152 @@ const OrderStatusPage = () => {
                   fullWidth
                 />
               </Grid>
-              
-            </Grid>
-            <Grid container spacing={2} sx={{ mb: 0.5 }}>
-              {/* Stock Item Number */}
-              <Grid item xs={12} md={1.71}>
-                <MDTypography variant="caption" fontWeight="bold">Stock Item Number</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.stock_item}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, stock_item: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
+          </Grid>
 
-              {/* Stock Item Description */}
-              <Grid item xs={12} md={1.71}>
-                <MDTypography variant="caption" fontWeight="bold">Stock Item Description</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.item_desc}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, item_desc: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
+        <Dialog
+          open={openSearchDialog}
+          onClose={() => setOpenSearchDialog(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              p: 2,
+              borderRadius: 5, // ปรับโค้งได้
+            },
+          }}
+        >
+          <DialogTitle>Advanced Search - Order Status</DialogTitle>
 
-              {/* Condition */}
-              <Grid item xs={12} md={1.71}>
-                <MDTypography variant="caption" fontWeight="bold">Condition</MDTypography>
-                <FormControl fullWidth>
-                  <StyledSelect
+          <DialogContent sx={{ p: 3 }}>
+            <Grid container spacing={2}>
+              {/* Starting Date */}
+              <Grid item xs={12} md={6}>
+              <MDTypography variant="caption" fontWeight="bold">Starting Date</MDTypography>
+
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                  inputFormat="DD/MM/YYYY"   // ✅ รูปแบบ 24/01/2026
+                  value={
+                      searchOrders.started_at
+                      ? dayjs(searchOrders.started_at, "DD/MM/YYYY")
+                      : null
+                  }
+                  onChange={(newValue) => {
+                      setSearchOrders({
+                      ...searchOrders,
+                      started_at: newValue ? newValue.format("DD/MM/YYYY") : "",
+                      });
+                  }}
+                  renderInput={(params) => (
+                      <MDInput
+                      {...params}
+                      placeholder="Select started date"
+                      fullWidth
                       sx={{ height: "45px" }}
-                      name="filterCondition"
-                      value={filterCondition}
-                      onChange={(e) => setFilterCondition(e.target.value)}
-                      displayEmpty
-                  >
-                      <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+                      />
+                  )}
+                  />
+              </LocalizationProvider>
+              </Grid>
 
-                      {Condition.map((t) => (
-                      <StyledMenuItem key={t.value} value={t.value}>
-                          {t.text}
-                      </StyledMenuItem>
-                      ))}
-                  </StyledSelect>
-                  </FormControl>
+              {/* Finished Date */}
+              <Grid item xs={12} md={6}>
+              <MDTypography variant="caption" fontWeight="bold">Finished Date</MDTypography>
+
+              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                  inputFormat="DD/MM/YYYY"   // ✅ รูปแบบ 24/01/2026
+                  value={
+                      searchOrders.finished_at
+                      ? dayjs(searchOrders.finished_at, "DD/MM/YYYY")
+                      : null
+                  }
+                  onChange={(newValue) => {
+                      setSearchOrders({
+                      ...searchOrders,
+                      finished_at: newValue ? newValue.format("DD/MM/YYYY") : "",
+                      });
+                  }}
+                  renderInput={(params) => (
+                      <MDInput
+                      {...params}
+                      placeholder="Select finished date"
+                      fullWidth
+                      sx={{ height: "45px" }}
+                      />
+                  )}
+                  />
+              </LocalizationProvider>
+              </Grid>
+              
+              {/* SPR No. */}
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold">SPR No.</MDTypography>
+                <MDInput
+                  placeholder="Text Field"
+                  sx={{ height: "45px" }}
+                  value={searchOrders.spr_no}
+                  onChange={(e) =>
+                    setSearchOrders({ ...searchOrders, spr_no: e.target.value })
+                  }
+                  displayEmpty
+                  InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <SearchIcon />
+                        </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                />
+              </Grid>
+
+              {/* Work Order */}
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold">Work Order</MDTypography>
+                <MDInput
+                  placeholder="Text Field"
+                  sx={{ height: "45px" }}
+                  value={searchOrders.work_order}
+                  onChange={(e) =>
+                    setSearchOrders({ ...searchOrders, work_order: e.target.value })
+                  }
+                  displayEmpty
+                  InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <SearchIcon />
+                        </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                />
+              </Grid>
+
+              {/* OBJECT ID */}
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold">OBJECT ID</MDTypography>
+                <MDInput
+                  placeholder="Text Field"
+                  sx={{ height: "45px" }}
+                  value={searchOrders.object_id}
+                  onChange={(e) =>
+                    setSearchOrders({ ...searchOrders, object_id: e.target.value })
+                  }
+                  displayEmpty
+                  InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <SearchIcon />
+                        </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                />
               </Grid>
               
               {/* From Location */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={6}>
                 <MDTypography variant="caption" fontWeight="bold">From Location</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -507,7 +577,7 @@ const OrderStatusPage = () => {
               </Grid>
 
               {/* From BIN */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={6}>
                 <MDTypography variant="caption" fontWeight="bold">From BIN</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -529,7 +599,7 @@ const OrderStatusPage = () => {
               </Grid>
 
               {/* To Location */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={6}>
                 <MDTypography variant="caption" fontWeight="bold">To Location</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -551,7 +621,7 @@ const OrderStatusPage = () => {
               </Grid>
 
               {/* To BIN */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={6}>
                 <MDTypography variant="caption" fontWeight="bold">To BIN</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -571,11 +641,31 @@ const OrderStatusPage = () => {
                   fullWidth
                 />
               </Grid>
-            </Grid>
-            <Grid container spacing={2}>
+
+              {/* Stock Item Description */}
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold">Stock Item Description</MDTypography>
+                <MDInput
+                  placeholder="Text Field"
+                  sx={{ height: "45px" }}
+                  value={searchOrders.item_desc}
+                  onChange={(e) =>
+                    setSearchOrders({ ...searchOrders, item_desc: e.target.value })
+                  }
+                  displayEmpty
+                  InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <SearchIcon />
+                        </InputAdornment>
+                    ),
+                  }}
+                  fullWidth
+                />
+              </Grid>
 
               {/* Scanned Quantity */}
-              <Grid item xs={12} md={1.71}>
+              <Grid item xs={12} md={6}>
                 <MDTypography variant="caption" fontWeight="bold">Scanned Quantity</MDTypography>
                 <MDInput
                   placeholder="Select Range"
@@ -596,8 +686,30 @@ const OrderStatusPage = () => {
                 />
               </Grid>
 
+              {/* Condition */}
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold">Condition</MDTypography>
+                <FormControl fullWidth>
+                  <StyledSelect
+                      sx={{ height: "45px" }}
+                      name="filterCondition"
+                      value={filterCondition}
+                      onChange={(e) => setFilterCondition(e.target.value)}
+                      displayEmpty
+                  >
+                      <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+
+                      {Condition.map((t) => (
+                      <StyledMenuItem key={t.value} value={t.value}>
+                          {t.text}
+                      </StyledMenuItem>
+                      ))}
+                  </StyledSelect>
+                  </FormControl>
+              </Grid>
+
               {/* Order Status */}
-                <Grid item xs={12} md={1.71}>
+                <Grid item xs={12} md={6}>
                 <MDTypography variant="caption" fontWeight="bold">Order Status</MDTypography>
                     <FormControl fullWidth>
                     <StyledSelect
@@ -618,7 +730,25 @@ const OrderStatusPage = () => {
                     </FormControl>
                 </Grid>
             </Grid>
-            </Box>
+        </DialogContent>
+
+        <DialogActions>
+          <MDButton
+            color="secondary"
+            onClick={handleClearSearch}
+          >
+            Clear
+          </MDButton>
+          {/* 
+          <MDButton
+            color="dark"
+            onClick={() => setOpenSearchDialog(false)}
+          >
+            Close
+          </MDButton> */}
+        </DialogActions>
+      </Dialog>
+
             {loading ? (
               <div>Loading...</div>
             ) : (

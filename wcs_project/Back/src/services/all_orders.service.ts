@@ -765,7 +765,16 @@ export class AllOrdersService {
                     // receipt info
                     // ----------------------------
                     'receipt.po_num AS po_num',
-                    'receipt.object_id AS object_id',
+                    // ---------- Object ID ----------
+                    `
+                    CASE
+                        WHEN order.type = 'RECEIPT'
+                            THEN receipt.object_id
+                        WHEN order.type = 'TRANSFER'
+                            THEN transfer.object_id
+                        ELSE NULL
+                    END AS object_id
+                    `,
 
                     // ----------------------------
                     // item
@@ -824,7 +833,8 @@ export class AllOrdersService {
                         ELSE NULL
                     END AS to_box_loc
                     `,
-                    "DATE_FORMAT(order.requested_at, '%d/%m/%Y') AS requested_at",
+                    "DATE_FORMAT(order.started_at, '%d/%m/%Y %H:%i:%s') AS started_at",
+                    "DATE_FORMAT(order.finished_at, '%d/%m/%Y %H:%i:%s') AS finished_at",
                 ])
 
                 // ----------------------------
@@ -842,18 +852,12 @@ export class AllOrdersService {
                 `, 'ASC')
 
                 .addOrderBy(`
-                    CASE
-                        WHEN order.status IN ('COMPLETED','FINISHED')
-                        THEN order.requested_at
-                    END
+                CASE
+                    WHEN order.status IN ('COMPLETED','FINISHED')
+                    THEN COALESCE(order.finished_at, order.started_at)
+                    ELSE COALESCE(order.started_at, order.requested_at)
+                END
                 `, 'DESC')
-
-                .addOrderBy(`
-                    CASE
-                        WHEN order.status NOT IN ('COMPLETED','FINISHED')
-                        THEN order.requested_at
-                    END
-                `, 'ASC')
 
             // ----------------------------
             // filters (เหมือนเดิม)
@@ -966,6 +970,9 @@ export class AllOrdersService {
 
                 po_num: item.po_num ?? '-',
                 object_id: item.object_id ?? '-',
+
+                started_at: item.started_at ?? '-',
+                finished_at: item.finished_at ?? '-',
 
                 plan_qty: Number(item.plan_qty || 0),
                 actual_qty: Number(item.actual_qty || 0),

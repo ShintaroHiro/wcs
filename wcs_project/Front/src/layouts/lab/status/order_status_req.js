@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"; // นำเข้า useState และ useEffect จาก React
-import { Card, Grid, InputAdornment, FormControl, Box } from "@mui/material"; // นำเข้า components จาก MUI (Material-UI)
+import { Card, Grid, InputAdornment, FormControl, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material"; // นำเข้า components จาก MUI (Material-UI)
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout"; // นำเข้า layout component
 import DashboardNavbar from "examples/Navbars/DashboardNavbar"; // นำเข้า navbar component
 import MDBox from "components/MDBox";
@@ -29,8 +29,6 @@ import {
 } from "common/utils/executionModeUtils";
 import { OrderStatus, Condition } from "common/dataMain";
 
-
-
 const OrderStatusReqPage = () => {
   const [loading, setLoading] = useState(true);
   const [ordersList, setOrdersList] = useState([]);
@@ -53,8 +51,30 @@ const OrderStatusReqPage = () => {
 
   const [filterCondition, setFilterCondition] = useState("");
   const [filterStatusOrder, setFilterStatusOrders] = useState("");
+  const [openSearchDialog, setOpenSearchDialog] = useState(false);
 
   const navigate = useNavigate();
+
+  const handleClearSearch = () => {
+    setSearchOrders({
+      mc_code: "",
+      spr_no: "",
+      work_order: "",
+      usage_num: "", 
+      usage_line: "",
+      po_num: "",
+      object_id: "",
+      stock_item: "", 
+      item_desc: "",
+      cond: "",
+      actual_qty: "",   
+      date: "",  
+      status: "",
+    });
+
+    setFilterCondition("");
+    setFilterStatusOrders("");
+  };
 
   // ดึงจาก localStorage
   const mcCodes = GlobalVar.getMcCodes();
@@ -76,7 +96,7 @@ const OrderStatusReqPage = () => {
       const response = await OrdersAPI.OrdersStatusAll({
         isExecution: false,
         mc_code: mcCodes,
-        store_type: storeType === "WCS" ? undefined : storeType,
+        //store_type: storeType === "WCS" ? undefined : storeType,
         type: "USAGE",
       });
       const list = Array.isArray(response?.data) ? response.data : [];
@@ -214,11 +234,20 @@ const OrderStatusReqPage = () => {
       <MDBox mt={1}>
         <Card>
           <MDBox p={3}>
-            <Box sx={{ flexGrow: 1 }} mb={3}>
-            <Grid container spacing={2} sx={{ mb: 0.5 }}>
+            <MDBox display="flex" justifyContent="flex-start">
+              <MDButton
+                variant="contained"
+                color="info"
+                onClick={() => setOpenSearchDialog(true)}
+              >
+                Advanced Search
+              </MDButton>
+            </MDBox>
 
+            {/* Filters*/}
+            <Grid container spacing={2} mb={2} mt={0.1}>
               {/* Date */}
-              <Grid item xs={12} md={2.4}>
+              <Grid item xs={12} md={3}>
               <MDTypography variant="caption" fontWeight="bold">Date</MDTypography>
 
               <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -247,59 +276,15 @@ const OrderStatusReqPage = () => {
               </LocalizationProvider>
               </Grid>
 
-              {/* Maintenance Contract */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">Maintenance Contract</MDTypography>
+              {/* Stock Item Number */}
+              <Grid item xs={12} md={3}>
+                <MDTypography variant="caption" fontWeight="bold">Stock Item Number</MDTypography>
                 <MDInput
                   placeholder="Text Field"
                   sx={{ height: "45px" }}
-                  value={searchOrders.mc_code}
+                  value={searchOrders.stock_item}
                   onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, mc_code: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
-              
-              {/* SPR No. */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">SPR No.</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.spr_no}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, spr_no: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
-
-              {/* Work Order */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">Work Order</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.work_order}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, work_order: e.target.value })
+                    setSearchOrders({ ...searchOrders, stock_item: e.target.value })
                   }
                   displayEmpty
                   InputProps={{
@@ -314,7 +299,7 @@ const OrderStatusReqPage = () => {
               </Grid>
 
               {/* Usage No. */}
-              <Grid item xs={12} md={2.4}>
+              <Grid item xs={12} md={3}>
                 <MDTypography variant="caption" fontWeight="bold">Usage No.</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -336,7 +321,7 @@ const OrderStatusReqPage = () => {
               </Grid>
 
               {/* Usage Line */}
-              <Grid item xs={12} md={2.4}>
+              <Grid item xs={12} md={3}>
                 <MDTypography variant="caption" fontWeight="bold">Usage Line</MDTypography>
                 <MDInput
                   placeholder="Text Field"
@@ -356,163 +341,242 @@ const OrderStatusReqPage = () => {
                   fullWidth
                 />
               </Grid>
-
-              {/* PO No. */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">PO No.</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.po_num}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, po_num: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
-
-              {/* OBJECT ID */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">OBJECT ID</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.object_id}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, object_id: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
             </Grid>
-            <Grid container spacing={2} sx={{ mb: 0.5 }}>
-              {/* Stock Item Number */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">Stock Item Number</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.stock_item}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, stock_item: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
 
-              {/* Stock Item Description */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">Stock Item Description</MDTypography>
-                <MDInput
-                  placeholder="Text Field"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.item_desc}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, item_desc: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
+            <Dialog
+              open={openSearchDialog}
+              onClose={() => setOpenSearchDialog(false)}
+              maxWidth="md"
+              fullWidth
+              PaperProps={{
+                sx: {
+                  p: 2,
+                  borderRadius: 5, // ปรับโค้งได้
+                },
+              }}
+            >
+              <DialogTitle>Advanced Search - Order Status</DialogTitle>
 
-              {/* Condition */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">Condition</MDTypography>
-                <FormControl fullWidth>
-                  <StyledSelect
+              <DialogContent sx={{ p: 3 }}>
+                <Grid container spacing={2}>
+                  {/* Maintenance Contract */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="caption" fontWeight="bold">Maintenance Contract</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
                       sx={{ height: "45px" }}
-                      name="filterCondition"
-                      value={filterCondition}
-                      onChange={(e) => setFilterCondition(e.target.value)}
+                      value={searchOrders.mc_code}
+                      onChange={(e) =>
+                        setSearchOrders({ ...searchOrders, mc_code: e.target.value })
+                      }
                       displayEmpty
-                  >
-                      <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+                  
+                  {/* SPR No. */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="caption" fontWeight="bold">SPR No.</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchOrders.spr_no}
+                      onChange={(e) =>
+                        setSearchOrders({ ...searchOrders, spr_no: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
 
-                      {Condition.map((t) => (
-                      <StyledMenuItem key={t.value} value={t.value}>
-                          {t.text}
-                      </StyledMenuItem>
-                      ))}
-                  </StyledSelect>
-                  </FormControl>
-              </Grid>
-            
-              {/* Scanned Quantity */}
-              <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">Scanned Quantity</MDTypography>
-                <MDInput
-                  placeholder="Select Range"
-                  sx={{ height: "45px" }}
-                  value={searchOrders.actual_qty}
-                  onChange={(e) =>
-                    setSearchOrders({ ...searchOrders, actual_qty: e.target.value })
-                  }
-                  displayEmpty
-                  InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
-                  }}
-                  fullWidth
-                />
-              </Grid>
+                  {/* Work Order */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="caption" fontWeight="bold">Work Order</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchOrders.work_order}
+                      onChange={(e) =>
+                        setSearchOrders({ ...searchOrders, work_order: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
 
-              {/* Order Status */}
-                <Grid item xs={12} md={2.4}>
-                <MDTypography variant="caption" fontWeight="bold">Order Status</MDTypography>
+                  {/* PO No. */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="caption" fontWeight="bold">PO No.</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchOrders.po_num}
+                      onChange={(e) =>
+                        setSearchOrders({ ...searchOrders, po_num: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* OBJECT ID */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="caption" fontWeight="bold">OBJECT ID</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchOrders.object_id}
+                      onChange={(e) =>
+                        setSearchOrders({ ...searchOrders, object_id: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+                  
+                  {/* Stock Item Description */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="caption" fontWeight="bold">Stock Item Description</MDTypography>
+                    <MDInput
+                      placeholder="Text Field"
+                      sx={{ height: "45px" }}
+                      value={searchOrders.item_desc}
+                      onChange={(e) =>
+                        setSearchOrders({ ...searchOrders, item_desc: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* Condition */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="caption" fontWeight="bold">Condition</MDTypography>
                     <FormControl fullWidth>
-                    <StyledSelect
-                        sx={{ height: "45px" }}
-                        name="filterStatusOrder"
-                        value={filterStatusOrder}
-                        onChange={(e) => setFilterStatusOrders(e.target.value)}
-                        displayEmpty
-                    >
-                        <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+                      <StyledSelect
+                          sx={{ height: "45px" }}
+                          name="filterCondition"
+                          value={filterCondition}
+                          onChange={(e) => setFilterCondition(e.target.value)}
+                          displayEmpty
+                      >
+                          <StyledMenuItem value="">Pull Down List</StyledMenuItem>
 
-                        {OrderStatus.map((t) => (
-                        <StyledMenuItem key={t.value} value={t.value}>
-                            {t.text}
-                        </StyledMenuItem>
-                        ))}
-                    </StyledSelect>
-                    </FormControl>
+                          {Condition.map((t) => (
+                          <StyledMenuItem key={t.value} value={t.value}>
+                              {t.text}
+                          </StyledMenuItem>
+                          ))}
+                      </StyledSelect>
+                      </FormControl>
+                  </Grid>
+                
+                  {/* Scanned Quantity */}
+                  <Grid item xs={12} md={6}>
+                    <MDTypography variant="caption" fontWeight="bold">Scanned Quantity</MDTypography>
+                    <MDInput
+                      placeholder="Select Range"
+                      sx={{ height: "45px" }}
+                      value={searchOrders.actual_qty}
+                      onChange={(e) =>
+                        setSearchOrders({ ...searchOrders, actual_qty: e.target.value })
+                      }
+                      displayEmpty
+                      InputProps={{
+                        endAdornment: (
+                            <InputAdornment position="end">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                      }}
+                      fullWidth
+                    />
+                  </Grid>
+
+                  {/* Order Status */}
+                  <Grid item xs={12} md={6}>
+                  <MDTypography variant="caption" fontWeight="bold">Order Status</MDTypography>
+                      <FormControl fullWidth>
+                      <StyledSelect
+                          sx={{ height: "45px" }}
+                          name="filterStatusOrder"
+                          value={filterStatusOrder}
+                          onChange={(e) => setFilterStatusOrders(e.target.value)}
+                          displayEmpty
+                      >
+                          <StyledMenuItem value="">Pull Down List</StyledMenuItem>
+
+                          {OrderStatus.map((t) => (
+                          <StyledMenuItem key={t.value} value={t.value}>
+                              {t.text}
+                          </StyledMenuItem>
+                          ))}
+                      </StyledSelect>
+                      </FormControl>
+                  </Grid>
+
                 </Grid>
-            </Grid>
-            </Box>
+            </DialogContent>
+
+            <DialogActions>
+              <MDButton
+                color="secondary"
+                onClick={handleClearSearch}
+              >
+                Clear
+              </MDButton>
+              {/* 
+              <MDButton
+                color="dark"
+                onClick={() => setOpenSearchDialog(false)}
+              >
+                Close
+              </MDButton> */}
+            </DialogActions>
+          </Dialog>
+
             {loading ? (
               <div>Loading...</div>
             ) : (

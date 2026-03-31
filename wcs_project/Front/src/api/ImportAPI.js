@@ -195,7 +195,7 @@ export default class ImportFileAPI {
         }
     }
 
-    static async importReceiptFile(file) {
+    static async importReceiptFile(file, mode = "CHECK") {
         try {
             if (!file || !(file instanceof Blob)) {
             return new ApiResponse({
@@ -320,8 +320,8 @@ export default class ImportFileAPI {
                 .filter(row =>
                 row &&
                 (
-                    row.loc ||
-                    row.box_loc ||
+                    row.to_store ||
+                    row.to_bin ||
                     row.stock_item
                 )
             );
@@ -334,10 +334,25 @@ export default class ImportFileAPI {
                 data: null,
             });
             }
+
+            const finalMode = (mode || "CHECK").toUpperCase();
+
+            if (!["CHECK", "OVERWRITE", "SKIP"].includes(finalMode)) {
+                return new ApiResponse({
+                    isCompleted: false,
+                    isError: true,
+                    message: `Invalid mode: ${mode}`,
+                    data: null,
+                });
+            }
+
             return await ApiProvider.postData(
-            "/api/import/create-receipt-json",
-            payload,
-            token
+                "/api/import/create-receipt-json",
+                {
+                    data: payload,
+                    mode: finalMode,
+                },
+                token
             );
         } catch (err) {
             console.error("❌ importReceiptFile error", err);

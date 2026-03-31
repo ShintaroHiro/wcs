@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import CounterScreen from "../components/counter_screen";
+import CounterScreenNewLayOut from "../components/counter_screen_new";
 import CounterAPI from "api/CounterAPI";
 import MDBox from "components/MDBox";
 import DisplayLayout from "../../../utils/DisplayLayout";
@@ -45,6 +46,9 @@ const PickCounterPage = () => {
   const { counterId } = useParams();
   const [counter, setCounter] = useState(null);
   //const [scanOpen, setScanOpen] = useState(false);
+
+  const counterIdNum = Number(counter?.counter_id);
+  const isNew = counterIdNum % 2 === 0;
 
   useEffect(() => {
     const fetchCounter = async () => {
@@ -127,6 +131,28 @@ const PickCounterPage = () => {
 
   if (!counter) return <div>Counter not found</div>;
 
+  const commonProps = {
+    counter,
+    status: counter.status,
+    stock_item: counter.stock_item,
+    item_desc: counter.item_desc,
+    plan_qty: counter.plan_qty,
+    pickedQty: counter.actual_qty,
+    spr_no: counter.spr_no,
+    type: counter.trx_type,
+    typetwo: counter.typetwo,
+    work_order: counter.work_order,
+    mc_code: counter.mc_code,
+    usage_num: counter.usage_num,
+    usage_line: counter.usage_line,
+    po_num: counter.po_num,
+    object_id: counter.object_id,
+    item_id: counter.item_id,
+    imageUrl: counter.item_img_url,
+    slots: 6,
+    isStandby: counter?.trx_type === null,
+  };
+
   return (
     <DisplayLayout>
       <MDBox
@@ -138,10 +164,7 @@ const PickCounterPage = () => {
         }}
       >
         <ScaledWrapper>
-          {/* {counter?.trx_type === null ? (
-            <CounterStandbyScreen counter={counter} />
-          ) : ( */}
-            <CounterScreen
+            {/* <CounterScreen
               counter={counter} // counter object
               status={counter.status}
               stock_item={counter.stock_item} // จาก flattened row
@@ -161,8 +184,12 @@ const PickCounterPage = () => {
               slots={6}
 
               isStandby={counter?.trx_type === null} //render สลับcounter ภายใน
-            />
-          {/* )} */}
+            /> */}
+          {isNew ? (
+            <CounterScreenNewLayOut {...commonProps} />
+          ) : (
+            <CounterScreen {...commonProps} />
+          )}
         </ScaledWrapper>
         {/* 🔥 Dialog อยู่นี่ */}
       {/* <ScanQtyDialog

@@ -61,9 +61,12 @@ export default function CounterScreen({
         backgroundColor: alpha(counterColor || "#000", 0.1),
         border: "4px solid black",
         borderRadius: 0,
-        p: 4,
+        p: 3,
         boxSizing: "border-box",
         position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       {/* Counter Title */}
@@ -83,22 +86,29 @@ export default function CounterScreen({
         Counter {counter?.counter_id || "?"}
       </Typography>
 
-      <Grid container spacing={2}>
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
         {/* Top */}
-        <Grid item xs={12}>
+        <Grid item xs={12} sx={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           <Grid container spacing={4} alignItems="stretch">
             {/* Item Info */}
             <Grid item xs={12} md={6} display="flex">
               <Card
                 sx={{
                   borderRadius: 7,
-                  p: 3,
+                  p: 1,
                   width: "100%",
                   display: "flex",
                   flexDirection: "column",
                 }}
               >
-                <Typography fontWeight="bold" fontSize={38} ml={2}>
+                <Typography fontWeight="bold" fontSize={40} ml={2}>
                   {mc_code}
                 </Typography>
 
@@ -115,10 +125,10 @@ export default function CounterScreen({
                           overflow: "hidden", // 🔒 กันล้น
                         }}
                       >
-                        <Typography fontSize={28}>{label} :</Typography>
+                        <Typography fontWeight="bold" fontSize={33}>{label} :</Typography>
 
                         <Typography
-                          fontSize={28}
+                          fontSize={33}
                           sx={{
                             minWidth: 0,
                             overflow: "hidden",
@@ -137,8 +147,8 @@ export default function CounterScreen({
                 </Grid>
 
                 <Box display="flex" gap={10} sx={{ mt: "auto", ml: 2 }}>
-                  <Typography fontSize={28}>Pick Quantity :</Typography>
-                  <Typography fontSize={28}>{plan_qty}</Typography>
+                  <Typography fontWeight="bold" fontSize={33}>Pick Quantity :</Typography>
+                  <Typography fontSize={33}>{plan_qty}</Typography>
                 </Box>
               </Card>
             </Grid>
@@ -148,12 +158,12 @@ export default function CounterScreen({
               <Card
                 sx={{
                   borderRadius: 7,
-                  p: 3,
+                  p: 1,
                   textAlign: "left",
                   width: "100%",
                 }}
               >
-                <Typography fontWeight="bold" fontSize={38} ml={2}>
+                <Typography fontWeight="bold" fontSize={40} ml={2}>
                   {type || "-"}
                 </Typography>
                 <Grid container spacing={0.5} mt={1} sx={{ pl: 2 }}>
@@ -169,10 +179,10 @@ export default function CounterScreen({
                           overflow: "hidden", // 🔒 กันล้น
                         }}
                       >
-                        <Typography fontSize={28}>{label} :</Typography>
+                        <Typography fontWeight="bold" fontSize={33}>{label} :</Typography>
 
                         <Typography
-                          fontSize={28}
+                          fontSize={33}
                           sx={{
                             minWidth: 0, // 🔥 กันดัน layout
                             wordBreak: "break-word",
@@ -191,18 +201,18 @@ export default function CounterScreen({
         </Grid>
 
         {/* Middle */}
-        <Grid item xs={12}>
+        <Grid item xs={12} sx={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           {/* Counter Bar */}
           <Box
             sx={{
               backgroundColor: counterColor,
               color: "#fff",
               textAlign: "center",
-              fontSize: 120,
+              fontSize: 140,
               fontWeight: "bold",
               py: 0.5, //padding ระยะภายใน
               borderRadius: 7,
-              my: 2, //margin ระยะภายนอก
+              my: 1.5, //margin ระยะภายนอก
               textShadow: "2px 2px 4px rgba(0,0,0,0.6)",
             }}
           >
@@ -211,22 +221,24 @@ export default function CounterScreen({
         </Grid>
 
         {/* Bottom */}
-        <Grid item xs={12}>
-          <Grid container spacing={4} alignItems="stretch">
+        <Grid item xs={12} sx={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <Grid container spacing={4} alignItems="stretch" sx={{ flex: 1, minHeight: 0 }}>
             {/* Slot Indicator */}
             <Grid item xs={12} md={8} display="flex">
               <Card
                 sx={{
                   borderRadius: 7,
-                  p: 5,
+                  p: 4,
                   width: "100%",
                   display: "flex",
                   alignItems: "stretch", // 🔥 สำคัญ
+                  flex: 1,        // 🔥 เพิ่ม
+                  minHeight: 0,   // 🔥 เพิ่ม 
                 }}
               >
                 <Box
                   display="flex"
-                  gap={{ xs: 0.5, md: 2 }}
+                  gap={{ xs: 0.5, md: 1.5 }}
                   width="100%"
                   alignItems="stretch" // 🔥 ทำให้สูงตามกัน
                 >
@@ -253,7 +265,7 @@ export default function CounterScreen({
                         <Box
                           sx={{
                             width: "100%",
-                            aspectRatio: "2 / 2.70", // 🔥 ตัวกำหนดความสูงทั้งหมด
+                            aspectRatio: "2 / 2.50", // 🔥 ตัวกำหนดความสูงทั้งหมด
                             border: "2px solid black",
                             backgroundColor: isActive ? color : "#fff",
                             transition: "all 0.2s ease",
@@ -276,24 +288,35 @@ export default function CounterScreen({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: "hidden",
                 }}
               >
                 {imageUrl ? (
                   <Box
-                    component="img"
-                    src={imageUrl}
-                    alt="stock item image"
                     sx={{
                       width: "100%",
-                      maxWidth: "100%", // 🔥 เต็ม card
-                      maxHeight: {
-                        xs: 220, // มือถือ
-                        md: 320, // desktop
-                        lg: 380, // จอใหญ่
-                      },
-                      objectFit: "contain",
+                      height: "100%",      // 🔥 สำคัญ
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
                     }}
-                  />
+                  >
+                    <Box
+                      component="img"
+                      src={imageUrl}
+                      alt="stock item image"
+                      sx={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        width: "auto",     // ✅ ถูก
+                        height: "auto",    // ✅ ถูก
+                        objectFit: "contain",
+                      }}
+                    />
+                  </Box>
                 ) : (
                   <Typography color="text.secondary">No image</Typography>
                 )}

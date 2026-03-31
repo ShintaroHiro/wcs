@@ -492,7 +492,8 @@ const unitCostHandled = sumInv ? sumInv.unit_cost_sum_inv : 499;
     async createReceiptJson(
         data: any[],
         reqUsername: string,
-        manager?: EntityManager
+        manager?: EntityManager,
+        options?: { mode?: 'CHECK' | 'OVERWRITE' | 'SKIP' }
     ): Promise<ApiResponse<any>> {
 
         const response = new ApiResponse<any>();
@@ -539,11 +540,219 @@ const unitCostHandled = sumInv ? sumInv.unit_cost_sum_inv : 499;
                 throw new Error('Requested user not found');
             }
 
+            /** ==============================
+             *  🆕 Phase 0: Deduplicate + Conflict Detection (NO RELATION)
+             *  ============================== */
+
+            // -------- Deduplicate --------
+            const dedupMap = new Map<string, any>();
+
+            for (const row of data) {
+
+                const key =
+                    row.transtype === 'TRANSFER'
+                        ? `${row.object_id}`
+                        : `${row.po_num}|${row.object_id}`;
+
+                if (!row.requested_at) {
+                    throw new Error(`Missing requested_at`);
+                }
+
+                const existing = dedupMap.get(key);
+
+                if (!existing) {
+                    dedupMap.set(key, row);
+                    continue;
+                }
+
+                const oldDate = parseRequestedDate(existing.requested_at);
+                const newDate = parseRequestedDate(row.requested_at);
+
+                if (newDate > oldDate) {
+                    dedupMap.set(key, row);
+                }
+            }
+
+            const dedupData = Array.from(dedupMap.values());
+
+
+            // -------- Collect Keys --------
+            const receiptKeys: { po_num: string; object_id: string }[] = [];
+            const transferKeys: string[] = [];
+
+            for (const row of dedupData) {
+                if (row.transtype === 'TRANSFER') {
+                    transferKeys.push(row.object_id);
+                } else {
+                    receiptKeys.push({
+                        po_num: row.po_num,
+                        object_id: row.object_id,
+                    });
+                }
+            }
+
+
+            // -------- Query Existing (NO relations) --------
+            const existingReceipts = receiptKeys.length
+                ? await receiptRepo.find({
+                    where: receiptKeys.map(k => ({
+                        po_num: k.po_num,
+                        object_id: k.object_id
+                    }))
+                })
+                : [];
+
+            const existingTransfers = transferKeys.length
+                ? await transferRepo.find({
+                    where: {
+                        object_id: In(transferKeys)
+                    }
+                })
+                : [];
+
+
+            // -------- Collect order_id --------
+            const orderIds: number[] = [];
+
+            for (const r of existingReceipts) {
+                if (r.order_id) orderIds.push(r.order_id);
+            }
+
+            for (const t of existingTransfers) {
+                if (t.order_id) orderIds.push(t.order_id);
+            }
+
+
+            // -------- Query Orders --------
+            const orders = orderIds.length
+                ? await ordersRepo.find({
+                    where: {
+                        order_id: In(orderIds)
+                    }
+                })
+                : [];
+
+
+            // -------- Map --------
+            const orderMap = new Map(
+                orders.map(o => [o.order_id, o])
+            );
+
+            const receiptMap = new Map(
+                existingReceipts.map(r =>
+                    [`${r.po_num}|${r.object_id}`, r]
+                )
+            );
+
+            const transferMap = new Map(
+                existingTransfers.map(t =>
+                    [t.object_id, t]
+                )
+            );
+
+
+            // -------- Conflict Detection --------
+            const overwriteCandidates: any[] = [];
+            const blockedList: any[] = [];
+            const finalData: any[] = [];
+
+            for (const row of dedupData) {
+
+                const key =
+                    row.transtype === 'TRANSFER'
+                        ? row.object_id
+                        : `${row.po_num}|${row.object_id}`;
+
+                let existingOrder: Orders | undefined;
+
+                if (row.transtype === 'TRANSFER') {
+                    const transfer = transferMap.get(key);
+                    existingOrder = transfer
+                        ? orderMap.get(transfer.order_id)
+                        : undefined;
+                } else {
+                    const receipt = receiptMap.get(key);
+                    existingOrder = receipt
+                        ? orderMap.get(receipt.order_id)
+                        : undefined;
+                }
+
+                // ✅ ไม่มีในระบบ → insert ใหม่
+                if (!existingOrder) {
+                    finalData.push({
+                        ...row,
+                        action: 'INSERT'
+                    });
+                    continue;
+                }
+
+                const status = existingOrder.status;
+
+                // ✅ WAITING / PENDING
+                if (['WAITING', 'PENDING'].includes(status)) {
+
+                    // 🔥 SKIP → ข้ามเลย
+                    if (options?.mode === 'SKIP') {
+                        continue;
+                    }
+
+                    // 🔥 OVERWRITE → mark ไว้
+                    if (options?.mode === 'OVERWRITE') {
+                        finalData.push({
+                            ...row,
+                            action: 'OVERWRITE',
+                            existingOrderId: existingOrder.order_id
+                        });
+                        continue;
+                    }
+
+                    // 🔥 CHECK → ให้ frontend ตัดสิน
+                    overwriteCandidates.push({
+                        row,
+                        existingOrder,
+                        status
+                    });
+
+                    continue;
+                }
+
+                // ❌ BLOCKED
+                if (['PROCESSING', 'QUEUE', 'COMPLETED', 'FINISHED'].includes(status)) {
+                    blockedList.push({ row, status });
+                    continue; // ✅ สำคัญ!
+                }
+            }
+
+
+            // // -------- Blocked --------
+            // if (blockedList.length > 0) {
+            //     return response.setIncompleteWithData('BLOCKED', {
+            //         blockedList: blockedList.map(x => ({
+            //             object_id: x.row.object_id,
+            //             po_num: x.row.po_num,
+            //             status: x.status,
+            //             row_no: x.row.excel_row_no
+            //         }))
+            //     });
+            // }
+
+            // -------- Ask Overwrite --------
+            if (overwriteCandidates.length > 0 && (!options?.mode || options.mode === 'CHECK')) {
+                return response.setIncompleteWithData('NEED_CONFIRM', {
+                    overwriteCandidates: overwriteCandidates.map(x => ({
+                        object_id: x.row.object_id,
+                        po_num: x.row.po_num,
+                        status: x.status,
+                        row_no: x.row.excel_row_no
+                    }))
+                });
+            }
+
             // -------- Collect Unique Keys --------
             const stockItemCodes = new Set<string>();
             const locationKeys = new Set<string>();
 
-            for (const row of data) {
+            for (const row of finalData) {
                 stockItemCodes.add(row.stock_item);
 
                 if (row.transtype === 'TRANSFER') {
@@ -616,9 +825,9 @@ const unitCostHandled = sumInv ? sumInv.unit_cost_sum_inv : 499;
 
             const buffer: any[] = [];
 
-            for (let i = 0; i < data.length; i++) {
+            for (let i = 0; i < finalData.length; i++) {
 
-                const row = data[i];
+                const row = finalData[i];
                 const rowNo = row.excel_row_no ?? i + 1;
 
                 /** Required validation (เหมือนเดิม) */
@@ -651,40 +860,40 @@ const unitCostHandled = sumInv ? sumInv.unit_cost_sum_inv : 499;
                 }
 
                 /** -------- CONDITION VALIDATION -------- */
-const cond = row.cond?.toUpperCase();
+                const cond = row.cond?.toUpperCase();
 
-if (row.transtype === 'RECEIPT' && cond !== 'NEW') {
-    throw new Error(`Row ${rowNo}: RECEIPT must use CONDITIONCODE = NEW`);
-}
+                if (row.transtype === 'RECEIPT' && cond !== 'NEW') {
+                    throw new Error(`Row ${rowNo}: RECEIPT must use CONDITIONCODE = NEW`);
+                }
 
-if (row.transtype === 'CURBALADJ' && !['CAPITAL', 'RECONDITION'].includes(cond)) {
-    throw new Error(
-        `Row ${rowNo}: CURBALADJ must use CONDITIONCODE = CAPITAL or RECONDITION`
-    );
-}
+                if (row.transtype === 'CURBALADJ' && !['CAPITAL', 'RECONDITION'].includes(cond)) {
+                    throw new Error(
+                        `Row ${rowNo}: CURBALADJ must use CONDITIONCODE = CAPITAL or RECONDITION`
+                    );
+                }
 
-if (row.transtype === 'TRANSFER' && !['NEW', 'CAPITAL', 'RECONDITION'].includes(cond)) {
-    throw new Error(
-        `Row ${rowNo}: TRANSFER must use CONDITIONCODE = NEW, CAPITAL or RECONDITION`
-    );
-}
+                if (row.transtype === 'TRANSFER' && !['NEW', 'CAPITAL', 'RECONDITION'].includes(cond)) {
+                    throw new Error(
+                        `Row ${rowNo}: TRANSFER must use CONDITIONCODE = NEW, CAPITAL or RECONDITION`
+                    );
+                }
 
-/** -------- QTY VALIDATION -------- */
-const newQty = parseNumber(row.new_qty);
-const capQty = parseNumber(row.cap_qty);
-const recondQty = parseNumber(row.recond_qty);
+                /** -------- QTY VALIDATION -------- */
+                const newQty = parseNumber(row.new_qty);
+                const capQty = parseNumber(row.cap_qty);
+                const recondQty = parseNumber(row.recond_qty);
 
-if (cond === 'NEW' && newQty <= 0) {
-    throw new Error(`Row ${rowNo}: NEW condition requires NEW_QTY > 0`);
-}
+                if (cond === 'NEW' && newQty <= 0) {
+                    throw new Error(`Row ${rowNo}: NEW condition requires NEW_QTY > 0`);
+                }
 
-if (cond === 'CAPITAL' && capQty <= 0) {
-    throw new Error(`Row ${rowNo}: CAPITAL condition requires CAP_QTY > 0`);
-}
+                if (cond === 'CAPITAL' && capQty <= 0) {
+                    throw new Error(`Row ${rowNo}: CAPITAL condition requires CAP_QTY > 0`);
+                }
 
-if (cond === 'RECONDITION' && recondQty <= 0) {
-    throw new Error(`Row ${rowNo}: RECONDITION condition requires RECOND_QTY > 0`);
-}
+                if (cond === 'RECONDITION' && recondQty <= 0) {
+                    throw new Error(`Row ${rowNo}: RECONDITION condition requires RECOND_QTY > 0`);
+                }
 
                 const normalizedTranstype =
                     row.transtype === 'CURBALADJ'
@@ -729,18 +938,23 @@ if (cond === 'RECONDITION' && recondQty <= 0) {
                 /** -------- PLAN_QTY -------- */
                 let planQty = 0;
 
-if (cond === 'NEW') {
-    planQty = newQty;
-} else if (cond === 'CAPITAL') {
-    planQty = capQty;
-} else if (cond === 'RECONDITION') {
-    planQty = recondQty;
-}
+                if (cond === 'NEW') {
+                    planQty = newQty;
+                } else if (cond === 'CAPITAL') {
+                    planQty = capQty;
+                } else if (cond === 'RECONDITION') {
+                    planQty = recondQty;
+                }
 
                 if (!Number.isFinite(planQty) || planQty <= 0) {
                     throw new Error(`Row ${rowNo}: quantity must be > 0`);
                 }
-
+console.log('resolveTransferScenario called with:', {
+    fromLoc: row.from_bin,
+    fromStore: fromLocation?.store_type,
+    toLoc: row.to_bin,
+    toStore: toLocation?.store_type
+});
                 /** -------- Transfer Scenario (cached) -------- */
                 let transferScenario;
 
@@ -790,17 +1004,17 @@ if (cond === 'NEW') {
                 }
 
                  /** ---------- Requested Date ---------- */
-        if (!row.requested_at) {
-            throw new Error(`Row ${rowNo}: TRANSDATE is required`);
-        }
+                if (!row.requested_at) {
+                    throw new Error(`Row ${rowNo}: TRANSDATE is required`);
+                }
 
-        let requestedAt: Date;
+                let requestedAt: Date;
 
-        try {
-            requestedAt = parseRequestedDate(row.requested_at);
-        } catch (err: any) {
-            throw new Error(`Row ${rowNo}: TRANSDATE ${err.message}`);
-        }
+                try {
+                    requestedAt = parseRequestedDate(row.requested_at);
+                } catch (err: any) {
+                    throw new Error(`Row ${rowNo}: TRANSDATE ${err.message}`);
+                }
 
                 /**--------location------- */
                 let finalLocId: number;
@@ -824,6 +1038,8 @@ if (cond === 'NEW') {
 
                 buffer.push({
                     rowNo,
+                    action: row.action, // ✅ เพิ่ม
+                    existingOrderId: row.existingOrderId, // ✅ เพิ่ม
                     order: {
                         mc_code: row.mc_code,
                         cond: cond,
@@ -877,6 +1093,47 @@ if (cond === 'NEW') {
             const savedOrders: Orders[] = [];
 
             for (const row of buffer) {
+
+                // 🔥 OVERWRITE → ไม่ create ใหม่
+                if (row.action === 'OVERWRITE') {
+
+                    const orderId = row.existingOrderId;
+
+                    // update order
+                    await ordersRepo.update(
+                        { order_id: orderId },
+                        row.order
+                    );
+
+                    // update receipt
+                    if (row.order.type !== 'TRANSFER') {
+                        await receiptRepo.update(
+                            { order_id: orderId },
+                            row.receipt
+                        );
+                    }
+
+                    // update transfer
+                    if (row.order.type === 'TRANSFER') {
+                        await transferRepo.update(
+                            { order_id: orderId },
+                            {
+                                object_id: row.receipt.object_id,
+                                unit_cost_handled: row.receipt.unit_cost_handled,
+                                transfer_status: StatusOrders.WAITING
+                            }
+                        );
+                    }
+
+                    // log
+                    await logRepo.save({
+                        ...row.log,
+                        order_id: orderId,
+                    });
+
+                    continue;
+                }
+
                 if (row.order.type === 'TRANSFER') {
 
                     const orderOut = await ordersRepo.save(row.order);
@@ -906,14 +1163,6 @@ if (cond === 'NEW') {
                         row.order.transfer_scenario === 'INTERNAL_OUT' ||
                         row.order.transfer_scenario === 'OUTBOUND'
                     ) {
-    //                     console.log("==== DEBUG InventorySum WHERE ====");
-    // console.log("rowNo:", row.rowNo);
-    // console.log("item_id:", row.item_id, typeof row.item_id);
-    // console.log("loc_id:", row.loc_id, typeof row.loc_id);
-    // console.log("mc_code:", row.order?.mc_code, typeof row.order?.mc_code);
-    // console.log("cond:", row.order?.cond, typeof row.order?.cond);
-    // console.log("transfer_scenario:", row.order?.transfer_scenario);
-    // console.log("==================================");
 
                         sumInv = await sumRepo.findOne({
                             where: {
@@ -958,9 +1207,8 @@ if (cond === 'NEW') {
 
                 } else {
 
-                    const savedOrder = await ordersRepo.save(
-                        row.order
-                    );
+                    // ✅ RECEIPT / CURBALADJ (INSERT เท่านั้น)
+                    const savedOrder = await ordersRepo.save(row.order);
 
                     await receiptRepo.save({
                         ...row.receipt,
@@ -977,13 +1225,23 @@ if (cond === 'NEW') {
             }
 
             if (!manager && queryRunner) {
-                await queryRunner.commitTransaction();
-            }
+            await queryRunner.commitTransaction();
+        }
 
-            return response.setComplete(
-                lang.msgSuccessAction('created', 'orders'),
-                savedOrders
-            );
+        // 🔥 เปลี่ยน return ตรงนี้
+        return response.setComplete(
+            'IMPORT_RESULT',
+            {
+                successCount: savedOrders.length,
+                blockedCount: blockedList.length,
+                blockedList: blockedList.map(x => ({
+                    object_id: x.row.object_id,
+                    po_num: x.row.po_num,
+                    status: x.status,
+                    row_no: x.row.excel_row_no
+                }))
+            }
+        );
 
         } catch (error: any) {
 
